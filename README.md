@@ -18,8 +18,8 @@ Goal: stand up a working slice you can poke today. Keep everything local and in-
    - `npx create-next-app@latest jarvis-ui --ts`.
    - Replace the landing page with three cards: *Mood check-in*, *Today’s timeline* (mock list), *Insights* (static text).
 2. **Local Storage Stub**
-   - Inside `app/api/check-ins/route.ts`, read/write to a JSON file (using `fs/promises`). Schema: `{ id, timestamp, mood, note }`.
-   - Expose `GET` for last 7 entries and `POST` for new check-ins.
+   - Add `src/lib/jarvisStore.ts` with a `useJarvisState` hook that persists to `localStorage`.
+   - Shape the data as `JarvisState` (`mood`, `journal`, `todos`) so future backends can swap in.
 3. **Client Components**
    - Mood slider (1–10) + textarea + submit button hitting the API.
    - Timeline list fed by hard-coded array for now.
@@ -31,6 +31,35 @@ Goal: stand up a working slice you can poke today. Keep everything local and in-
    - Use a dark gradient background and glassy cards to hint at the final vibe.
 
 Once this thin slice runs locally (`pnpm dev`), capture screenshots and iterate toward Supabase + Google integrations later.
+
+### Current Working Slice
+
+- Location: `apps/web`
+- Stack: Next.js 16 + React 19 + Tailwind v4 + App Router client components.
+- Storage: browser `localStorage` (`jarvis-state-v1`). Clear site data to reset.
+- Features:
+  - Sidebar-driven console with dedicated routes.
+  - Dashboard: mood logging, blended timeline, quick journal, and streak insights.
+  - Journal page: calendar heatmap + daily entry list with prompt-based logging.
+  - Todos page: day selector, time-blocking, and upcoming block highlights.
+  - Sleep page: track duration, quality, and dreams; feeds the timeline + averages.
+
+Run it locally:
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Visit `http://localhost:3000`, log a few entries, and peek at `localStorage.jarvis-state-v1` in devtools to confirm persistence.
+
+### Navigation Map
+
+- `/` — Overview dashboard (mood + timeline + quick journal + suggestions).
+- `/journal` — Calendar-based journal explorer with prompt-driven entry form.
+- `/todos` — Mission planner with day selector, timeblocking, and upcoming cards.
+- `/sleep` — Sleep quality tracker feeding averages + timeline badges.
 
 ## Core Experience Pillars
 
@@ -114,8 +143,9 @@ Implementation plan:
 | `activities` | `id`, `user_id`, `source` (manual/calendar), `title`, `start`, `end`, `status`, `metadata` |
 | `insights` | `id`, `user_id`, `period_start`, `period_end`, `summary`, `recommendations`, `stats` (JSON) |
 | `ui_state` | `id`, `user_id`, `layout_preferences`, `widget_weights`, `theme_accent` |
+| `sleep_logs` | `id`, `user_id`, `day`, `duration_mins`, `quality`, `dreams`, `notes` |
 
-Google Sheets mirror uses tabs with matching schemas (Users, CheckIns, Activities, Insights, UIState) to keep exports human-readable.
+Google Sheets mirror uses tabs with matching schemas (Users, CheckIns, Activities, Insights, UIState, SleepLogs) to keep exports human-readable.
 
 ## UI Behavior & Visual System
 
