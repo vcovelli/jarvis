@@ -56,10 +56,11 @@ Visit `http://localhost:3000`, log a few entries, and peek at `localStorage.jarv
 
 ### Navigation Map
 
-- `/` — Overview dashboard (mood + timeline + quick journal + suggestions).
-- `/journal` — Calendar-based journal explorer with prompt-driven entry form.
-- `/todos` — Mission planner with day selector, timeblocking, and upcoming cards.
-- `/sleep` — Sleep quality tracker feeding averages + timeline badges.
+- `/` — Version selector routing into the active console branch.
+- `/v2` — Overview dashboard (mood + timeline + quick journal + suggestions).
+- `/v2/journal` — Calendar-based journal explorer with prompt-driven entry form.
+- `/v2/todos` — Mission planner with calendar-style time blocking and upcoming cards.
+- `/v2/sleep` — Sleep quality tracker feeding averages + timeline badges.
 
 ## Core Experience Pillars
 
