@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { JournalPrompt, JarvisState, getDayKey, useJarvisState } from "@/lib/jarvisStore";
+import { JournalPrompt, JarvisState, dayKeyToDate, getDayKey, useJarvisState } from "@/lib/jarvisStore";
+import { useToast } from "@/components/Toast";
 
 const promptCopy: Record<JournalPrompt, string> = {
   morning: "Morning scan",
@@ -12,11 +14,15 @@ const promptCopy: Record<JournalPrompt, string> = {
 
 export default function JournalPage() {
   const { state, hydrated, addJournal } = useJarvisState();
+  const { showToast } = useToast();
+  const search = useSearchParams();
   const todayKey = getDayKey();
   const [selectedDay, setSelectedDay] = useState(todayKey);
   const [text, setText] = useState("");
   const [prompt, setPrompt] = useState<JournalPrompt | undefined>();
-  const [status, setStatus] = useState<"idle" | "saved">("idle");
+  const focusEntryId = search?.get("focus") ?? null;
+  const focusDay = search?.get("day");
+  const focusRef = useRef<HTMLDivElement | null>(null);
 
   const calendarCells = useMemo(() => buildMonthCalendar(state), [state]);
   const entriesForDay = state.journal[selectedDay] ?? [];
@@ -25,19 +31,40 @@ export default function JournalPage() {
     0,
   );
 
+  useEffect(() => {
+    if (focusDay) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedDay(focusDay);
+    }
+  }, [focusDay]);
+
+  useEffect(() => {
+    if (!focusRef.current) return;
+    focusRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusEntryId, selectedDay, entriesForDay.length]);
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        (document.activeElement as HTMLElement)?.blur();
+      }
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, []);
+
   if (!hydrated) {
     return <p className="text-sm uppercase tracking-[0.3em] text-zinc-400">Loading journal…</p>;
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleSubmit(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
     addJournal({ text: trimmed, prompt, day: selectedDay });
     setText("");
     setPrompt(undefined);
-    setStatus("saved");
-    setTimeout(() => setStatus("idle"), 2000);
+    showToast("Journal saved");
   }
 
   return (
@@ -51,7 +78,7 @@ export default function JournalPage() {
       </header>
 
       <section className="grid gap-6 lg:grid-cols-5">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-3">
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-medium text-white">This month</h2>
             <span className="text-xs uppercase tracking-[0.4em] text-zinc-500">
@@ -59,7 +86,7 @@ export default function JournalPage() {
             </span>
           </div>
           <div className="mt-6 grid grid-cols-7 gap-3 text-center text-sm">
-            {["S", "M", "T", "W", "T", "F", "S"].map((day) => (
+            {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
               <p key={day} className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
                 {day}
               </p>
@@ -90,7 +117,7 @@ export default function JournalPage() {
             })}
           </div>
         </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2">
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2">
           <h2 className="text-lg font-medium text-white">Add entry</h2>
           <p className="mt-1 text-sm text-zinc-300">Select a prompt or free-write.</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -112,9 +139,15 @@ export default function JournalPage() {
             <textarea
               value={text}
               onChange={(event) => setText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault();
+                  handleSubmit();
+                }
+              }}
               rows={6}
               className="rounded-2xl border border-white/5 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
-              placeholder={`Capture the narrative for ${new Date(selectedDay).toLocaleDateString()}.`}
+              placeholder={`Capture the narrative for ${dayKeyToDate(selectedDay).toLocaleDateString()}.`}
             />
             <button
               type="submit"
@@ -122,9 +155,6 @@ export default function JournalPage() {
             >
               Save entry
             </button>
-            {status === "saved" && (
-              <p className="text-sm text-emerald-300">Logged.</p>
-            )}
           </form>
           <p className="mt-4 text-xs uppercase tracking-[0.3em] text-zinc-400">
             {totalEntries} entries stored.
@@ -132,10 +162,10 @@ export default function JournalPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium text-white">
-            Entries for {new Date(selectedDay).toLocaleDateString()}
+            Entries for {dayKeyToDate(selectedDay).toLocaleDateString()}
           </h2>
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
             {entriesForDay.length} entries
@@ -145,18 +175,22 @@ export default function JournalPage() {
           {entriesForDay.length === 0 ? (
             <p className="text-sm text-zinc-400">Nothing yet. Add an entry with the panel above.</p>
           ) : (
-            entriesForDay.map((entry) => (
-              <article
-                key={entry.id}
-                className="rounded-2xl border border-white/5 bg-black/20 px-4 py-3"
-              >
-                <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
-                  {new Date(entry.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  {entry.prompt ? ` • ${entry.prompt}` : ""}
-                </p>
-                <p className="mt-2 text-sm text-zinc-100">{entry.text}</p>
-              </article>
-            ))
+            entriesForDay.map((entry) => {
+              const highlight = focusEntryId === entry.id;
+              return (
+                <article
+                  key={entry.id}
+                  ref={highlight ? focusRef : undefined}
+                  className={`rounded-2xl border border-white/5 bg-black/20 px-4 py-3 ${highlight ? "ring-2 ring-cyan-300/70" : ""}`}
+                >
+                  <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
+                    {new Date(entry.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {entry.prompt ? ` • ${entry.prompt}` : ""}
+                  </p>
+                  <p className="mt-2 text-sm text-zinc-100">{entry.text}</p>
+                </article>
+              );
+            })
           )}
         </div>
       </section>
