@@ -28,6 +28,27 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, index) => index);
 const DAY_MINUTES = 24 * 60;
 const timeblockOptions: Timeblock[] = Array.from({ length: 16 }, (_, index) => (index + 1) * 15);
 const startTimeOptions = buildStartTimeOptions(SLOT_MINUTES);
+const blockColors = ["#f472b6", "#facc15", "#34d399", "#60a5fa", "#a78bfa", "#f87171", "#fb923c"];
+const defaultBlockColor = blockColors[0];
+type IconOption = { id: string; label: string; symbol: string };
+const taskIconOptions: IconOption[] = [
+  { id: "alarm", label: "Alarm", symbol: "⏰" },
+  { id: "sunrise", label: "Sunrise", symbol: "🌅" },
+  { id: "coffee", label: "Coffee", symbol: "☕" },
+  { id: "dumbbell", label: "Workout", symbol: "🏋️" },
+  { id: "book", label: "Study", symbol: "📘" },
+  { id: "moon", label: "Night", symbol: "🌙" },
+  { id: "spark", label: "Focus", symbol: "⚡" },
+];
+const defaultTaskIcon = taskIconOptions[0].id;
+type RollingDay = {
+  key: DayKey;
+  date: Date;
+  label: string;
+  weekday: string;
+  hasTodos: boolean;
+  isToday: boolean;
+};
 
 export default function TodosPage() {
   const {
@@ -50,15 +71,24 @@ export default function TodosPage() {
   const [priority, setPriority] = useState<TodoPriority>(1);
   const [timeblock, setTimeblock] = useState<Timeblock | undefined>(30);
   const [startTime, setStartTime] = useState("08:00");
+  const [color, setColor] = useState<string>(defaultBlockColor);
+  const [icon, setIcon] = useState<string>(defaultTaskIcon);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [editPriority, setEditPriority] = useState<TodoPriority>(1);
   const [editTimeblock, setEditTimeblock] = useState<Timeblock | undefined>();
   const [editStartTime, setEditStartTime] = useState("");
+  const [editColor, setEditColor] = useState<string>(defaultBlockColor);
+  const [editIcon, setEditIcon] = useState<string>(defaultTaskIcon);
   const [panelMode, setPanelMode] = useState<"add" | "edit" | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const { showToast } = useToast();
 
-  const daysWithTodos = useMemo(() => buildDayKeys(state.todos), [state.todos]);
+  const weekDays = useMemo(
+    () => buildWeekRange(selectedDay, state.todos),
+    [selectedDay, state.todos],
+  );
+  const dayColorMap = useMemo(() => buildDayColorMap(state.todos), [state.todos]);
   const todosForDay = useMemo(
     () => getOrderedTodos(state.todos[selectedDay] ?? []),
     [state.todos, selectedDay],
@@ -70,6 +100,22 @@ export default function TodosPage() {
     month: "short",
     day: "numeric",
   });
+  const handleShiftDay = useCallback(
+    (delta: number) => {
+      setSelectedDay((current) => shiftDayKey(current, delta));
+    },
+    [],
+  );
+  const handleDaySelect = useCallback((day: DayKey) => {
+    setSelectedDay(day);
+  }, []);
+  const handleCalendarSelect = useCallback((day: DayKey) => {
+    setSelectedDay(day);
+    setCalendarOpen(false);
+  }, []);
+  const jumpToToday = useCallback(() => {
+    setSelectedDay(todayKey);
+  }, [todayKey]);
 
   const submitTask = useCallback(() => {
     const trimmed = text.trim();
@@ -80,13 +126,17 @@ export default function TodosPage() {
       timeblockMins: timeblock,
       startTime: startTime || undefined,
       day: selectedDay,
+      color,
+      icon,
     });
     setText("");
     setTimeblock(30);
     setStartTime("08:00");
+    setColor(defaultBlockColor);
+    setIcon(defaultTaskIcon);
     showToast("Todo scheduled");
     setPanelMode(null);
-  }, [text, priority, timeblock, startTime, selectedDay, addTodo, showToast]);
+  }, [text, priority, timeblock, startTime, selectedDay, addTodo, showToast, color, icon]);
 
   const beginEdit = useCallback(
     (todo: TodoItem) => {
@@ -95,6 +145,8 @@ export default function TodosPage() {
       setEditPriority(todo.priority);
       setEditTimeblock(todo.timeblockMins);
       setEditStartTime(todo.startTime ?? "");
+      setEditColor(todo.color ?? defaultBlockColor);
+      setEditIcon(todo.icon ?? defaultTaskIcon);
       setPanelMode("edit");
     },
     [],
@@ -105,6 +157,8 @@ export default function TodosPage() {
     setEditText("");
     setEditStartTime("");
     setEditTimeblock(undefined);
+    setEditColor(defaultBlockColor);
+    setEditIcon(defaultTaskIcon);
   }, []);
 
   const closePanel = useCallback(() => {
@@ -114,6 +168,8 @@ export default function TodosPage() {
 
   const openAddPanel = useCallback(() => {
     cancelEdit();
+    setColor(defaultBlockColor);
+    setIcon(defaultTaskIcon);
     setPanelMode("add");
   }, [cancelEdit]);
 
@@ -129,6 +185,8 @@ export default function TodosPage() {
         priority: editPriority,
         timeblockMins: editTimeblock,
         startTime: editStartTime || undefined,
+        color: editColor,
+        icon: editIcon,
       },
     });
     showToast("Todo updated");
@@ -139,6 +197,8 @@ export default function TodosPage() {
     editPriority,
     editTimeblock,
     editStartTime,
+    editColor,
+    editIcon,
     selectedDay,
     updateTodo,
     showToast,
@@ -165,7 +225,7 @@ export default function TodosPage() {
 
   useEffect(() => {
     if (!focusDay) return undefined;
-    const frame = requestAnimationFrame(() => setSelectedDay(focusDay as DayKey));
+    const frame = requestAnimationFrame(() => setSelectedDay(normalizeDayKey(focusDay)));
     return () => cancelAnimationFrame(frame);
   }, [focusDay]);
 
@@ -207,6 +267,12 @@ export default function TodosPage() {
       onTimeblockChange: setTimeblock,
       startTime,
       onStartTimeChange: setStartTime,
+      color,
+      onColorChange: setColor,
+      colorOptions: blockColors,
+      icon,
+      onIconChange: setIcon,
+      iconOptions: taskIconOptions,
       onSubmit: submitTask,
       submitLabel: "Schedule",
     };
@@ -222,84 +288,89 @@ export default function TodosPage() {
       onTimeblockChange: setEditTimeblock,
       startTime: editStartTime,
       onStartTimeChange: setEditStartTime,
+      color: editColor,
+      onColorChange: setEditColor,
+      colorOptions: blockColors,
+      icon: editIcon,
+      onIconChange: setEditIcon,
+      iconOptions: taskIconOptions,
       onSubmit: submitEdit,
       submitLabel: "Save changes",
+      onDelete: () => handleDelete(editingId),
     };
   }
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
+      <header className="hidden lg:block">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Todos</p>
-        <h1 className="mt-2 text-4xl font-semibold text-white">Mission planner</h1>
-        <p className="mt-3 max-w-2xl text-base text-zinc-300">
-          Plan today in detail, peek ahead on the mini calendar, and keep recurring tasks grouped.
-        </p>
       </header>
 
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-        <div className="flex flex-wrap items-center gap-4">
-          {daysWithTodos.map((day) => {
-            const isActive = day === selectedDay;
-            return (
-              <button
-                key={day}
-                onClick={() => setSelectedDay(day)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  isActive ? "bg-cyan-300 text-zinc-900" : "bg-white/10 text-zinc-200"
-                }`}
-              >
-                {dayKeyToDate(day).toLocaleDateString(undefined, {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/40 px-5 py-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Viewing</p>
-            <p className="text-lg font-semibold text-white">{dayLabelFull}</p>
-          </div>
-          <button
-            type="button"
-            onClick={openAddPanel}
-            className="flex items-center gap-2 rounded-full bg-emerald-400/90 px-4 py-2 text-sm font-semibold text-zinc-900 shadow-lg transition hover:bg-emerald-300"
-          >
-            <span className="text-lg">+</span>
-            New task
-          </button>
-        </div>
-        <div className="mt-8 grid gap-6 lg:grid-cols-[2fr,1fr]">
+      <div className="flex flex-col gap-6">
+        <DayTimeline
+          todos={todosForDay}
+          selectedDay={selectedDay}
+          weekDays={weekDays}
+          dayColorMap={dayColorMap}
+          onSelectDay={handleDaySelect}
+          onOpenCalendar={() => setCalendarOpen(true)}
+          onAddTask={openAddPanel}
+          onEdit={beginEdit}
+          onJumpToday={jumpToToday}
+        />
+        <div className="hidden lg:block">
           <TimeBlockingBoard
             todos={todosForDay}
             selectedDay={selectedDay}
             isToday={selectedDay === todayKey}
             highlightId={focusTodoId}
+            weekDays={weekDays}
             onScheduleChange={(id, updates) =>
               updateTodoSchedule({ day: selectedDay, id, ...updates })
             }
+            onEditRequest={(todo) => beginEdit(todo)}
+            onDeleteRequest={(id) => handleDelete(id)}
+            onAddTask={openAddPanel}
+            onShiftDay={handleShiftDay}
+            onSelectDay={handleDaySelect}
+            onOpenCalendar={() => setCalendarOpen(true)}
+            onJumpToday={jumpToToday}
           />
-          <div className="space-y-6">
-            <TaskList
-              todos={todosForDay}
-              onEdit={(todo) => beginEdit(todo)}
-              onDelete={(id) => handleDelete(id)}
-              onReorder={handleReorder}
-              highlightId={focusTodoId}
-              onToggle={(id) => toggleTodo({ day: selectedDay, id })}
-              onCyclePriority={(id, next) =>
-                updateTodoPriority({ day: selectedDay, id, priority: next })
-              }
-            />
-            <UpcomingBlocks slots={upcoming} />
-          </div>
         </div>
-      </section>
+      </div>
+
+      <div className="space-y-6 hidden lg:flex lg:flex-col">
+        <TaskList
+          todos={todosForDay}
+          onEdit={(todo) => beginEdit(todo)}
+          onDelete={(id) => handleDelete(id)}
+          onReorder={handleReorder}
+          highlightId={focusTodoId}
+          onToggle={(id) => toggleTodo({ day: selectedDay, id })}
+          onCyclePriority={(id, next) =>
+            updateTodoPriority({ day: selectedDay, id, priority: next })
+          }
+        />
+        <UpcomingBlocks slots={upcoming} />
+      </div>
 
       {panelState && <TaskPanel {...panelState} onClose={closePanel} />}
+      {calendarOpen && (
+        <CalendarOverlay
+          selectedDay={selectedDay}
+          markers={dayColorMap}
+          onSelect={handleCalendarSelect}
+          onClose={() => setCalendarOpen(false)}
+        />
+      )}
+      <button
+        type="button"
+        onClick={openAddPanel}
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400 text-2xl font-semibold text-zinc-900 shadow-2xl"
+      >
+        <span className="sr-only">Add task</span>
+        +
+      </button>
     </div>
   );
 }
@@ -336,12 +407,258 @@ function SelectField({
   );
 }
 
+function ColorPicker({
+  colors,
+  value,
+  onChange,
+}: {
+  colors: string[];
+  value?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">Block color</span>
+      <div className="flex flex-wrap gap-2">
+        {colors.map((hex) => {
+          const active = value === hex;
+          return (
+            <button
+              key={hex}
+              type="button"
+              onClick={() => onChange(hex)}
+              className={`h-9 w-9 rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${active ? "border-white shadow-lg" : "border-white/20"}`}
+              style={{ backgroundColor: hex }}
+              aria-label={`Select color ${hex}`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function IconPicker({
+  icons,
+  value,
+  onChange,
+}: {
+  icons: IconOption[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">Icon</span>
+      <div className="flex flex-wrap gap-2">
+        {icons.map((icon) => {
+          const active = icon.id === value;
+          return (
+            <button
+              key={icon.id}
+              type="button"
+              onClick={() => onChange(icon.id)}
+              className={`flex h-10 w-10 items-center justify-center rounded-full border text-base transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                active ? "border-white bg-white/10 text-white" : "border-white/20 text-white/70"
+              }`}
+              aria-label={`Select ${icon.label}`}
+            >
+              {icon.symbol}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type DayTimelineProps = {
+  todos: TodoItem[];
+  selectedDay: DayKey;
+  weekDays: RollingDay[];
+  dayColorMap: Record<DayKey, string[]>;
+  onSelectDay: (day: DayKey) => void;
+  onOpenCalendar: () => void;
+  onAddTask: () => void;
+  onEdit: (todo: TodoItem) => void;
+  onJumpToday: () => void;
+};
+
+function DayTimeline({
+  todos,
+  selectedDay,
+  weekDays,
+  dayColorMap,
+  onSelectDay,
+  onOpenCalendar,
+  onAddTask,
+  onEdit,
+  onJumpToday,
+}: DayTimelineProps) {
+  const events = useMemo(() => buildTimelineEvents(todos), [todos]);
+  const selectedDate = dayKeyToDate(selectedDay);
+  const monthLabel = selectedDate.toLocaleDateString(undefined, { month: "long" });
+  const weekdayLabel = selectedDate.toLocaleDateString(undefined, { weekday: "long" });
+  const dayNumber = selectedDate.getDate();
+  const yearLabel = selectedDate.getFullYear();
+  const hasEvents = events.length > 0;
+  return (
+    <div className="-mx-4 rounded-none border border-transparent bg-[#0b1224] px-4 py-5 text-white shadow-none sm:mx-0 sm:rounded-3xl lg:hidden">
+      <div className="flex flex-col gap-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.5em] text-white/60">{weekdayLabel}</p>
+            <button
+              type="button"
+              onClick={onOpenCalendar}
+              className="mt-1 inline-flex items-baseline gap-1 text-left text-2xl font-semibold leading-tight text-white underline-offset-4 hover:underline"
+            >
+              <span>{monthLabel}</span>
+              <span>{dayNumber},</span>
+              <span className="text-rose-300">{yearLabel}</span>
+            </button>
+            <p className="mt-1 text-[11px] text-white/50">Tap the date to open the calendar.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onJumpToday}
+            className="rounded-full border border-white/20 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/80 transition hover:border-white/50"
+          >
+            Today
+          </button>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-black/30 px-2 py-3 shadow-inner">
+          <div className="grid grid-cols-7 gap-1">
+            {weekDays.map((day) => {
+              const active = day.key === selectedDay;
+              const colors = dayColorMap[day.key] ?? [];
+              return (
+                <button
+                  key={day.key}
+                  type="button"
+                  onClick={() => onSelectDay(day.key)}
+                  className={`flex min-w-0 flex-col items-center rounded-2xl px-0.5 py-1 text-center transition ${
+                    active ? "text-white" : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  <span className="text-[9px] uppercase tracking-[0.45em] text-white/40">{day.weekday}</span>
+                  <span
+                    className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold ${
+                      active ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30" : "border border-white/10 bg-white/5 text-white/80"
+                    }`}
+                  >
+                    {day.date.getDate()}
+                  </span>
+                  <div className="mt-1 flex min-h-[8px] gap-0.5">
+                    {colors.slice(0, 3).map((color) => (
+                      <span key={`${day.key}-${color}`} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+                    ))}
+                  </div>
+                  {day.isToday && (
+                    <span className="mt-1 text-[8px] font-semibold uppercase tracking-[0.3em] text-emerald-300">Today</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-2">
+          {hasEvents ? (
+            <div className="space-y-6">
+              {events.map((event) => (
+                <button
+                  key={event.id}
+                  type="button"
+                  onClick={() => onEdit(event.todo)}
+                  className="grid w-full grid-cols-[64px_minmax(0,1fr)] gap-3 text-left"
+                >
+                  <div className="pr-2 text-right text-[9px] uppercase tracking-[0.1em] text-white/60">
+                    <span className="block text-[11px] font-semibold text-white leading-tight">{event.startLabel}</span>
+                    <span className="block text-white/70 leading-tight">{event.endLabel}</span>
+                  </div>
+                  <div className="relative pl-10">
+                    <span className="pointer-events-none absolute left-4 top-0 bottom-0 w-0.5 bg-white/20" />
+                    <span
+                      className="pointer-events-none absolute left-4 top-1/2 z-10 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-[#0b1224] text-sm font-semibold text-zinc-900"
+                      style={{ backgroundColor: event.color }}
+                    >
+                      {event.iconSymbol}
+                    </span>
+                    <div
+                      className="ml-6 rounded-3xl border px-4 py-3 text-white shadow-lg shadow-black/30"
+                      style={getTimelineCardStyle(event.color)}
+                    >
+                      <p className="text-sm font-semibold leading-tight text-white">{event.title}</p>
+                      <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">
+                        {event.window}
+                        {event.durationLabel ? ` • ${event.durationLabel}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[32px] border border-dashed border-white/20 bg-white/5 px-5 py-8 text-center text-sm text-white/60 shadow-inner">
+              No scheduled blocks yet. Tap the + button to add one.
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onAddTask}
+          className="mt-1 flex w-full items-center justify-center gap-3 rounded-full bg-emerald-400 px-5 py-3 text-base font-semibold text-emerald-950 shadow-lg shadow-emerald-500/40"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base text-emerald-700">+</span>
+          New block
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CalendarIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="5" width="18" height="16" rx="3" />
+      <path d="M16 3V7" />
+      <path d="M8 3V7" />
+      <path d="M3 11H21" />
+      <path d="M8 15H8.01" />
+      <path d="M12 15H12.01" />
+      <path d="M16 15H16.01" />
+      <path d="M8 19H8.01" />
+      <path d="M12 19H12.01" />
+      <path d="M16 19H16.01" />
+    </svg>
+  );
+}
+
 type TimeBlockingBoardProps = {
   todos: TodoItem[];
   selectedDay: DayKey;
   isToday: boolean;
   highlightId?: string;
+  weekDays: RollingDay[];
   onScheduleChange: (id: string, updates: { startTime?: string; timeblockMins?: Timeblock }) => void;
+  onEditRequest?: (todo: TodoItem) => void;
+  onDeleteRequest?: (id: string) => void;
+  onAddTask: () => void;
+  onShiftDay: (delta: number) => void;
+  onSelectDay: (day: DayKey) => void;
+  onOpenCalendar: () => void;
+  onJumpToday: () => void;
 };
 
 type DragState = {
@@ -352,13 +669,34 @@ type DragState = {
   pointerOffset?: number;
 };
 
-function TimeBlockingBoard({ todos, selectedDay, isToday, highlightId, onScheduleChange }: TimeBlockingBoardProps) {
+function TimeBlockingBoard({
+  todos,
+  selectedDay,
+  isToday,
+  highlightId,
+  weekDays,
+  onScheduleChange,
+  onEditRequest,
+  onDeleteRequest,
+  onAddTask,
+  onShiftDay,
+  onSelectDay,
+  onOpenCalendar,
+  onJumpToday,
+}: TimeBlockingBoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const blocks = useMemo(() => buildScheduledBlocks(todos, dragState), [todos, dragState]);
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowLabel = formatMinutesLabel(nowMinutes);
   const highlightRef = useRef<HTMLDivElement | null>(null);
+  const selectedDate = dayKeyToDate(selectedDay);
+  const selectedDayLabel = selectedDate.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   useEffect(() => {
     function handleMove(event: PointerEvent) {
@@ -400,12 +738,23 @@ function TimeBlockingBoard({ todos, selectedDay, isToday, highlightId, onSchedul
     highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [highlightId]);
 
+  useEffect(() => {
+    if (!dragState) return undefined;
+    document.body.classList.add("scroll-locked");
+    return () => {
+      document.body.classList.remove("scroll-locked");
+    };
+  }, [dragState]);
+
   const handleDragStart = (event: React.PointerEvent, todo: TodoItem, type: "move" | "resize") => {
     if (!todo.startTime || !todo.timeblockMins) return;
     const startMinutes = parseTimeToMinutes(todo.startTime);
     if (startMinutes === null) return;
     event.preventDefault();
     event.stopPropagation();
+    if (event.currentTarget.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     const pointer = pointerToMinutes(event.nativeEvent, boardRef.current);
     const pointerOffset = pointer ? pointer - startMinutes : 0;
     setDragState({
@@ -418,22 +767,89 @@ function TimeBlockingBoard({ todos, selectedDay, isToday, highlightId, onSchedul
   };
 
   return (
-    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-medium text-white">Time blocking</h2>
-          <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-            {dayKeyToDate(selectedDay).toLocaleDateString(undefined, {
-              weekday: "long",
-              month: "short",
-              day: "numeric",
-            })}
-          </p>
+    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg min-w-0">
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Day planner</p>
+            <h2 className="text-2xl font-semibold text-white">{selectedDayLabel}</h2>
+            <p className="text-sm text-zinc-400">
+              Drag focus blocks, swipe across days, or open the calendar to plan weeks ahead.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.3em] text-zinc-200">
+            <button
+              type="button"
+              onClick={() => onShiftDay(-1)}
+              className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/80 transition hover:border-white/50"
+              aria-label="Previous day"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => onShiftDay(1)}
+              className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/80 transition hover:border-white/50"
+              aria-label="Next day"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              onClick={onOpenCalendar}
+              className="rounded-full border border-white/20 p-2 text-white/80 transition hover:border-white/50"
+              aria-label="Open calendar"
+            >
+              <CalendarIcon className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onJumpToday}
+              className="rounded-full border border-cyan-300/60 px-4 py-1 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={onAddTask}
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 px-4 py-2 text-[11px] font-semibold text-white transition hover:bg-emerald-400/20"
+            >
+              <span className="text-base leading-none text-emerald-300">+</span>
+              New block
+            </button>
+          </div>
         </div>
-        <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">12 &rarr; 12</span>
+        <div className="rounded-2xl border border-white/5 bg-black/30 px-3 py-3">
+          <div className="grid grid-cols-7 gap-2">
+            {weekDays.map((day) => {
+              const active = day.key === selectedDay;
+              return (
+                <button
+                  key={day.key}
+                  type="button"
+                  onClick={() => onSelectDay(day.key)}
+                  className={`flex flex-col rounded-2xl px-3 py-3 text-left transition ${
+                    active ? "bg-cyan-300 text-zinc-900" : "bg-black/0 text-white/80 hover:bg-white/10"
+                  }`}
+                >
+                  <span className="text-[10px] uppercase tracking-[0.4em]">
+                    {day.weekday}
+                  </span>
+                  <span className="text-base font-semibold">{day.label}</span>
+                  <div className="mt-1 flex items-center gap-1 text-[10px] uppercase tracking-[0.3em]">
+                    {day.isToday && <span className="text-amber-200">Today</span>}
+                    {!day.isToday && day.hasTodos && (
+                      <span className="text-emerald-300">Focus</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
-      <div className="mt-6 rounded-2xl border border-white/5 bg-black/40">
-        <div ref={boardRef} className="relative" style={{ height: BOARD_HEIGHT }}>
+      <div className="mt-6 overflow-x-auto rounded-2xl border border-white/5 bg-black/40">
+        <div ref={boardRef} className="relative min-w-[360px]" style={{ height: BOARD_HEIGHT }}>
           <div className="absolute inset-y-0 left-0 w-16 border-r border-white/5 bg-black/30 text-[11px] uppercase tracking-[0.3em] text-zinc-500">
             {HOUR_LABELS.map((hour) => (
               <div key={hour} className="flex items-start justify-end pr-3" style={{ height: SLOT_HEIGHT * 4 }}>
@@ -452,13 +868,15 @@ function TimeBlockingBoard({ todos, selectedDay, isToday, highlightId, onSchedul
               ))}
               {isToday && (
                 <div
-                  className="pointer-events-none absolute left-0 right-0 z-30"
+                  className="pointer-events-none absolute inset-x-0 z-40"
                   style={{ top: (nowMinutes / SLOT_MINUTES) * SLOT_HEIGHT }}
                 >
-                  <div className="border-t border-red-500" />
-                  <span className="absolute -top-3 right-3 rounded-full bg-red-500 px-2 py-[2px] text-[10px] font-semibold text-white shadow">
-                    Now
-                  </span>
+                  <div className="relative">
+                    <div className="border-t border-red-500/80" />
+                    <span className="absolute -top-4 left-4 rounded-full bg-red-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-white shadow-lg">
+                      Now • {nowLabel}
+                    </span>
+                  </div>
                 </div>
               )}
               {blocks.length === 0 ? (
@@ -468,21 +886,56 @@ function TimeBlockingBoard({ todos, selectedDay, isToday, highlightId, onSchedul
               ) : (
                 blocks.map((block) => {
                   const highlight = highlightId === block.id;
+                  const customStyle = block.color
+                    ? {
+                        backgroundColor: block.color,
+                        borderColor: block.color,
+                        color: "#030712",
+                      }
+                    : undefined;
+                  const blockClass = block.hasConflict
+                    ? "border-amber-300 bg-amber-200/90 text-zinc-900"
+                    : block.color
+                      ? "border-transparent text-zinc-900"
+                      : `${priorityClasses(block.priority)} border-white/10`;
                   return (
-                  <div
-                    key={block.id}
-                    ref={highlight ? highlightRef : undefined}
-                    onPointerDown={(event) => handleDragStart(event, block.originalTodo, "move")}
-                    className={`group absolute left-4 right-4 z-10 cursor-grab rounded-2xl border px-3 py-2 text-xs shadow-lg ${
-                        block.hasConflict
-                          ? "border-amber-300 bg-amber-200/90 text-zinc-900"
-                          : `${priorityClasses(block.priority)} border-white/10`
-                      } ${highlight ? "ring-2 ring-cyan-300/70" : ""}`}
+                    <div
+                      key={block.id}
+                      ref={highlight ? highlightRef : undefined}
+                      onPointerDown={(event) => handleDragStart(event, block.originalTodo, "move")}
+                      className={`group absolute left-4 right-4 z-10 cursor-grab rounded-2xl border px-3 py-2 text-xs shadow-lg ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""}`}
                       style={{
                         top: (block.startMinutes / SLOT_MINUTES) * SLOT_HEIGHT,
                         height: Math.max((block.durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT - 2, 28),
+                        ...customStyle,
                       }}
                     >
+                      <div className="absolute right-3 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                        <button
+                          type="button"
+                          className="rounded-full bg-black/30 px-2 py-1 text-[10px] font-semibold text-white/80 hover:bg-black/70"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (onEditRequest) {
+                              onEditRequest(block.originalTodo);
+                            }
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full bg-black/30 px-2 py-1 text-[10px] font-semibold text-white/80 hover:bg-black/70"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDeleteRequest?.(block.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                       <div className="pointer-events-none flex h-full flex-col justify-center gap-1 text-left">
                         <p className="text-xs font-semibold uppercase tracking-[0.15em]">
                           {block.label}
@@ -548,9 +1001,14 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
   };
 
   return (
-    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-white">Task stack</h3>
+    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg min-w-0">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-medium text-white">Task stack</h3>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
+            Drag to reorder • Auto-sorted by time
+          </p>
+        </div>
         <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
           {todos.length ? `${completedCount}/${todos.length} done` : "Empty"}
         </span>
@@ -572,27 +1030,41 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
                   event.preventDefault();
                   handleItemDrop(todo.id);
                 }}
-                className={`flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 px-4 py-3 ${
+                className={`flex flex-col gap-3 rounded-2xl border border-white/5 bg-black/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
                   highlight ? "ring-2 ring-cyan-300/70" : ""
                 } ${draggingId === todo.id ? "opacity-60" : ""}`}
               >
-                <label className="flex flex-1 items-start gap-3">
+                <span
+                  className="hidden cursor-grab select-none text-lg font-semibold leading-none text-zinc-500 sm:block"
+                  aria-hidden="true"
+                >
+                  ⋮⋮
+                </span>
+                <label className="flex min-w-0 flex-1 items-start gap-3">
                   <input
                     type="checkbox"
                     className="mt-1 h-4 w-4 cursor-pointer accent-cyan-300"
                     checked={todo.done}
                     onChange={() => onToggle(todo.id)}
                   />
-                  <div>
-                    <p className={`text-sm font-medium ${todo.done ? "text-zinc-500 line-through" : "text-white"}`}>
-                      {todo.text}
-                    </p>
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      {todo.color && (
+                        <span
+                          className="h-3 w-3 flex-shrink-0 rounded-full border border-white/30"
+                          style={{ backgroundColor: todo.color }}
+                        />
+                      )}
+                      <p className={`text-sm font-medium break-words ${todo.done ? "text-zinc-500 line-through" : "text-white"}`}>
+                        {todo.text}
+                      </p>
+                    </div>
                     <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
                       {buildTodoMeta(todo)}
                     </p>
                   </div>
                 </label>
-                <div className="flex gap-2">
+                <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
                   <button
                     type="button"
                     onClick={() => onCyclePriority(todo.id, nextPriority(todo.priority))}
@@ -630,8 +1102,8 @@ type UpcomingBlocksProps = {
 
 function UpcomingBlocks({ slots }: UpcomingBlocksProps) {
   return (
-    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg">
-      <div className="flex items-center justify-between">
+    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <h3 className="text-lg font-medium text-white">Upcoming blocks</h3>
         <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
           {slots.length ? `${slots.length} queued` : "Empty"}
@@ -649,8 +1121,8 @@ function UpcomingBlocks({ slots }: UpcomingBlocksProps) {
               className="rounded-2xl border border-white/5 bg-black/20 px-4 py-3"
             >
               <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">{slot.dayLabel}</p>
-              <p className="text-base font-semibold text-white">{slot.label}</p>
-              <p className="text-sm text-zinc-400">{slot.meta}</p>
+              <p className="text-base font-semibold text-white break-words">{slot.label}</p>
+              <p className="text-sm text-zinc-400 break-words">{slot.meta}</p>
             </div>
           ))
         )}
@@ -674,8 +1146,15 @@ function TaskPanel({
   onTimeblockChange,
   startTime,
   onStartTimeChange,
+  color,
+  onColorChange,
+  colorOptions,
+  icon,
+  onIconChange,
+  iconOptions,
   onSubmit,
   submitLabel,
+  onDelete,
   onClose,
 }: TaskPanelProps) {
   return (
@@ -685,9 +1164,13 @@ function TaskPanel({
     >
       <div
         className="h-full w-full max-w-md overflow-y-auto bg-[#0b1121] p-6 shadow-2xl sm:rounded-l-3xl"
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
+        }}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">{subtitle}</p>
             <h3 className="mt-1 text-2xl font-semibold text-white">{title}</h3>
@@ -747,13 +1230,120 @@ function TaskPanel({
               </option>
             ))}
           </SelectField>
-          <button
-            type="submit"
-            className="mt-2 rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
-          >
-            {submitLabel}
-          </button>
+          <ColorPicker colors={colorOptions} value={color ?? colorOptions[0]} onChange={onColorChange} />
+          <IconPicker icons={iconOptions} value={icon} onChange={onIconChange} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="submit"
+              className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
+            >
+              {submitLabel}
+            </button>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="rounded-2xl border border-red-500/60 px-4 py-3 text-sm font-semibold text-red-300 hover:border-red-400"
+              >
+                Delete task
+              </button>
+            )}
+          </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+type CalendarOverlayProps = {
+  selectedDay: DayKey;
+  markers: Record<DayKey, string[]>;
+  onSelect: (day: DayKey) => void;
+  onClose: () => void;
+};
+
+function CalendarOverlay({ selectedDay, markers, onSelect, onClose }: CalendarOverlayProps) {
+  const [viewDate, setViewDate] = useState(() => {
+    const date = dayKeyToDate(selectedDay);
+    date.setDate(1);
+    return date;
+  });
+  const monthLabel = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const cells = useMemo(() => buildCalendarMatrix(viewDate), [viewDate]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-3xl border border-white/10 bg-[#050912] p-6 text-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const next = new Date(viewDate);
+              next.setMonth(viewDate.getMonth() - 1);
+              setViewDate(next);
+            }}
+            className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
+          >
+            Prev
+          </button>
+          <div className="text-center">
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Jump to date</p>
+            <p className="text-lg font-semibold">{monthLabel}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = new Date(viewDate);
+              next.setMonth(viewDate.getMonth() + 1);
+              setViewDate(next);
+            }}
+            className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
+          >
+            Next
+          </button>
+        </div>
+        <div className="mt-6 grid grid-cols-7 gap-2 text-center text-xs uppercase tracking-[0.3em] text-zinc-400">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+            <span key={day}>{day}</span>
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-7 gap-2">
+          {cells.map((cell, index) =>
+            cell ? (
+              <button
+                key={cell.toISOString()}
+                type="button"
+                onClick={() => onSelect(getDayKey(cell))}
+                className={`flex h-14 flex-col items-center justify-center rounded-2xl border text-sm font-semibold transition ${
+                  getDayKey(cell) === selectedDay
+                    ? "border-cyan-300/70 bg-cyan-300/20 text-white"
+                    : "border-white/10 text-zinc-200 hover:border-white/40"
+                }`}
+              >
+                <span>{cell.getDate()}</span>
+                <span className="mt-1 flex gap-1">
+                  {(markers[getDayKey(cell)] ?? []).slice(0, 3).map((color) => (
+                    <span key={`${cell.toISOString()}-${color}`} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+                  ))}
+                </span>
+              </button>
+            ) : (
+              <div key={`empty-${index}`} />
+            ),
+          )}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-400">
+          <p>Select any day to jump directly into planning mode.</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/20 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/70 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -768,6 +1358,7 @@ type ScheduledBlock = {
   window: string;
   originalTodo: TodoItem;
   hasConflict: boolean;
+  color?: string;
 };
 
 type StartTimeOption = {
@@ -786,8 +1377,15 @@ type TaskPanelState = {
   onTimeblockChange: (value: Timeblock | undefined) => void;
   startTime: string;
   onStartTimeChange: (value: string) => void;
+  color?: string;
+  onColorChange: (value: string) => void;
+  colorOptions: string[];
+  icon: string;
+  onIconChange: (value: string) => void;
+  iconOptions: IconOption[];
   onSubmit: () => void;
   submitLabel: string;
+  onDelete?: () => void;
 };
 
 function buildStartTimeOptions(stepMinutes = 15): StartTimeOption[] {
@@ -804,12 +1402,70 @@ function buildStartTimeOptions(stepMinutes = 15): StartTimeOption[] {
   });
 }
 
-function buildDayKeys(record: Record<DayKey, TodoItem[]>): DayKey[] {
-  const keys = Object.keys(record);
-  if (!keys.includes(getDayKey())) {
-    keys.push(getDayKey());
+function buildWeekRange(anchor: DayKey, todos: Record<DayKey, TodoItem[]>): RollingDay[] {
+  const anchorDate = dayKeyToDate(anchor);
+  const start = new Date(anchorDate);
+  start.setDate(anchorDate.getDate() - anchorDate.getDay());
+  return Array.from({ length: 7 }, (_, index) => {
+    const current = new Date(start);
+    current.setDate(start.getDate() + index);
+    const key = getDayKey(current);
+    return {
+      key,
+      date: current,
+      label: current.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      weekday: current.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase(),
+      hasTodos: (todos[key]?.length ?? 0) > 0,
+      isToday: key === getDayKey(),
+    };
+  });
+}
+
+function getTaskIconSymbol(iconId?: string, fallbackText = "") {
+  const icon = taskIconOptions.find((option) => option.id === iconId);
+  if (icon) return icon.symbol;
+  const trimmed = fallbackText.trim();
+  return trimmed ? trimmed.charAt(0).toUpperCase() : "•";
+}
+
+function getTimelineCardStyle(color?: string) {
+  const fill = withAlpha(color, 0.22);
+  const border = withAlpha(color, 0.4);
+  return {
+    backgroundColor: fill,
+    borderColor: border,
+  };
+}
+
+function withAlpha(hex = "#1e293b", alpha = 0.2) {
+  if (!hex.startsWith("#") || (hex.length !== 7 && hex.length !== 4)) {
+    return `rgba(30, 41, 59, ${alpha})`;
   }
-  return keys.sort((a, b) => (a > b ? 1 : -1)).slice(-7);
+  let r: number;
+  let g: number;
+  let b: number;
+  if (hex.length === 7) {
+    r = parseInt(hex.slice(1, 3), 16);
+    g = parseInt(hex.slice(3, 5), 16);
+    b = parseInt(hex.slice(5, 7), 16);
+  } else {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function buildDayColorMap(record: Record<DayKey, TodoItem[]>): Record<DayKey, string[]> {
+  return Object.entries(record).reduce((acc, [day, todos]) => {
+    const colors = todos
+      .map((todo) => todo.color)
+      .filter((color): color is string => Boolean(color));
+    if (colors.length) {
+      acc[day as DayKey] = colors;
+    }
+    return acc;
+  }, {} as Record<DayKey, string[]>);
 }
 
 function buildUpcomingSchedule(record: Record<DayKey, TodoItem[]>) {
@@ -858,6 +1514,7 @@ function buildScheduledBlocks(todos: TodoItem[], drag?: DragState | null): Sched
       window: formatTodoTimeWindow(todo),
       originalTodo: todo,
       hasConflict: false,
+      color: todo.color,
     });
   });
 
@@ -923,6 +1580,69 @@ function formatHourMarker(hour: number) {
 function nextPriority(value: TodoPriority): TodoPriority {
   if (value === 3) return 1;
   return ((value + 1) as TodoPriority);
+}
+
+function shiftDayKey(day: DayKey, delta: number): DayKey {
+  const date = dayKeyToDate(day);
+  date.setDate(date.getDate() + delta);
+  return getDayKey(date);
+}
+
+function buildCalendarMatrix(viewDate: Date): (Date | null)[] {
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const blanks = firstDay.getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = [];
+  for (let index = 0; index < blanks; index += 1) {
+    cells.push(null);
+  }
+  for (let day = 1; day <= totalDays; day += 1) {
+    cells.push(new Date(year, month, day));
+  }
+  while (cells.length % 7 !== 0) {
+    cells.push(null);
+  }
+  return cells;
+}
+
+type TimelineEvent = {
+  id: string;
+  title: string;
+  startLabel: string;
+  endLabel: string;
+  window: string;
+  durationLabel?: string;
+  color: string;
+  iconSymbol: string;
+  todo: TodoItem;
+};
+
+function buildTimelineEvents(todos: TodoItem[]): TimelineEvent[] {
+  const enriched = todos
+    .filter((todo) => todo.startTime)
+    .map((todo) => {
+      const startMinutes = parseTimeToMinutes(todo.startTime || "");
+      if (startMinutes === null) return null;
+      const duration = todo.timeblockMins ?? 0;
+      const endMinutes = startMinutes + duration;
+      const iconSymbol = getTaskIconSymbol(todo.icon, todo.text);
+      const event: TimelineEvent = {
+        id: todo.id,
+        title: todo.text,
+        startLabel: formatMinutesLabel(startMinutes),
+        endLabel: formatMinutesLabel(endMinutes),
+        window: duration ? `${formatMinutesLabel(startMinutes)} – ${formatMinutesLabel(endMinutes)}` : "Scheduled",
+        durationLabel: duration ? `${duration}m` : undefined,
+        color: todo.color ?? "#94a3b8",
+        iconSymbol,
+        todo,
+      };
+      return { event, order: startMinutes };
+    })
+    .filter((value): value is { event: TimelineEvent; order: number } => Boolean(value));
+  return enriched.sort((a, b) => a.order - b.order).map((item) => item.event);
 }
 
 function pointerToMinutes(event: PointerEvent, element: HTMLDivElement | null) {

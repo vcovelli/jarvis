@@ -171,7 +171,7 @@ export default function Home() {
       <section className="grid gap-6 lg:grid-cols-3">
         <div
           ref={moodPanelRef}
-          className={`rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg ${focusKey === "mood" ? highlightClass : ""}`}
+          className={`glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg ${focusKey === "mood" ? highlightClass : ""}`}
         >
           <h2 className="text-lg font-medium text-white">Mood Check-in</h2>
           <p className="mt-1 text-sm text-zinc-300">
@@ -266,7 +266,7 @@ export default function Home() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <h2 className="text-lg font-medium text-white">Recent Mood</h2>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-4xl font-semibold text-white">
@@ -281,7 +281,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <h2 className="text-lg font-medium text-white">Streak</h2>
           <p className="mt-1 text-sm text-zinc-300">
             Mood + journal + one todo done.
@@ -292,7 +292,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <h2 className="text-lg font-medium text-white">Up Next</h2>
           <ul className="mt-4 space-y-3 text-sm text-zinc-300">
             {suggestions.map((item) => (
@@ -451,14 +451,14 @@ function TimelinePanel({ entries, filter, onFilterChange, wrapperRef, className 
   return (
     <div
       ref={wrapperRef}
-      className={`rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2 ${className}`}
+      className={`glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2 min-w-0 ${className}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-wrap items-start gap-4 sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-lg font-medium text-white">Timeline</h2>
           <span className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">blended feed</span>
         </div>
-        <div className="flex gap-2 rounded-full border border-white/10 bg-white/5 p-1 text-xs uppercase tracking-[0.3em]">
+        <div className="flex flex-wrap gap-2 rounded-full border border-white/10 bg-white/5 p-1 text-xs uppercase tracking-[0.3em]">
           {(["all", "today"] as TimelineFilter[]).map((option) => {
             const active = filter === option;
             return (
@@ -486,20 +486,22 @@ function TimelinePanel({ entries, filter, onFilterChange, wrapperRef, className 
             <Link
               key={item.id}
               href={item.href}
-              className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/30 px-4 py-3 transition hover:border-cyan-300/50 hover:bg-black/40"
+              className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-black/30 px-4 py-3 transition hover:border-cyan-300/50 hover:bg-black/40 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex flex-1 min-w-0 items-center gap-4">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-xl">
                   {item.icon}
                 </span>
-                <div>
-                  <p className="font-semibold text-white">{item.title}</p>
-                  <p className="text-xs uppercase tracking-[0.25em] text-zinc-400">{item.detail}</p>
+                <div className="min-w-0">
+                  <p className="font-semibold text-white break-words">{item.title}</p>
+                  <p className="text-xs uppercase tracking-[0.25em] text-zinc-400 break-words">
+                    {item.detail}
+                  </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-400">{item.timeLabel}</p>
-                <span className="mt-2 inline-block rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-cyan-200">
+              <div className="flex flex-col items-start text-[11px] uppercase tracking-[0.3em] text-zinc-400 sm:items-end sm:text-right">
+                <p>{item.timeLabel}</p>
+                <span className="mt-2 inline-block rounded-full bg-white/10 px-3 py-1 font-semibold text-cyan-200">
                   {item.badge}
                 </span>
               </div>
@@ -533,7 +535,7 @@ function TodosPanel({ className = "", panelRef, ...props }: TodosPanelProps) {
   return (
     <div
       ref={panelRef}
-      className={`rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2 ${className}`}
+      className={`glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2 min-w-0 ${className}`}
     >
       <h2 className="text-lg font-medium text-white">Today&apos;s Todos</h2>
       <p className="mt-1 text-sm text-zinc-300">
@@ -558,9 +560,9 @@ function TodosPanel({ className = "", panelRef, ...props }: TodosPanelProps) {
           onChange={(event) => props.setTodoText(event.target.value)}
         />
         <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.3em] text-zinc-400">
-          <div>
+          <div className="flex min-w-[150px] flex-1 flex-col">
             <p>Priority</p>
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {[1, 2, 3].map((priority) => {
                 const active = props.todoPriority === priority;
                 return (
@@ -576,10 +578,10 @@ function TodosPanel({ className = "", panelRef, ...props }: TodosPanelProps) {
               })}
             </div>
           </div>
-          <div>
+          <div className="flex min-w-[150px] flex-1 flex-col">
             <p>Timeblock</p>
             <select
-              className="mt-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-zinc-200"
+              className="mt-2 w-full rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-zinc-200"
               value={props.todoTimeblock ? props.todoTimeblock.toString() : ""}
               onChange={(event) =>
                 props.setTodoTimeblock(
@@ -597,10 +599,10 @@ function TodosPanel({ className = "", panelRef, ...props }: TodosPanelProps) {
               ))}
             </select>
           </div>
-          <div>
+          <div className="flex min-w-[150px] flex-1 flex-col">
             <p>Start</p>
             <select
-              className="mt-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-zinc-200"
+              className="mt-2 w-full rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-zinc-200"
               value={props.todoStartTime}
               onChange={(event) => props.setTodoStartTime(event.target.value)}
             >
@@ -628,9 +630,9 @@ function TodosPanel({ className = "", panelRef, ...props }: TodosPanelProps) {
           props.todos.map((todo) => (
             <div
               key={todo.id}
-              className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 px-4 py-3"
+              className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-white/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
-              <label className="flex flex-1 items-start gap-3">
+              <label className="flex min-w-0 flex-1 items-start gap-3">
                 <input
                   type="checkbox"
                   className="mt-1 h-4 w-4 cursor-pointer accent-cyan-300"
@@ -638,7 +640,7 @@ function TodosPanel({ className = "", panelRef, ...props }: TodosPanelProps) {
                   onChange={() => props.toggleTodo(todo.id)}
                 />
                 <div>
-                  <p className={`text-sm font-medium ${todo.done ? "text-zinc-400 line-through" : "text-white"}`}>
+                  <p className={`text-sm font-medium break-words ${todo.done ? "text-zinc-400 line-through" : "text-white"}`}>
                     {todo.text}
                   </p>
                   <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
@@ -651,13 +653,15 @@ function TodosPanel({ className = "", panelRef, ...props }: TodosPanelProps) {
                   </p>
                 </div>
               </label>
-              <button
-                type="button"
-                onClick={() => props.updatePriority(todo.id, nextPriority(todo.priority))}
-                className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-zinc-200"
-              >
-                P{todo.priority}
-              </button>
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => props.updatePriority(todo.id, nextPriority(todo.priority))}
+                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-zinc-200"
+                >
+                  P{todo.priority}
+                </button>
+              </div>
             </div>
           ))
         )}
@@ -680,7 +684,7 @@ function JournalPanel({ className = "", panelRef, ...props }: JournalPanelProps)
   return (
     <div
       ref={panelRef}
-      className={`rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg ${className}`}
+      className={`glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg min-w-0 ${className}`}
     >
       <h2 className="text-lg font-medium text-white">Quick Journal</h2>
       <p className="mt-1 text-sm text-zinc-300">
