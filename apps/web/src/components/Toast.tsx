@@ -30,7 +30,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       {toast && (
-        <div className="pointer-events-none fixed bottom-5 left-5 z-50 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-zinc-900 shadow-lg">
+        <div
+          className="pointer-events-none fixed z-50 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-zinc-900 shadow-lg"
+          style={{
+            left: "calc(env(safe-area-inset-left, 0px) + 1.25rem)",
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)",
+          }}
+        >
           {toast.message}
         </div>
       )}

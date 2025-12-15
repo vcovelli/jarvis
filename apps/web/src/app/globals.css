@@ -26,6 +26,7 @@ body {
     "Segoe UI", sans-serif;
   min-height: 100vh;
   margin: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 * {
@@ -53,5 +54,17 @@ select:focus-visible {
 }
 
 .glass-panel {
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  transform: translateY(0);
+}
+
+.glass-panel:hover {
+  transform: translateY(0);
+}
+
+body.scroll-locked {
+  overflow: hidden;
+  touch-action: none;
 }

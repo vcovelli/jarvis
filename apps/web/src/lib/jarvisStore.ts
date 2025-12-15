@@ -38,6 +38,8 @@ export type TodoItem = {
   startTime?: string; // HH:MM 24h
   completedTs?: number;
   order?: number;
+  color?: string;
+  icon?: string;
 };
 
 export type SleepEntry = {
@@ -108,6 +110,11 @@ type Action =
   | { type: "LOG_MOOD"; payload: { mood: number; note?: string; tags: MoodTag[]; day?: DayKey } }
   | { type: "ADD_JOURNAL"; payload: { text: string; prompt?: JournalPrompt; day?: DayKey } }
   | {
+      type: "UPDATE_JOURNAL";
+      payload: { day: DayKey; id: string; updates: Partial<Pick<JournalEntry, "text" | "prompt">> };
+    }
+  | { type: "DELETE_JOURNAL"; payload: { day: DayKey; id: string } }
+  | {
       type: "ADD_TODO";
       payload: {
         text: string;
@@ -115,6 +122,8 @@ type Action =
         timeblockMins?: Timeblock;
         startTime?: string;
         day?: DayKey;
+        color?: string;
+        icon?: string;
       };
     }
   | {
@@ -122,7 +131,7 @@ type Action =
       payload: {
         day: DayKey;
         id: string;
-        updates: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime">>;
+        updates: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime" | "color" | "icon">>;
       };
     }
   | { type: "TOGGLE_TODO"; payload: { day: DayKey; id: string } }
@@ -142,6 +151,20 @@ type Action =
         day?: DayKey;
       };
     }
+  | {
+      type: "UPDATE_SLEEP_ENTRY";
+      payload: {
+        day: DayKey;
+        id: string;
+        updates: Partial<
+          Pick<
+            SleepEntry,
+            "durationMins" | "quality" | "startMinutes" | "endMinutes" | "recoveryScore" | "dreams" | "notes"
+          >
+        >;
+      };
+    }
+  | { type: "DELETE_SLEEP_ENTRY"; payload: { day: DayKey; id: string } }
   | { type: "SET_SLEEP_SCHEDULE"; payload: SleepSchedule }
   | {
       type: "UPDATE_TODO_SCHEDULE";
@@ -159,7 +182,7 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       return sanitizeState(action.payload);
     }
     case "LOG_MOOD": {
-      const day = action.payload.day ?? getDayKey();
+      const day = normalizeDayKey(action.payload.day);
       const entry: MoodLog = {
         id: createId(),
         ts: Date.now(),
@@ -173,7 +196,7 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       };
     }
     case "ADD_JOURNAL": {
-      const day = action.payload.day ?? getDayKey();
+      const day = normalizeDayKey(action.payload.day);
       const entry: JournalEntry = {
         id: createId(),
         ts: Date.now(),
@@ -185,8 +208,30 @@ function reducer(state: JarvisState, action: Action): JarvisState {
         journal: insertItem(state.journal, day, entry),
       };
     }
+    case "UPDATE_JOURNAL": {
+      const entries = state.journal[action.payload.day] ?? [];
+      return {
+        ...state,
+        journal: {
+          ...state.journal,
+          [action.payload.day]: entries.map((entry) =>
+            entry.id === action.payload.id ? { ...entry, ...action.payload.updates } : entry,
+          ),
+        },
+      };
+    }
+    case "DELETE_JOURNAL": {
+      const entries = state.journal[action.payload.day] ?? [];
+      return {
+        ...state,
+        journal: {
+          ...state.journal,
+          [action.payload.day]: entries.filter((entry) => entry.id !== action.payload.id),
+        },
+      };
+    }
     case "ADD_TODO": {
-      const day = action.payload.day ?? getDayKey();
+      const day = normalizeDayKey(action.payload.day);
       const todo: TodoItem = {
         id: createId(),
         createdTs: Date.now(),
@@ -196,6 +241,8 @@ function reducer(state: JarvisState, action: Action): JarvisState {
         priority: action.payload.priority,
         timeblockMins: action.payload.timeblockMins,
         startTime: action.payload.startTime,
+        color: action.payload.color,
+        icon: action.payload.icon,
       };
       return {
         ...state,
@@ -274,7 +321,7 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       };
     }
     case "LOG_SLEEP": {
-      const day = action.payload.day ?? getDayKey();
+      const day = normalizeDayKey(action.payload.day);
       const entry: SleepEntry = {
         id: createId(),
         ts: Date.now(),
@@ -290,6 +337,28 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       return {
         ...state,
         sleep: insertItem(state.sleep, day, entry),
+      };
+    }
+    case "UPDATE_SLEEP_ENTRY": {
+      const nights = state.sleep[action.payload.day] ?? [];
+      return {
+        ...state,
+        sleep: {
+          ...state.sleep,
+          [action.payload.day]: nights.map((night) =>
+            night.id === action.payload.id ? { ...night, ...action.payload.updates } : night,
+          ),
+        },
+      };
+    }
+    case "DELETE_SLEEP_ENTRY": {
+      const nights = state.sleep[action.payload.day] ?? [];
+      return {
+        ...state,
+        sleep: {
+          ...state.sleep,
+          [action.payload.day]: nights.filter((night) => night.id !== action.payload.id),
+        },
       };
     }
     case "SET_SLEEP_SCHEDULE": {
@@ -362,6 +431,17 @@ export function useJarvisState() {
     [],
   );
 
+  const updateJournalEntry = useCallback(
+    (payload: { day: DayKey; id: string; updates: Partial<Pick<JournalEntry, "text" | "prompt">> }) => {
+      dispatch({ type: "UPDATE_JOURNAL", payload });
+    },
+    [],
+  );
+
+  const deleteJournalEntry = useCallback((payload: { day: DayKey; id: string }) => {
+    dispatch({ type: "DELETE_JOURNAL", payload });
+  }, []);
+
   const addTodo = useCallback(
     (payload: {
       text: string;
@@ -369,6 +449,8 @@ export function useJarvisState() {
       timeblockMins?: Timeblock;
       startTime?: string;
       day?: DayKey;
+      color?: string;
+      icon?: string;
     }) => {
       dispatch({ type: "ADD_TODO", payload });
     },
@@ -390,7 +472,7 @@ export function useJarvisState() {
     (payload: {
       day: DayKey;
       id: string;
-      updates: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime">>;
+      updates: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime" | "color" | "icon">>;
     }) => {
       dispatch({ type: "UPDATE_TODO", payload });
     },
@@ -428,6 +510,23 @@ export function useJarvisState() {
     [],
   );
 
+  const updateSleepEntry = useCallback(
+    (payload: {
+      day: DayKey;
+      id: string;
+      updates: Partial<
+        Pick<SleepEntry, "durationMins" | "quality" | "startMinutes" | "endMinutes" | "recoveryScore" | "dreams" | "notes">
+      >;
+    }) => {
+      dispatch({ type: "UPDATE_SLEEP_ENTRY", payload });
+    },
+    [],
+  );
+
+  const deleteSleepEntry = useCallback((payload: { day: DayKey; id: string }) => {
+    dispatch({ type: "DELETE_SLEEP_ENTRY", payload });
+  }, []);
+
   const updateSleepSchedule = useCallback((payload: SleepSchedule) => {
     dispatch({ type: "SET_SLEEP_SCHEDULE", payload });
   }, []);
@@ -437,6 +536,8 @@ export function useJarvisState() {
     hydrated,
     logMood,
     addJournal,
+    updateJournalEntry,
+    deleteJournalEntry,
     addTodo,
     toggleTodo,
     updateTodoPriority,
@@ -445,6 +546,8 @@ export function useJarvisState() {
     reorderTodos,
     updateTodoSchedule,
     logSleep,
+    updateSleepEntry,
+    deleteSleepEntry,
     updateSleepSchedule,
   } as const;
 }
@@ -454,6 +557,30 @@ export function getDayKey(date = new Date()): DayKey {
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
   const day = `${date.getDate()}`.padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function extractDayKey(value?: string | null): DayKey | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return `${match[1]}-${match[2]}-${match[3]}` as DayKey;
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.valueOf())) {
+    return getDayKey(parsed);
+  }
+  return null;
+}
+
+export function normalizeDayKey(value?: string | null, fallback?: DayKey): DayKey {
+  return extractDayKey(value) ?? fallback ?? getDayKey();
+}
+
+export function dayKeyToDate(dayKey: DayKey): Date {
+  const normalized = normalizeDayKey(dayKey);
+  const [year, month, day] = normalized.split("-").map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1);
 }
 
 function insertItem<T>(collection: Record<DayKey, T[]>, day: DayKey, item: T) {
@@ -509,7 +636,8 @@ function createCustomSchedule(window: SleepWindow) {
 function sanitizeRecord<T>(record?: Record<DayKey, T[]>): Record<DayKey, T[]> {
   if (!record || typeof record !== "object") return {};
   return Object.entries(record).reduce((acc, [key, value]) => {
-    acc[key] = Array.isArray(value) ? value : [];
+    const normalizedKey = extractDayKey(key) ?? (key as DayKey);
+    acc[normalizedKey] = Array.isArray(value) ? value : [];
     return acc;
   }, {} as Record<DayKey, T[]>);
 }
@@ -523,12 +651,4 @@ function createId() {
 
 export function getDayOfWeek(date = new Date()): Day {
   return date.getDay() as Day;
-}
-
-export function dayKeyToDate(dayKey: DayKey): Date {
-  const [year, month, day] = dayKey.split("-").map(Number);
-  if ([year, month, day].some((value) => Number.isNaN(value))) {
-    return new Date(dayKey);
-  }
-  return new Date(year, (month ?? 1) - 1, day ?? 1);
 }

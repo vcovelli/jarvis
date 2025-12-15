@@ -31,7 +31,7 @@ const CLOCK_SIZE = 340;
 const CLOCK_RADIUS = 130;
 const allDays: Day[] = [0, 1, 2, 3, 4, 5, 6];
 const modeOptions: { label: string; value: SleepPresetMode }[] = [
-  { label: "Daily", value: "daily" },
+  { label: "Last night", value: "daily" },
   { label: "Weekdays", value: "weekdays" },
   { label: "Weekends", value: "weekends" },
   { label: "Custom", value: "custom" },
@@ -47,12 +47,14 @@ const dayLabels: Record<Day, { short: string; long: string }> = {
 };
 
 export default function SleepPage() {
-  const { state, hydrated, logSleep, updateSleepSchedule } = useJarvisState();
+  const { state, hydrated, logSleep, updateSleepSchedule, updateSleepEntry, deleteSleepEntry } =
+    useJarvisState();
   const { showToast } = useToast();
   const search = useSearchParams();
   const todayDay = getDayOfWeek();
   const schedule = state.sleepSchedule;
-  const defaultFocus = schedule.lastEditedDay ?? todayDay;
+  const lastNightDay = ((todayDay + 6) % 7) as Day;
+  const defaultFocus = schedule.lastEditedDay ?? (schedule.mode === "daily" ? lastNightDay : todayDay);
   const [focusedDay, setFocusedDay] = useState<Day>(defaultFocus);
   const [customDays, setCustomDays] = useState<Day[]>(() =>
     schedule.mode === "custom" ? [defaultFocus] : [defaultFocus],
@@ -69,6 +71,7 @@ export default function SleepPage() {
   const [recovery, setRecovery] = useState(3);
   const [dreams, setDreams] = useState("");
   const [notes, setNotes] = useState("");
+  const [editingNight, setEditingNight] = useState<SleepEntry | null>(null);
   const focusNightId = search?.get("focus");
   const focusQueryDay = search?.get("day");
   const focusNightRef = useRef<HTMLDivElement | null>(null);
@@ -76,7 +79,7 @@ export default function SleepPage() {
   const editingDays = useMemo(() => {
     switch (schedule.mode) {
       case "daily":
-        return allDays;
+        return [lastNightDay];
       case "weekdays":
         return [1, 2, 3, 4, 5];
       case "weekends":
@@ -85,9 +88,10 @@ export default function SleepPage() {
       default:
         return customDays.length ? customDays : [focusedDay];
     }
-  }, [schedule.mode, customDays, focusedDay]);
+  }, [schedule.mode, customDays, focusedDay, lastNightDay]);
 
   useEffect(() => {
+    if (editingNight) return;
     const window = getWindowForDay(schedule, focusedDay);
     const start = parseTimeToMinutes(window.lightsOut);
     const wake = parseTimeToMinutes(window.wake);
@@ -98,7 +102,7 @@ export default function SleepPage() {
     if (wake !== null) {
       setEndMinutes(wake);
     }
-  }, [schedule, focusedDay]);
+  }, [schedule, focusedDay, editingNight]);
 
   const editingSummary = useMemo(() => formatEditingSummary(schedule.mode, editingDays), [
     schedule.mode,
@@ -111,10 +115,32 @@ export default function SleepPage() {
   );
   const durationLabel = useMemo(() => formatDuration(durationMins), [durationMins]);
 
+  const lastNightDate = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 1);
+    return date;
+  }, []);
+  const lastNightLabel = lastNightDate.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+  const lightsOutLabel = formatMinutesLabel(startMinutes);
+  const wakeLabel = formatMinutesLabel(endMinutes);
+
   const recentNights = useMemo(() => getRecentSleep(state, 7), [state]);
   const averageHours = useMemo(() => computeAverageHours(recentNights), [recentNights]);
   const averageQuality = useMemo(() => computeAverageQuality(recentNights), [recentNights]);
   const averageRecovery = useMemo(() => computeAverageRecovery(recentNights), [recentNights]);
+  const editingNightId = editingNight?.id ?? null;
+  const isEditing = Boolean(editingNight);
+  const editingDayLabel = editingNight
+    ? dayKeyToDate(editingNight.day).toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      })
+    : dayLabels[focusedDay].long;
 
   useEffect(() => {
     if (!focusQueryDay) return;
@@ -169,20 +195,22 @@ export default function SleepPage() {
       const snappedEnd = snapToFive(range.endMinutes);
       setStartMinutes(snappedStart);
       setEndMinutes(snappedEnd);
-      const nextWindow: SleepWindow = {
-        lightsOut: minutesToTimeString(snappedStart),
-        wake: minutesToTimeString(snappedEnd),
-      };
-      const nextSchedule = applyWindowToSchedule(schedule, editingDays, nextWindow);
-      updateSleepSchedule({ ...nextSchedule, lastEditedDay: focusedDay });
+      if (!editingNight) {
+        const nextWindow: SleepWindow = {
+          lightsOut: minutesToTimeString(snappedStart),
+          wake: minutesToTimeString(snappedEnd),
+        };
+        const nextSchedule = applyWindowToSchedule(schedule, editingDays, nextWindow);
+        updateSleepSchedule({ ...nextSchedule, lastEditedDay: focusedDay });
+      }
     },
-    [schedule, editingDays, focusedDay, updateSleepSchedule],
+    [schedule, editingDays, focusedDay, updateSleepSchedule, editingNight],
   );
 
   const handleModeChange = useCallback(
     (mode: SleepPresetMode) => {
       if (mode === schedule.mode) return;
-      const nextFocus = resolveFocusForMode(mode, focusedDay);
+      const nextFocus = resolveFocusForMode(mode, focusedDay, lastNightDay);
       if (mode === "custom" && !customDays.includes(nextFocus)) {
         setCustomDays([nextFocus]);
       }
@@ -192,38 +220,62 @@ export default function SleepPage() {
       setFocusedDay(nextFocus);
       updateSleepSchedule({ ...schedule, mode, lastEditedDay: nextFocus });
     },
-    [schedule, focusedDay, customDays, updateSleepSchedule],
+    [schedule, focusedDay, customDays, lastNightDay, updateSleepSchedule],
   );
 
   const handleCustomDayToggle = useCallback(
     (day: Day) => {
       if (schedule.mode !== "custom") return;
-      let next = customDays.includes(day)
-        ? customDays.filter((value) => value !== day)
-        : [...customDays, day];
+      const wasActive = customDays.includes(day);
+      let next = wasActive ? customDays.filter((value) => value !== day) : [...customDays, day];
       if (next.length === 0) {
         next = [day];
       }
+      let nextFocus = focusedDay;
+      if (wasActive) {
+        if (!next.includes(nextFocus)) {
+          nextFocus = next[0];
+        }
+      } else {
+        nextFocus = day;
+      }
       setCustomDays(next);
-      setFocusedDay(day);
-      updateSleepSchedule({ ...schedule, lastEditedDay: day });
+      setFocusedDay(nextFocus);
+      updateSleepSchedule({ ...schedule, lastEditedDay: nextFocus });
     },
-    [schedule, customDays, updateSleepSchedule],
+    [schedule, customDays, focusedDay, updateSleepSchedule],
   );
 
   const handleSubmit = useCallback(
     (event?: React.FormEvent<HTMLFormElement>) => {
       event?.preventDefault();
+      const trimmedDreams = dreams.trim();
+      const trimmedNotes = notes.trim();
+      const payload = {
+        durationMins: durationMins || DEFAULT_DURATION,
+        quality,
+        startMinutes,
+        endMinutes,
+        recoveryScore: recovery,
+        dreams: trimmedDreams || undefined,
+        notes: trimmedNotes || undefined,
+      };
+      if (editingNight) {
+        updateSleepEntry({
+          day: editingNight.day,
+          id: editingNight.id,
+          updates: payload,
+        });
+        setEditingNight(null);
+        setDreams("");
+        setNotes("");
+        showToast("Sleep updated");
+        return;
+      }
       const dayKey = getRecentDayKeyForWeekday(focusedDay);
       logSleep({
         day: dayKey,
-        durationMins: durationMins || DEFAULT_DURATION,
-        quality,
-        recoveryScore: recovery,
-        startMinutes,
-        endMinutes,
-        dreams,
-        notes,
+        ...payload,
       });
       setDreams("");
       setNotes("");
@@ -239,6 +291,8 @@ export default function SleepPage() {
       dreams,
       notes,
       logSleep,
+      editingNight,
+      updateSleepEntry,
       showToast,
     ],
   );
@@ -257,6 +311,42 @@ export default function SleepPage() {
     [handleSubmit],
   );
 
+  const handleCancelEdit = useCallback(() => {
+    setEditingNight(null);
+    setDreams("");
+    setNotes("");
+  }, []);
+
+  const handleEditNight = useCallback(
+    (night: SleepEntry) => {
+      const start = resolveStartFromEntry(night, startMinutes);
+      const end = resolveEndFromEntry(night, start);
+      const date = dayKeyToDate(night.day);
+      setFocusedDay(date.getDay() as Day);
+      setStartMinutes(start);
+      setEndMinutes(end);
+      setQuality(night.quality);
+      setRecovery(night.recoveryScore ?? 3);
+      setDreams(night.dreams ?? "");
+      setNotes(night.notes ?? "");
+      setEditingNight(night);
+    },
+    [startMinutes],
+  );
+
+  const handleDeleteNight = useCallback(
+    (night: SleepEntry) => {
+      const confirmed = window.confirm("Delete this sleep entry?");
+      if (!confirmed) return;
+      deleteSleepEntry({ day: night.day, id: night.id });
+      if (editingNight?.id === night.id) {
+        handleCancelEdit();
+      }
+      showToast("Sleep deleted");
+    },
+    [deleteSleepEntry, editingNight, handleCancelEdit, showToast],
+  );
+
   if (!hydrated) {
     return <p className="text-sm uppercase tracking-[0.3em] text-zinc-400">Loading sleep log…</p>;
   }
@@ -265,11 +355,33 @@ export default function SleepPage() {
     <div className="flex flex-col gap-8">
       <header>
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Sleep</p>
-        <h1 className="mt-2 text-4xl font-semibold text-white">Recharge console</h1>
-        <p className="mt-3 max-w-2xl text-base text-zinc-300">
-          Drag bedtime + wakeup on the clock, log recovery rituals, and connect dreams with daytime focus.
-        </p>
       </header>
+      <div className="lg:hidden">
+        <div className="-mx-4 rounded-[32px] border border-white/5 bg-gradient-to-br from-[#101c2d] via-[#0d1624] to-[#151f36] px-4 py-6 text-white shadow-2xl sm:mx-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.4em] text-cyan-200/80">Last night</p>
+              <h2 className="text-3xl font-semibold">{lastNightLabel}</h2>
+            </div>
+            <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70">
+              {durationLabel}
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-white/70">
+            Dial in bedtime + wake so tomorrow starts with clarity.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Lights out</p>
+              <p className="text-xl font-semibold text-white">{lightsOutLabel}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Wake</p>
+              <p className="text-xl font-semibold text-white">{wakeLabel}</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -278,7 +390,7 @@ export default function SleepPage() {
             <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">{durationLabel}</p>
           </div>
           <div className="flex w-full flex-col items-start gap-3 lg:w-auto lg:items-end">
-            <div className="flex flex-wrap gap-1 rounded-full border border-white/10 bg-black/30 p-1">
+            <div className="grid w-full grid-cols-2 gap-2 lg:grid-cols-4 lg:w-auto">
               {modeOptions.map((option) => {
                 const active = schedule.mode === option.value;
                 return (
@@ -286,8 +398,10 @@ export default function SleepPage() {
                     key={option.value}
                     type="button"
                     onClick={() => handleModeChange(option.value)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] transition ${
-                      active ? "bg-white text-zinc-900" : "text-zinc-400 hover:text-white"
+                    className={`rounded-2xl border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] transition ${
+                      active
+                        ? "border-white bg-white text-zinc-900 shadow-md"
+                        : "border-white/15 bg-white/5 text-white/70 hover:border-white/40"
                     }`}
                   >
                     {option.label}
@@ -323,10 +437,19 @@ export default function SleepPage() {
         </div>
         <div className="mt-8 grid gap-10 lg:grid-cols-[1.2fr,1fr]">
           <SleepClock startMinutes={startMinutes} endMinutes={endMinutes} onChange={handleClockChange} />
-          <form className="flex flex-col gap-5" onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
-            <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-              Logging: {dayLabels[focusedDay].long}
-            </p>
+          <form className="flex min-w-0 flex-col gap-5" onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <p>{isEditing ? `Editing: ${editingDayLabel}` : `Logging: ${dayLabels[focusedDay].long}`}</p>
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold text-white/80 hover:text-white"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
             <SliderField
               label="Quality"
               value={quality}
@@ -361,7 +484,7 @@ export default function SleepPage() {
               type="submit"
               className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
             >
-              Log sleep
+              {isEditing ? "Save changes" : "Log sleep"}
             </button>
           </form>
         </div>
@@ -369,7 +492,7 @@ export default function SleepPage() {
 
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <h2 className="text-lg font-medium text-white">Recent nights</h2>
             <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
               Avg {averageHours.toFixed(1)}h • Quality {averageQuality.toFixed(1)}/5
@@ -380,40 +503,56 @@ export default function SleepPage() {
               <p className="text-sm text-zinc-400">No entries yet. Log last night above.</p>
             ) : (
               recentNights.map((night) => {
-                const highlight = night.id === focusNightId;
+                const highlight = night.id === focusNightId || night.id === editingNightId;
                 return (
                   <article
                     key={night.id}
                     ref={highlight ? focusNightRef : undefined}
                     className={`rounded-2xl border border-white/5 bg-black/30 p-4 ${highlight ? "ring-2 ring-cyan-300/70" : ""}`}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <p className="text-xl font-semibold text-white">
                           {formatDuration(night.durationMins)}
                         </p>
-                      <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
-                        {dayKeyToDate(night.day).toLocaleDateString(undefined, {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </p>
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
+                          {dayKeyToDate(night.day).toLocaleDateString(undefined, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditNight(night)}
+                          className="rounded-full border border-cyan-300/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-200 hover:border-cyan-300"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteNight(night)}
+                          className="rounded-full bg-red-500/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white hover:bg-red-500"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-right text-xs text-zinc-400">
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-left text-xs text-zinc-400 sm:text-right">
                       <p>{formatWindowLabel(night)}</p>
                       <p>
                         Quality {night.quality}/5
                         {night.recoveryScore ? ` • Recovery ${night.recoveryScore}/5` : ""}
                       </p>
                     </div>
-                  </div>
-                  {(night.dreams || night.notes) && (
-                    <div className="mt-3 space-y-2 text-sm text-zinc-300">
-                      {night.dreams && <p>Dreams: {night.dreams}</p>}
-                      {night.notes && <p>Recovery: {night.notes}</p>}
-                    </div>
-                  )}
+                    {(night.dreams || night.notes) && (
+                      <div className="mt-3 space-y-2 text-sm text-zinc-300">
+                        {night.dreams && <p className="break-words">Dreams: {night.dreams}</p>}
+                        {night.notes && <p className="break-words">Recovery: {night.notes}</p>}
+                      </div>
+                    )}
                   </article>
                 );
               })
@@ -469,6 +608,7 @@ type SleepClockProps = {
 function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
   const dialRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<"start" | "end" | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     function handleMove(event: PointerEvent) {
@@ -492,6 +632,7 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
 
     function handleUp() {
       draggingRef.current = null;
+      setIsDragging(false);
     }
 
     window.addEventListener("pointermove", handleMove);
@@ -502,16 +643,29 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
     };
   }, [startMinutes, endMinutes, onChange]);
 
+  useEffect(() => {
+    if (!isDragging) return undefined;
+    document.body.classList.add("scroll-locked");
+    return () => {
+      document.body.classList.remove("scroll-locked");
+    };
+  }, [isDragging]);
+
+  const beginDrag = useCallback((handle: "start" | "end") => {
+    draggingRef.current = handle;
+    setIsDragging(true);
+  }, []);
+
   const segments = buildArcSegments(startMinutes, endMinutes);
   const durationMins = calculateDuration(startMinutes, endMinutes);
   const duration = formatDuration(durationMins);
 
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex w-full flex-col items-center gap-6">
       <div
         ref={dialRef}
         className="relative select-none"
-        style={{ width: CLOCK_SIZE, height: CLOCK_SIZE }}
+        style={{ width: "min(85vw, 340px)", height: "min(85vw, 340px)" }}
       >
         <svg viewBox={`0 0 ${CLOCK_SIZE} ${CLOCK_SIZE}`} className="h-full w-full">
           <circle
@@ -587,26 +741,14 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
             </linearGradient>
           </defs>
         </svg>
-        <ClockHandle
-          label="Sleep"
-          minutes={startMinutes}
-          onPointerDown={() => {
-            draggingRef.current = "start";
-          }}
-        />
-        <ClockHandle
-          label="Wake"
-          minutes={endMinutes}
-          onPointerDown={() => {
-            draggingRef.current = "end";
-          }}
-        />
+        <ClockHandle label="Sleep" minutes={startMinutes} onPointerDown={() => beginDrag("start")} />
+        <ClockHandle label="Wake" minutes={endMinutes} onPointerDown={() => beginDrag("end")} />
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Duration</p>
           <p className="text-2xl font-semibold text-white">{duration}</p>
         </div>
       </div>
-      <div className="grid w-full grid-cols-2 gap-4 text-sm text-zinc-300">
+      <div className="grid w-full grid-cols-1 gap-4 text-sm text-zinc-300 sm:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-black/50 p-4">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Lights out</p>
           <p className="text-2xl font-semibold text-white">{formatMinutesLabel(startMinutes)}</p>
@@ -654,7 +796,7 @@ type MetricLineProps = {
 
 function MetricLine({ label, value, trend }: MetricLineProps) {
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/30 px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/5 bg-black/30 px-4 py-3">
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">{label}</p>
         <p className="text-base font-semibold text-white">{value}</p>
@@ -662,6 +804,20 @@ function MetricLine({ label, value, trend }: MetricLineProps) {
       <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">{trend}</p>
     </div>
   );
+}
+
+function resolveStartFromEntry(night: SleepEntry, fallback = 0) {
+  if (typeof night.startMinutes === "number") return night.startMinutes;
+  if (typeof night.endMinutes === "number") {
+    return (night.endMinutes - night.durationMins + TOTAL_MINUTES) % TOTAL_MINUTES;
+  }
+  return fallback;
+}
+
+function resolveEndFromEntry(night: SleepEntry, startFallback = 0) {
+  if (typeof night.endMinutes === "number") return night.endMinutes;
+  const base = typeof night.startMinutes === "number" ? night.startMinutes : startFallback;
+  return (base + night.durationMins) % TOTAL_MINUTES;
 }
 
 function getRecentSleep(state: JarvisState, limit: number): SleepEntry[] {
@@ -741,7 +897,7 @@ function getWindowForDay(schedule: SleepSchedule, day: Day): SleepWindow {
 function formatEditingSummary(mode: SleepPresetMode, days: Day[]) {
   switch (mode) {
     case "daily":
-      return "Editing: All days";
+      return "Editing: Last night";
     case "weekdays":
       return "Editing: Monday–Friday";
     case "weekends":
@@ -752,7 +908,8 @@ function formatEditingSummary(mode: SleepPresetMode, days: Day[]) {
   }
 }
 
-function resolveFocusForMode(mode: SleepPresetMode, candidate: Day): Day {
+function resolveFocusForMode(mode: SleepPresetMode, candidate: Day, lastNight: Day): Day {
+  if (mode === "daily") return lastNight;
   if (mode === "weekdays" && isWeekend(candidate)) return 1;
   if (mode === "weekends" && isWeekday(candidate)) return 6;
   return candidate;
