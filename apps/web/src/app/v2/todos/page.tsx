@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  Day,
   DayKey,
   Timeblock,
   TodoItem,
@@ -28,8 +29,31 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, index) => index);
 const DAY_MINUTES = 24 * 60;
 const timeblockOptions: Timeblock[] = Array.from({ length: 16 }, (_, index) => (index + 1) * 15);
 const startTimeOptions = buildStartTimeOptions(SLOT_MINUTES);
-const blockColors = ["#f472b6", "#facc15", "#34d399", "#60a5fa", "#a78bfa", "#f87171", "#fb923c"];
+const blockColors = [
+  "#f472b6",
+  "#f97316",
+  "#facc15",
+  "#34d399",
+  "#2dd4bf",
+  "#60a5fa",
+  "#818cf8",
+  "#a78bfa",
+  "#f87171",
+  "#fb7185",
+  "#38bdf8",
+  "#4ade80",
+];
 const defaultBlockColor = blockColors[0];
+const repeatDayLabels: Array<{ day: Day; label: string }> = [
+  { day: 0, label: "Sun" },
+  { day: 1, label: "Mon" },
+  { day: 2, label: "Tue" },
+  { day: 3, label: "Wed" },
+  { day: 4, label: "Thu" },
+  { day: 5, label: "Fri" },
+  { day: 6, label: "Sat" },
+];
+const repeatHorizonDays = 60;
 type IconOption = { id: string; label: string; symbol: string };
 const taskIconOptions: IconOption[] = [
   { id: "alarm", label: "Alarm", symbol: "⏰" },
@@ -39,6 +63,17 @@ const taskIconOptions: IconOption[] = [
   { id: "book", label: "Study", symbol: "📘" },
   { id: "moon", label: "Night", symbol: "🌙" },
   { id: "spark", label: "Focus", symbol: "⚡" },
+  { id: "laptop", label: "Deep work", symbol: "💻" },
+  { id: "calendar", label: "Meeting", symbol: "📅" },
+  { id: "phone", label: "Call", symbol: "📞" },
+  { id: "email", label: "Email", symbol: "✉️" },
+  { id: "pen", label: "Write", symbol: "📝" },
+  { id: "chart", label: "Finance", symbol: "📈" },
+  { id: "cart", label: "Errands", symbol: "🛒" },
+  { id: "food", label: "Meal", symbol: "🍽️" },
+  { id: "car", label: "Commute", symbol: "🚗" },
+  { id: "broom", label: "Clean", symbol: "🧹" },
+  { id: "heart", label: "Health", symbol: "❤️" },
 ];
 const defaultTaskIcon = taskIconOptions[0].id;
 type RollingDay = {
@@ -48,6 +83,16 @@ type RollingDay = {
   weekday: string;
   hasTodos: boolean;
   isToday: boolean;
+};
+type RepeatType = "none" | "weekly" | "monthly";
+type ExistingTaskOption = {
+  id: string;
+  label: string;
+  todo: TodoItem;
+};
+type StyleSuggestion = {
+  color?: string;
+  icon?: string;
 };
 
 export default function TodosPage() {
@@ -61,27 +106,41 @@ export default function TodosPage() {
     deleteTodo,
     reorderTodos,
     updateTodoSchedule,
+    setMustWin,
+    toggleMustWin,
   } = useJarvisState();
   const search = useSearchParams();
   const focusTodoId = search?.get("focus") ?? undefined;
   const focusDay = search?.get("day");
   const todayKey = getDayKey();
   const [selectedDay, setSelectedDay] = useState<DayKey>(todayKey);
+  const todaysMustWin = state.mustWin[selectedDay];
   const [text, setText] = useState("");
   const [priority, setPriority] = useState<TodoPriority>(1);
   const [timeblock, setTimeblock] = useState<Timeblock | undefined>(30);
   const [startTime, setStartTime] = useState("08:00");
+  const [endTime, setEndTime] = useState("08:30");
   const [color, setColor] = useState<string>(defaultBlockColor);
   const [icon, setIcon] = useState<string>(defaultTaskIcon);
+  const [mustWinText, setMustWinText] = useState("");
+  const [mustWinTime, setMustWinTime] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [editPriority, setEditPriority] = useState<TodoPriority>(1);
   const [editTimeblock, setEditTimeblock] = useState<Timeblock | undefined>();
   const [editStartTime, setEditStartTime] = useState("");
+  const [editEndTime, setEditEndTime] = useState("");
   const [editColor, setEditColor] = useState<string>(defaultBlockColor);
   const [editIcon, setEditIcon] = useState<string>(defaultTaskIcon);
   const [panelMode, setPanelMode] = useState<"add" | "edit" | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [repeatType, setRepeatType] = useState<RepeatType>("none");
+  const [repeatWeekdays, setRepeatWeekdays] = useState<Day[]>([]);
+  const [repeatMonthDay, setRepeatMonthDay] = useState<number>(
+    dayKeyToDate(selectedDay).getDate(),
+  );
+  const [existingTaskId, setExistingTaskId] = useState<string>("");
+  const [styleLocked, setStyleLocked] = useState(false);
   const { showToast } = useToast();
 
   const weekDays = useMemo(
@@ -94,6 +153,24 @@ export default function TodosPage() {
     [state.todos, selectedDay],
   );
   const upcoming = useMemo(() => buildUpcomingSchedule(state.todos), [state.todos]);
+  const existingTaskOptions = useMemo(() => {
+    const flattened = Object.values(state.todos).flat();
+    const sorted = [...flattened].sort((a, b) => b.createdTs - a.createdTs);
+    const seen = new Set<string>();
+    const options: ExistingTaskOption[] = [];
+    for (const todo of sorted) {
+      const signature = `${todo.text}|${todo.priority}|${todo.timeblockMins ?? ""}|${todo.startTime ?? ""}|${todo.color ?? ""}|${todo.icon ?? ""}`;
+      if (seen.has(signature)) continue;
+      seen.add(signature);
+      options.push({
+        id: todo.id,
+        todo,
+        label: todo.text,
+      });
+      if (options.length >= 12) break;
+    }
+    return options;
+  }, [state.todos]);
   const editingTodo = editingId ? todosForDay.find((todo) => todo.id === editingId) : null;
   const dayLabelFull = dayKeyToDate(selectedDay).toLocaleDateString(undefined, {
     weekday: "long",
@@ -120,23 +197,68 @@ export default function TodosPage() {
   const submitTask = useCallback(() => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    addTodo({
+    const computedTimeblock = computeTimeblockFromTimes(startTime, endTime);
+    const basePayload = {
       text: trimmed,
       priority,
-      timeblockMins: timeblock,
+      timeblockMins: computedTimeblock,
       startTime: startTime || undefined,
-      day: selectedDay,
       color,
       icon,
+    };
+    const repeatDays = buildRepeatDays({
+      startDay: selectedDay,
+      repeatType,
+      repeatWeekdays,
+      repeatMonthDay,
+      horizonDays: repeatHorizonDays,
+    });
+    repeatDays.forEach((day) => {
+      addTodo({
+        ...basePayload,
+        day,
+      });
     });
     setText("");
     setTimeblock(30);
     setStartTime("08:00");
+    setEndTime("08:30");
     setColor(defaultBlockColor);
     setIcon(defaultTaskIcon);
+    setStyleLocked(false);
+    setRepeatType("none");
+    setRepeatWeekdays([]);
+    setRepeatMonthDay(dayKeyToDate(selectedDay).getDate());
+    setExistingTaskId("");
     showToast("Todo scheduled");
     setPanelMode(null);
-  }, [text, priority, timeblock, startTime, selectedDay, addTodo, showToast, color, icon]);
+  }, [
+    text,
+    priority,
+    startTime,
+    endTime,
+    selectedDay,
+    addTodo,
+    showToast,
+    color,
+    icon,
+    repeatType,
+    repeatWeekdays,
+    repeatMonthDay,
+  ]);
+
+  const submitMustWin = useCallback(() => {
+    const trimmed = mustWinText.trim();
+    if (!trimmed) return;
+    setMustWin({
+      day: selectedDay,
+      text: trimmed,
+      timeBound: mustWinTime || undefined,
+    });
+    setMustWinText("");
+    setMustWinTime("");
+    showToast("Must Win locked");
+  }, [mustWinText, mustWinTime, selectedDay, setMustWin, showToast]);
 
   const beginEdit = useCallback(
     (todo: TodoItem) => {
@@ -145,6 +267,7 @@ export default function TodosPage() {
       setEditPriority(todo.priority);
       setEditTimeblock(todo.timeblockMins);
       setEditStartTime(todo.startTime ?? "");
+      setEditEndTime(buildEndTime(todo.startTime ?? "", todo.timeblockMins));
       setEditColor(todo.color ?? defaultBlockColor);
       setEditIcon(todo.icon ?? defaultTaskIcon);
       setPanelMode("edit");
@@ -156,6 +279,7 @@ export default function TodosPage() {
     setEditingId(null);
     setEditText("");
     setEditStartTime("");
+    setEditEndTime("");
     setEditTimeblock(undefined);
     setEditColor(defaultBlockColor);
     setEditIcon(defaultTaskIcon);
@@ -170,20 +294,93 @@ export default function TodosPage() {
     cancelEdit();
     setColor(defaultBlockColor);
     setIcon(defaultTaskIcon);
+    setStyleLocked(false);
+    setRepeatType("none");
+    setRepeatWeekdays([]);
+    setRepeatMonthDay(dayKeyToDate(selectedDay).getDate());
+    setExistingTaskId("");
+    setStartTime("08:00");
+    setEndTime("08:30");
+    setTimeblock(30);
     setPanelMode("add");
-  }, [cancelEdit]);
+  }, [cancelEdit, selectedDay]);
+
+  const handleTextChange = useCallback(
+    (value: string) => {
+      setText(value);
+      if (!panelMode || panelMode !== "add" || styleLocked) return;
+      const suggestion = suggestTaskStyle(value);
+      if (suggestion.color) {
+        setColor(suggestion.color);
+      }
+      if (suggestion.icon) {
+        setIcon(suggestion.icon);
+      }
+    },
+    [panelMode, styleLocked],
+  );
+
+  const handleStartTimeChange = useCallback((value: string) => {
+    setStartTime(value);
+    const end = endTime || buildEndTime(value, timeblock);
+    const duration = computeTimeblockFromTimes(value, end);
+    if (duration) {
+      setTimeblock(duration);
+    } else {
+      setTimeblock(undefined);
+    }
+    if (end) {
+      setEndTime(end);
+    }
+  }, [endTime, timeblock]);
+
+  const handleEndTimeChange = useCallback((value: string) => {
+    if (!startTime) {
+      setEndTime(value);
+      setStartTime(value);
+      setTimeblock(undefined);
+      return;
+    }
+    const duration = computeTimeblockFromTimes(startTime, value);
+    if (!duration) {
+      setEndTime(startTime);
+      setTimeblock(undefined);
+      return;
+    }
+    setEndTime(value);
+    setTimeblock(duration);
+  }, [startTime]);
+
+  const handleSelectExisting = useCallback(
+    (id: string) => {
+      setExistingTaskId(id);
+      const option = existingTaskOptions.find((item) => item.id === id);
+      if (!option) return;
+      const todo = option.todo;
+      setText(todo.text);
+      setPriority(todo.priority);
+      setTimeblock(todo.timeblockMins ?? undefined);
+      setStartTime(todo.startTime ?? "");
+      setEndTime(buildEndTime(todo.startTime ?? "", todo.timeblockMins));
+      setColor(todo.color ?? defaultBlockColor);
+      setIcon(todo.icon ?? defaultTaskIcon);
+      setStyleLocked(true);
+    },
+    [existingTaskOptions],
+  );
 
   const submitEdit = useCallback(() => {
     if (!editingId) return;
     const trimmed = editText.trim();
     if (!trimmed) return;
+    const computedTimeblock = computeTimeblockFromTimes(editStartTime, editEndTime);
     updateTodo({
       day: selectedDay,
       id: editingId,
       updates: {
         text: trimmed,
         priority: editPriority,
-        timeblockMins: editTimeblock,
+        timeblockMins: computedTimeblock,
         startTime: editStartTime || undefined,
         color: editColor,
         icon: editIcon,
@@ -195,8 +392,8 @@ export default function TodosPage() {
     editingId,
     editText,
     editPriority,
-    editTimeblock,
     editStartTime,
+    editEndTime,
     editColor,
     editIcon,
     selectedDay,
@@ -204,6 +401,33 @@ export default function TodosPage() {
     showToast,
     closePanel,
   ]);
+
+  const handleEditStartTimeChange = useCallback((value: string) => {
+    setEditStartTime(value);
+    const end = editEndTime || buildEndTime(value, editTimeblock);
+    const duration = computeTimeblockFromTimes(value, end);
+    setEditTimeblock(duration);
+    if (end) {
+      setEditEndTime(end);
+    }
+  }, [editEndTime, editTimeblock]);
+
+  const handleEditEndTimeChange = useCallback((value: string) => {
+    if (!editStartTime) {
+      setEditEndTime(value);
+      setEditStartTime(value);
+      setEditTimeblock(undefined);
+      return;
+    }
+    const duration = computeTimeblockFromTimes(editStartTime, value);
+    if (!duration) {
+      setEditEndTime(editStartTime);
+      setEditTimeblock(undefined);
+      return;
+    }
+    setEditEndTime(value);
+    setEditTimeblock(duration);
+  }, [editStartTime]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -260,19 +484,39 @@ export default function TodosPage() {
       title: "Schedule task",
       subtitle: `Setup focus for ${dayLabelFull}`,
       text,
-      onTextChange: setText,
+      onTextChange: handleTextChange,
       priority,
       onPriorityChange: setPriority,
       timeblock,
       onTimeblockChange: setTimeblock,
       startTime,
-      onStartTimeChange: setStartTime,
+      onStartTimeChange: handleStartTimeChange,
+      endTime,
+      onEndTimeChange: handleEndTimeChange,
       color,
-      onColorChange: setColor,
+      onColorChange: (value) => {
+        setStyleLocked(true);
+        setColor(value);
+      },
       colorOptions: blockColors,
       icon,
-      onIconChange: setIcon,
+      onIconChange: (value) => {
+        setStyleLocked(true);
+        setIcon(value);
+      },
       iconOptions: taskIconOptions,
+      existingTasks: existingTaskOptions,
+      existingTaskId,
+      onSelectExisting: handleSelectExisting,
+      repeatType,
+      onRepeatTypeChange: setRepeatType,
+      repeatWeekdays,
+      onToggleRepeatWeekday: (day) =>
+        setRepeatWeekdays((current) =>
+          current.includes(day) ? current.filter((value) => value !== day) : [...current, day],
+        ),
+      repeatMonthDay,
+      onRepeatMonthDayChange: setRepeatMonthDay,
       onSubmit: submitTask,
       submitLabel: "Schedule",
     };
@@ -287,7 +531,9 @@ export default function TodosPage() {
       timeblock: editTimeblock,
       onTimeblockChange: setEditTimeblock,
       startTime: editStartTime,
-      onStartTimeChange: setEditStartTime,
+      onStartTimeChange: handleEditStartTimeChange,
+      endTime: editEndTime,
+      onEndTimeChange: handleEditEndTimeChange,
       color: editColor,
       onColorChange: setEditColor,
       colorOptions: blockColors,
@@ -307,6 +553,66 @@ export default function TodosPage() {
       </header>
 
       <div className="flex flex-col gap-6">
+        <div className="glass-panel rounded-3xl border border-amber-300/40 bg-gradient-to-br from-amber-500/10 via-white/5 to-rose-500/10 p-6 backdrop-blur-lg">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-medium text-white">Top 1 Must Win</h2>
+              <p className="mt-1 text-sm text-zinc-300">
+                Keep it concrete, time-bound, and binary.
+              </p>
+            </div>
+            {selectedDay === todayKey && todaysMustWin?.done && (
+              <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100">
+                Completed
+              </span>
+            )}
+          </div>
+          {todaysMustWin ? (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/40 bg-black/40 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{todaysMustWin.text}</p>
+                {todaysMustWin.timeBound && (
+                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-amber-200">
+                    By {todaysMustWin.timeBound}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => toggleMustWin({ day: selectedDay })}
+                className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] ${
+                  todaysMustWin.done
+                    ? "bg-emerald-400 text-emerald-950"
+                    : "bg-amber-300 text-amber-950"
+                }`}
+              >
+                {todaysMustWin.done ? "Won" : "Mark done"}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_200px_auto]">
+              <input
+                value={mustWinText}
+                onChange={(event) => setMustWinText(event.target.value)}
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+                placeholder="What actually matters?"
+              />
+              <input
+                value={mustWinTime}
+                onChange={(event) => setMustWinTime(event.target.value)}
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+                placeholder="By when"
+              />
+              <button
+                type="button"
+                onClick={submitMustWin}
+                className="rounded-full bg-amber-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-amber-950"
+              >
+                Lock it
+              </button>
+            </div>
+          )}
+        </div>
         <DayTimeline
           todos={todosForDay}
           selectedDay={selectedDay}
@@ -316,6 +622,7 @@ export default function TodosPage() {
           onOpenCalendar={() => setCalendarOpen(true)}
           onAddTask={openAddPanel}
           onEdit={beginEdit}
+          onToggle={(id) => toggleTodo({ day: selectedDay, id })}
           onJumpToday={jumpToToday}
         />
         <div className="hidden lg:block">
@@ -330,6 +637,7 @@ export default function TodosPage() {
             }
             onEditRequest={(todo) => beginEdit(todo)}
             onDeleteRequest={(id) => handleDelete(id)}
+            onToggle={(id) => toggleTodo({ day: selectedDay, id })}
             onAddTask={openAddPanel}
             onShiftDay={handleShiftDay}
             onSelectDay={handleDaySelect}
@@ -351,7 +659,7 @@ export default function TodosPage() {
             updateTodoPriority({ day: selectedDay, id, priority: next })
           }
         />
-        <UpcomingBlocks slots={upcoming} />
+        <div className="hidden lg:block" />
       </div>
 
       {panelState && <TaskPanel {...panelState} onClose={closePanel} />}
@@ -393,7 +701,7 @@ function SelectField({
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full appearance-none rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-sm font-medium text-white focus:border-cyan-400/60 focus:outline-none"
+          className="w-full appearance-none rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none sm:text-sm"
         >
           {children}
         </select>
@@ -402,6 +710,61 @@ function SelectField({
             <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
+      </div>
+    </div>
+  );
+}
+
+function TimePillSelector({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: StartTimeOption[];
+  onChange: (value: string) => void;
+}) {
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const active = list.querySelector<HTMLButtonElement>(`button[data-value="${value}"]`);
+    active?.scrollIntoView({ block: "center" });
+  }, [value]);
+
+  return (
+    <div className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">{label}</span>
+      <div className="relative rounded-2xl border border-white/10 bg-black/30 p-2">
+        <div className="pointer-events-none absolute inset-x-3 top-1/2 h-10 -translate-y-1/2 rounded-full border border-white/10 bg-white/5" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-[#0b1121]/90 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#0b1121]/90 to-transparent" />
+        <div
+          ref={listRef}
+          className="hide-scrollbar max-h-40 overflow-y-auto snap-y snap-mandatory py-6"
+        >
+          {options.map((option) => {
+            const active = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                data-value={option.value}
+                onClick={() => onChange(option.value)}
+                className={`mx-auto block w-full snap-center rounded-full px-4 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.25em] transition ${
+                  active
+                    ? "text-cyan-200"
+                    : "text-white/70 hover:text-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -472,6 +835,27 @@ function IconPicker({
   );
 }
 
+function CustomEmojiField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">Custom emoji</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        maxLength={4}
+        className="rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+        placeholder="e.g. 🧠"
+      />
+    </div>
+  );
+}
+
 type DayTimelineProps = {
   todos: TodoItem[];
   selectedDay: DayKey;
@@ -481,6 +865,7 @@ type DayTimelineProps = {
   onOpenCalendar: () => void;
   onAddTask: () => void;
   onEdit: (todo: TodoItem) => void;
+  onToggle: (id: string) => void;
   onJumpToday: () => void;
 };
 
@@ -493,6 +878,7 @@ function DayTimeline({
   onOpenCalendar,
   onAddTask,
   onEdit,
+  onToggle,
   onJumpToday,
 }: DayTimelineProps) {
   const events = useMemo(() => buildTimelineEvents(todos), [todos]);
@@ -556,7 +942,7 @@ function DayTimeline({
                     ))}
                   </div>
                   {day.isToday && (
-                    <span className="mt-1 text-[8px] font-semibold uppercase tracking-[0.3em] text-emerald-300">Today</span>
+                    <span className="mt-1 text-[8px] font-bold uppercase tracking-[0.3em] text-red-400">Today</span>
                   )}
                 </button>
               );
@@ -590,11 +976,22 @@ function DayTimeline({
                       className="ml-6 rounded-3xl border px-4 py-3 text-white shadow-lg shadow-black/30"
                       style={getTimelineCardStyle(event.color)}
                     >
-                      <p className="text-sm font-semibold leading-tight text-white">{event.title}</p>
-                      <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">
-                        {event.window}
-                        {event.durationLabel ? ` • ${event.durationLabel}` : ""}
-                      </p>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 cursor-pointer accent-emerald-300"
+                          checked={event.todo.done}
+                          onClick={(eventClick) => eventClick.stopPropagation()}
+                          onChange={() => onToggle(event.todo.id)}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-tight text-white">{event.title}</p>
+                          <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">
+                            {event.window}
+                            {event.durationLabel ? ` • ${event.durationLabel}` : ""}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </button>
@@ -654,6 +1051,7 @@ type TimeBlockingBoardProps = {
   onScheduleChange: (id: string, updates: { startTime?: string; timeblockMins?: Timeblock }) => void;
   onEditRequest?: (todo: TodoItem) => void;
   onDeleteRequest?: (id: string) => void;
+  onToggle: (id: string) => void;
   onAddTask: () => void;
   onShiftDay: (delta: number) => void;
   onSelectDay: (day: DayKey) => void;
@@ -678,6 +1076,7 @@ function TimeBlockingBoard({
   onScheduleChange,
   onEditRequest,
   onDeleteRequest,
+  onToggle,
   onAddTask,
   onShiftDay,
   onSelectDay,
@@ -837,7 +1236,7 @@ function TimeBlockingBoard({
                   </span>
                   <span className="text-base font-semibold">{day.label}</span>
                   <div className="mt-1 flex items-center gap-1 text-[10px] uppercase tracking-[0.3em]">
-                    {day.isToday && <span className="text-amber-200">Today</span>}
+                    {day.isToday && <span className="font-bold text-red-400">Today</span>}
                     {!day.isToday && day.hasTodos && (
                       <span className="text-emerald-300">Focus</span>
                     )}
@@ -893,20 +1292,27 @@ function TimeBlockingBoard({
                         color: "#030712",
                       }
                     : undefined;
+                  const isCompact = block.durationMinutes <= SLOT_MINUTES;
                   const blockClass = block.hasConflict
                     ? "border-amber-300 bg-amber-200/90 text-zinc-900"
                     : block.color
                       ? "border-transparent text-zinc-900"
                       : `${priorityClasses(block.priority)} border-white/10`;
+                  const minBlockHeight = isCompact ? 32 : 28;
                   return (
                     <div
                       key={block.id}
                       ref={highlight ? highlightRef : undefined}
                       onPointerDown={(event) => handleDragStart(event, block.originalTodo, "move")}
-                      className={`group absolute left-4 right-4 z-10 cursor-grab rounded-2xl border px-3 py-2 text-xs shadow-lg ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""}`}
+                      className={`group absolute left-4 right-4 z-10 cursor-grab rounded-2xl border px-3 text-xs shadow-lg ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""} ${
+                        isCompact ? "py-1" : "py-2"
+                      }`}
                       style={{
                         top: (block.startMinutes / SLOT_MINUTES) * SLOT_HEIGHT,
-                        height: Math.max((block.durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT - 2, 28),
+                        height: Math.max(
+                          (block.durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT - 2,
+                          minBlockHeight,
+                        ),
                         ...customStyle,
                       }}
                     >
@@ -936,13 +1342,31 @@ function TimeBlockingBoard({
                           Delete
                         </button>
                       </div>
-                      <div className="pointer-events-none flex h-full flex-col justify-center gap-1 text-left">
-                        <p className="text-xs font-semibold uppercase tracking-[0.15em]">
-                          {block.label}
-                        </p>
-                        <p className="text-[10px] uppercase tracking-[0.25em] opacity-80">
-                          {block.window}
-                        </p>
+                      <div className="flex h-full items-center gap-2 text-left">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer accent-emerald-300"
+                          checked={block.originalTodo.done}
+                          onClick={(eventClick) => eventClick.stopPropagation()}
+                          onPointerDown={(eventClick) => eventClick.stopPropagation()}
+                          onChange={() => onToggle(block.id)}
+                        />
+                        <div className="pointer-events-none flex flex-col justify-center gap-1">
+                          <p
+                            className={`font-semibold uppercase tracking-[0.15em] ${
+                              isCompact ? "text-[10px] leading-[12px]" : "text-xs"
+                            }`}
+                          >
+                            {block.label}
+                          </p>
+                          <p
+                            className={`uppercase tracking-[0.25em] opacity-80 ${
+                              isCompact ? "text-[9px] leading-[12px]" : "text-[10px]"
+                            }`}
+                          >
+                            {block.window}
+                          </p>
+                        </div>
                       </div>
                       <div
                         className="absolute bottom-1 left-1/2 h-2 w-10 -translate-x-1/2 cursor-ns-resize rounded-full bg-white/60"
@@ -1070,7 +1494,7 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
                     onClick={() => onCyclePriority(todo.id, nextPriority(todo.priority))}
                     className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-zinc-200"
                   >
-                    P{todo.priority}
+                    {priorityLabel(todo.priority)}
                   </button>
                   <button
                     type="button"
@@ -1146,20 +1570,33 @@ function TaskPanel({
   onTimeblockChange,
   startTime,
   onStartTimeChange,
+  endTime,
+  onEndTimeChange,
   color,
   onColorChange,
   colorOptions,
   icon,
   onIconChange,
   iconOptions,
+  existingTasks,
+  existingTaskId,
+  onSelectExisting,
+  repeatType,
+  onRepeatTypeChange,
+  repeatWeekdays,
+  onToggleRepeatWeekday,
+  repeatMonthDay,
+  onRepeatMonthDayChange,
   onSubmit,
   submitLabel,
   onDelete,
   onClose,
 }: TaskPanelProps) {
+  const customEmojiValue = iconOptions.some((option) => option.id === icon) ? "" : icon;
+  const durationMinutes = computeTimeblockFromTimes(startTime, endTime ?? "");
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex justify-end overflow-x-hidden bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -1184,54 +1621,179 @@ function TaskPanel({
           </button>
         </div>
         <form
-          className="mt-6 flex flex-col gap-4"
+          className="mt-6 flex flex-col gap-5"
           onSubmit={(event) => {
             event.preventDefault();
             onSubmit();
           }}
         >
-          <div className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-zinc-400">
-            <span className="pl-1">Task</span>
-            <input
-              value={text}
-              onChange={(event) => onTextChange(event.target.value)}
-              className="rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
-              placeholder="Add todo"
-            />
-          </div>
-          <SelectField
-            label="Priority"
-            value={priority.toString()}
-            onChange={(value) => onPriorityChange(Number(value) as TodoPriority)}
-          >
-            {[1, 2, 3].map((value) => (
-              <option key={value} value={value}>
-                Priority {value}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            label="Block length"
-            value={timeblock ? timeblock.toString() : ""}
-            onChange={(value) => onTimeblockChange(value === "" ? undefined : Number(value))}
-          >
-            <option value="">No block</option>
-            {timeblockOptions.map((block) => (
-              <option key={block} value={block}>
-                {block}m focus
-              </option>
-            ))}
-          </SelectField>
-          <SelectField label="Start time" value={startTime} onChange={(value) => onStartTimeChange(value)}>
-            <option value="">-- select --</option>
-            {startTimeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </SelectField>
-          <ColorPicker colors={colorOptions} value={color ?? colorOptions[0]} onChange={onColorChange} />
-          <IconPicker icons={iconOptions} value={icon} onChange={onIconChange} />
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-2xl text-white">
+                {getTaskIconSymbol(icon, text)}
+              </div>
+              <div className="flex-1">
+                <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Task</p>
+                <input
+                  value={text}
+                  onChange={(event) => onTextChange(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-base text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+                  placeholder="Name the focus block"
+                />
+              </div>
+            </div>
+            {existingTasks && existingTasks.length > 0 && onSelectExisting && (
+              <div className="mt-4">
+                <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-400">Recent tasks</p>
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                  {existingTasks.map((option) => {
+                    const active = existingTaskId === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => onSelectExisting(option.id)}
+                        className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${
+                          active
+                            ? "border-cyan-300/70 bg-cyan-300/10 text-white"
+                            : "border-white/10 text-white/70 hover:text-white"
+                        }`}
+                      >
+                        <span className="text-base">{getTaskIconSymbol(option.todo.icon, option.todo.text)}</span>
+                        <span className="max-w-[160px] truncate">{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Schedule</p>
+              <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                {durationMinutes ? `${durationMinutes}m` : "No duration"}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <SelectField
+                label="Priority"
+                value={priority.toString()}
+                onChange={(value) => onPriorityChange(Number(value) as TodoPriority)}
+              >
+                {[1, 2, 3].map((value) => (
+                  <option key={value} value={value}>
+                    {priorityLabel(value as TodoPriority)}
+                  </option>
+                ))}
+              </SelectField>
+              <div className="sm:hidden">
+                <TimePillSelector label="Start time" value={startTime} options={startTimeOptions} onChange={onStartTimeChange} />
+              </div>
+              <div className="hidden sm:block">
+                <SelectField label="Start time" value={startTime} onChange={(value) => onStartTimeChange(value)}>
+                  <option value="">-- select --</option>
+                  {startTimeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+              {onEndTimeChange && (
+                <>
+                  <div className="sm:hidden">
+                    <TimePillSelector label="End time" value={endTime ?? ""} options={startTimeOptions} onChange={onEndTimeChange} />
+                  </div>
+                  <div className="hidden sm:block">
+                    <SelectField label="End time" value={endTime ?? ""} onChange={(value) => onEndTimeChange(value)}>
+                      <option value="">-- select --</option>
+                      {startTimeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </SelectField>
+                  </div>
+                </>
+              )}
+              {onRepeatTypeChange && (
+                <SelectField
+                  label="Repeat"
+                  value={repeatType ?? "none"}
+                  onChange={(value) => onRepeatTypeChange(value as RepeatType)}
+                >
+                  <option value="none">Once</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </SelectField>
+              )}
+            </div>
+            {repeatType === "weekly" && repeatWeekdays && onToggleRepeatWeekday && (
+              <div className="mt-4 flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
+                <span className="pl-1">Repeat days</span>
+                <div className="flex flex-wrap gap-2">
+                  {repeatDayLabels.map((day) => {
+                    const active = repeatWeekdays.includes(day.day);
+                    return (
+                      <button
+                        key={day.day}
+                        type="button"
+                        onClick={() => onToggleRepeatWeekday(day.day)}
+                        className={`rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] ${
+                          active ? "bg-cyan-300 text-zinc-900" : "border border-white/15 text-white/70"
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {repeatType === "monthly" && typeof repeatMonthDay === "number" && onRepeatMonthDayChange && (
+              <div className="mt-4">
+                <SelectField
+                  label="Repeat day"
+                  value={repeatMonthDay.toString()}
+                  onChange={(value) => onRepeatMonthDayChange(Number(value))}
+                >
+                  {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                    <option key={day} value={day}>
+                      Day {day}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+            )}
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Style</p>
+              <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">Suggested</span>
+            </div>
+            <div className="mt-4 space-y-4">
+              <ColorPicker colors={colorOptions} value={color ?? colorOptions[0]} onChange={onColorChange} />
+              <IconPicker icons={iconOptions} value={icon} onChange={onIconChange} />
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                <CustomEmojiField
+                  value={customEmojiValue}
+                  onChange={(value) => {
+                    const trimmed = value.trim();
+                    if (!trimmed) return;
+                    onIconChange(trimmed);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => onIconChange(defaultTaskIcon)}
+                  className="rounded-full border border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
+                >
+                  Reset icon
+                </button>
+              </div>
+            </div>
+          </section>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="submit"
@@ -1377,12 +1939,23 @@ type TaskPanelState = {
   onTimeblockChange: (value: Timeblock | undefined) => void;
   startTime: string;
   onStartTimeChange: (value: string) => void;
+  endTime?: string;
+  onEndTimeChange?: (value: string) => void;
   color?: string;
   onColorChange: (value: string) => void;
   colorOptions: string[];
   icon: string;
   onIconChange: (value: string) => void;
   iconOptions: IconOption[];
+  existingTasks?: ExistingTaskOption[];
+  existingTaskId?: string;
+  onSelectExisting?: (id: string) => void;
+  repeatType?: RepeatType;
+  onRepeatTypeChange?: (value: RepeatType) => void;
+  repeatWeekdays?: Day[];
+  onToggleRepeatWeekday?: (day: Day) => void;
+  repeatMonthDay?: number;
+  onRepeatMonthDayChange?: (value: number) => void;
   onSubmit: () => void;
   submitLabel: string;
   onDelete?: () => void;
@@ -1400,6 +1973,25 @@ function buildStartTimeOptions(stepMinutes = 15): StartTimeOption[] {
       label: formatMinutesLabel(minutes),
     };
   });
+}
+
+function computeTimeblockFromTimes(start: string, end: string) {
+  if (!start || !end) return undefined;
+  const startMinutes = parseTimeToMinutes(start);
+  const endMinutes = parseTimeToMinutes(end);
+  if (startMinutes === null || endMinutes === null) return undefined;
+  if (endMinutes <= startMinutes) return undefined;
+  const diff = endMinutes - startMinutes;
+  return diff % SLOT_MINUTES === 0 ? (diff as Timeblock) : (Math.round(diff / SLOT_MINUTES) * SLOT_MINUTES as Timeblock);
+}
+
+function buildEndTime(start: string, duration?: Timeblock) {
+  if (!start || !duration) return "";
+  const startMinutes = parseTimeToMinutes(start);
+  if (startMinutes === null) return "";
+  const endMinutes = startMinutes + duration;
+  if (endMinutes > (24 * 60) - SLOT_MINUTES) return "";
+  return minutesToTimeString(endMinutes);
 }
 
 function buildWeekRange(anchor: DayKey, todos: Record<DayKey, TodoItem[]>): RollingDay[] {
@@ -1421,9 +2013,87 @@ function buildWeekRange(anchor: DayKey, todos: Record<DayKey, TodoItem[]>): Roll
   });
 }
 
+function suggestTaskStyle(text: string): StyleSuggestion {
+  const normalized = text.toLowerCase();
+  const hasAny = (words: string[]) => words.some((word) => normalized.includes(word));
+  if (hasAny(["meeting", "sync", "standup", "call", "interview"])) {
+    return { icon: "calendar", color: "#60a5fa" };
+  }
+  if (hasAny(["email", "inbox", "reply", "follow up"])) {
+    return { icon: "email", color: "#38bdf8" };
+  }
+  if (hasAny(["write", "draft", "post", "outline", "notes"])) {
+    return { icon: "pen", color: "#a78bfa" };
+  }
+  if (hasAny(["code", "build", "ship", "deploy", "debug"])) {
+    return { icon: "laptop", color: "#34d399" };
+  }
+  if (hasAny(["workout", "gym", "run", "training", "lift"])) {
+    return { icon: "dumbbell", color: "#f97316" };
+  }
+  if (hasAny(["read", "study", "learn", "course"])) {
+    return { icon: "book", color: "#818cf8" };
+  }
+  if (hasAny(["coffee", "break", "lunch", "meal", "cook", "dinner"])) {
+    return { icon: "food", color: "#facc15" };
+  }
+  if (hasAny(["money", "budget", "invoice", "finance", "tax"])) {
+    return { icon: "chart", color: "#4ade80" };
+  }
+  if (hasAny(["clean", "tidy", "laundry"])) {
+    return { icon: "broom", color: "#fb7185" };
+  }
+  if (hasAny(["drive", "commute", "travel"])) {
+    return { icon: "car", color: "#f87171" };
+  }
+  if (hasAny(["sleep", "rest", "night"])) {
+    return { icon: "moon", color: "#60a5fa" };
+  }
+  if (hasAny(["focus", "deep work", "plan"])) {
+    return { icon: "spark", color: "#facc15" };
+  }
+  return {};
+}
+
+function buildRepeatDays(args: {
+  startDay: DayKey;
+  repeatType: RepeatType;
+  repeatWeekdays: Day[];
+  repeatMonthDay: number;
+  horizonDays: number;
+}): DayKey[] {
+  const startDate = dayKeyToDate(args.startDay);
+  const days: DayKey[] = [];
+  const weekdaySet =
+    args.repeatWeekdays.length > 0 ? new Set(args.repeatWeekdays) : new Set<Day>([startDate.getDay() as Day]);
+  for (let offset = 0; offset < args.horizonDays; offset += 1) {
+    const current = new Date(startDate);
+    current.setDate(startDate.getDate() + offset);
+    const dayKey = getDayKey(current);
+    if (args.repeatType === "none") {
+      if (offset === 0) {
+        days.push(dayKey);
+      }
+      break;
+    }
+    if (args.repeatType === "weekly") {
+      if (weekdaySet.has(current.getDay() as Day)) {
+        days.push(dayKey);
+      }
+    }
+    if (args.repeatType === "monthly") {
+      if (current.getDate() === args.repeatMonthDay) {
+        days.push(dayKey);
+      }
+    }
+  }
+  return Array.from(new Set(days));
+}
+
 function getTaskIconSymbol(iconId?: string, fallbackText = "") {
   const icon = taskIconOptions.find((option) => option.id === iconId);
   if (icon) return icon.symbol;
+  if (iconId) return iconId;
   const trimmed = fallbackText.trim();
   return trimmed ? trimmed.charAt(0).toUpperCase() : "•";
 }
@@ -1482,7 +2152,7 @@ function buildUpcomingSchedule(record: Record<DayKey, TodoItem[]>) {
           day: "numeric",
         }),
         label: todo.text,
-        meta: `${formatTodoTimeWindow(todo) || "No block"} • P${todo.priority}`,
+        meta: `${formatTodoTimeWindow(todo) || "No block"} • ${priorityLabel(todo.priority)}`,
         sortKey: startMinutes,
       });
     });
@@ -1549,7 +2219,7 @@ function buildScheduledBlocks(todos: TodoItem[], drag?: DragState | null): Sched
 }
 
 function buildTodoMeta(todo: TodoItem) {
-  const detailParts = [`P${todo.priority}`];
+  const detailParts = [priorityLabel(todo.priority)];
   const window = formatTodoTimeWindow(todo);
   if (window) {
     detailParts.push(window);
@@ -1562,12 +2232,24 @@ function buildTodoMeta(todo: TodoItem) {
 function priorityClasses(priority: TodoPriority) {
   switch (priority) {
     case 1:
-      return "bg-gradient-to-r from-amber-200/90 to-orange-300/80 text-zinc-900";
+      return "bg-gradient-to-r from-rose-400/90 to-red-500/80 text-white";
     case 2:
-      return "bg-gradient-to-r from-cyan-300/80 to-blue-500/70 text-white";
+      return "bg-gradient-to-r from-amber-300/90 to-orange-400/80 text-zinc-900";
     case 3:
     default:
-      return "bg-gradient-to-r from-fuchsia-400/70 to-purple-500/70 text-white";
+      return "bg-gradient-to-r from-sky-400/80 to-indigo-500/70 text-white";
+  }
+}
+
+function priorityLabel(priority: TodoPriority) {
+  switch (priority) {
+    case 1:
+      return "High";
+    case 2:
+      return "Medium";
+    case 3:
+    default:
+      return "Low";
   }
 }
 

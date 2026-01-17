@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -26,6 +27,7 @@ import { useToast } from "@/components/Toast";
 import { formatMinutesLabel, minutesToTimeString, parseTimeToMinutes } from "@/lib/timeDisplay";
 
 const TOTAL_MINUTES = 24 * 60;
+const DIAL_MINUTES = 12 * 60;
 const DEFAULT_DURATION = 8 * 60;
 const CLOCK_SIZE = 340;
 const CLOCK_RADIUS = 130;
@@ -47,6 +49,7 @@ const dayLabels: Record<Day, { short: string; long: string }> = {
 };
 
 export default function SleepPage() {
+  const showScheduleControls = false;
   const { state, hydrated, logSleep, updateSleepSchedule, updateSleepEntry, deleteSleepEntry } =
     useJarvisState();
   const { showToast } = useToast();
@@ -72,6 +75,14 @@ export default function SleepPage() {
   const [dreams, setDreams] = useState("");
   const [notes, setNotes] = useState("");
   const [editingNight, setEditingNight] = useState<SleepEntry | null>(null);
+  const [calendarDay, setCalendarDay] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 1);
+    return getDayKey(date);
+  });
+  const [manualLogDayKey, setManualLogDayKey] = useState<string | null>(null);
+  const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
   const focusNightId = search?.get("focus");
   const focusQueryDay = search?.get("day");
   const focusNightRef = useRef<HTMLDivElement | null>(null);
@@ -115,18 +126,6 @@ export default function SleepPage() {
   );
   const durationLabel = useMemo(() => formatDuration(durationMins), [durationMins]);
 
-  const lastNightDate = useMemo(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 1);
-    return date;
-  }, []);
-  const lastNightLabel = lastNightDate.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  });
-  const lightsOutLabel = formatMinutesLabel(startMinutes);
-  const wakeLabel = formatMinutesLabel(endMinutes);
 
   const recentNights = useMemo(() => getRecentSleep(state, 7), [state]);
   const averageHours = useMemo(() => computeAverageHours(recentNights), [recentNights]);
@@ -141,6 +140,24 @@ export default function SleepPage() {
         day: "numeric",
       })
     : dayLabels[focusedDay].long;
+  const manualLogLabel = useMemo(() => {
+    if (!manualLogDayKey) return null;
+    return dayKeyToDate(manualLogDayKey).toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  }, [manualLogDayKey]);
+  const manualLogDayLabel = useMemo(() => {
+    if (!manualLogDayKey) return null;
+    return dayKeyToDate(manualLogDayKey).toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
+  }, [manualLogDayKey]);
+  const loggingLabel = manualLogDayLabel ?? dayLabels[focusedDay].long;
+  const headerStatusLabel = isEditing ? `Editing ${editingDayLabel}` : `Logging ${loggingLabel}`;
 
   useEffect(() => {
     if (!focusQueryDay) return;
@@ -169,6 +186,7 @@ export default function SleepPage() {
   }, [focusNightId, recentNights.length]);
 
   useEffect(() => {
+    if (manualLogDayKey) return;
     if (
       schedule.lastEditedDay !== undefined &&
       schedule.lastEditedDay !== focusedDay &&
@@ -177,7 +195,7 @@ export default function SleepPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFocusedDay(schedule.lastEditedDay);
     }
-  }, [schedule.lastEditedDay, focusedDay, focusQueryDay]);
+  }, [schedule.lastEditedDay, focusedDay, focusQueryDay, manualLogDayKey]);
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
@@ -272,14 +290,17 @@ export default function SleepPage() {
         showToast("Sleep updated");
         return;
       }
-      const dayKey = getRecentDayKeyForWeekday(focusedDay);
+      const dayKey = manualLogDayKey ?? getRecentDayKeyForWeekday(focusedDay);
       logSleep({
         day: dayKey,
         ...payload,
       });
       setDreams("");
       setNotes("");
-      showToast(`Sleep logged for ${dayLabels[focusedDay].long}`);
+      if (manualLogDayKey) {
+        setManualLogDayKey(null);
+      }
+      showToast(`Sleep logged for ${manualLogDayLabel ?? dayLabels[focusedDay].long}`);
     },
     [
       focusedDay,
@@ -293,6 +314,7 @@ export default function SleepPage() {
       logSleep,
       editingNight,
       updateSleepEntry,
+      manualLogDayKey,
       showToast,
     ],
   );
@@ -347,6 +369,30 @@ export default function SleepPage() {
     [deleteSleepEntry, editingNight, handleCancelEdit, showToast],
   );
 
+  const handleCalendarJump = useCallback(
+    (targetDay?: string) => {
+      const resolvedDay = targetDay ?? calendarDay;
+      if (!resolvedDay) return;
+      const nightsForDay = state.sleep[resolvedDay] ?? [];
+      if (nightsForDay.length) {
+        const latest = [...nightsForDay].sort((a, b) => b.ts - a.ts)[0];
+        handleEditNight(latest);
+        setManualLogDayKey(null);
+        showToast("Loaded sleep entry for that date");
+        return;
+      }
+      const parsed = new Date(resolvedDay);
+      if (Number.isNaN(parsed.getTime())) return;
+      setManualLogDayKey(resolvedDay);
+      setFocusedDay(parsed.getDay() as Day);
+      setEditingNight(null);
+      setDreams("");
+      setNotes("");
+      showToast("Ready to log this date");
+    },
+    [calendarDay, state.sleep, handleEditNight, showToast],
+  );
+
   if (!hydrated) {
     return <p className="text-sm uppercase tracking-[0.3em] text-zinc-400">Loading sleep log…</p>;
   }
@@ -356,141 +402,184 @@ export default function SleepPage() {
       <header>
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Sleep</p>
       </header>
-      <div className="lg:hidden">
-        <div className="-mx-4 rounded-[32px] border border-white/5 bg-gradient-to-br from-[#101c2d] via-[#0d1624] to-[#151f36] px-4 py-6 text-white shadow-2xl sm:mx-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.4em] text-cyan-200/80">Last night</p>
-              <h2 className="text-3xl font-semibold">{lastNightLabel}</h2>
-            </div>
-            <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70">
-              {durationLabel}
-            </div>
+
+      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-lg sm:p-6">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-medium text-white">Night editor</h2>
+            <p className="text-sm text-zinc-400">Set the window and log the quality.</p>
           </div>
-          <p className="mt-2 text-sm text-white/70">
-            Dial in bedtime + wake so tomorrow starts with clarity.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-              <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Lights out</p>
-              <p className="text-xl font-semibold text-white">{lightsOutLabel}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-              <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Wake</p>
-              <p className="text-xl font-semibold text-white">{wakeLabel}</p>
+          <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-zinc-300">
+            <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[11px] text-white/80 whitespace-nowrap">
+              {durationLabel}
+            </span>
+            {manualLogLabel && (
+              <span className="text-[11px] text-cyan-200">Logging {manualLogLabel}</span>
+            )}
+            {!manualLogLabel && (
+              <span className="text-[11px] text-white/60">{headerStatusLabel}</span>
+            )}
+            <div className="flex items-center gap-2">
+              <label className="relative cursor-pointer rounded-full border border-white/10 bg-gradient-to-r from-white/10 via-white/5 to-transparent p-2 text-white/80 shadow-[0_0_20px_rgba(59,130,246,0.25)] hover:text-white">
+                <span className="sr-only">Select day</span>
+                <CalendarIcon className="h-4 w-4" />
+                <input
+                  ref={dateInputRef}
+                  type="date"
+                  value={calendarDay}
+                  onChange={(event) => {
+                    const nextDay = event.target.value;
+                    setCalendarDay(nextDay);
+                    handleCalendarJump(nextDay);
+                  }}
+                  max={getDayKey()}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => handleCalendarJump()}
+                className="rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/80 hover:text-white"
+              >
+                Load day
+              </button>
             </div>
           </div>
         </div>
-      </div>
 
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="text-lg font-medium text-white">Night editor</h2>
-            <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">{durationLabel}</p>
+        <div className="mt-6 grid gap-5 sm:gap-6 lg:grid-cols-2 lg:items-stretch">
+          <div className="order-1 flex flex-col items-center gap-6 rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-5 lg:h-full lg:min-h-[520px]">
+            <SleepClock startMinutes={startMinutes} endMinutes={endMinutes} onChange={handleClockChange} />
           </div>
-          <div className="flex w-full flex-col items-start gap-3 lg:w-auto lg:items-end">
-            <div className="grid w-full grid-cols-2 gap-2 lg:grid-cols-4 lg:w-auto">
-              {modeOptions.map((option) => {
-                const active = schedule.mode === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => handleModeChange(option.value)}
-                    className={`rounded-2xl border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] transition ${
-                      active
-                        ? "border-white bg-white text-zinc-900 shadow-md"
-                        : "border-white/15 bg-white/5 text-white/70 hover:border-white/40"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-            {schedule.mode === "custom" ? (
-              <div className="flex flex-col items-start gap-2">
-                <div className="flex flex-wrap gap-2">
-                  {allDays.map((day) => {
-                    const active = customDays.includes(day);
+
+          <div className="order-2 flex flex-col gap-5">
+            {showScheduleControls && (
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-5">
+                <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-400">Schedule mode</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {modeOptions.map((option) => {
+                    const active = schedule.mode === option.value;
                     return (
                       <button
-                        key={day}
+                        key={option.value}
                         type="button"
-                        onClick={() => handleCustomDayToggle(day)}
-                        className={`rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.3em] transition ${
-                          active ? "bg-cyan-300 text-zinc-900" : "bg-white/10 text-zinc-400"
+                        onClick={() => handleModeChange(option.value)}
+                        className={`rounded-2xl border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] transition ${
+                          active
+                            ? "border-white bg-white text-zinc-900 shadow-md"
+                            : "border-white/15 bg-white/5 text-white/70 hover:border-white/40"
                         }`}
                       >
-                        {dayLabels[day].short}
+                        {option.label}
                       </button>
                     );
                   })}
                 </div>
-                <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">{editingSummary}</p>
+                {schedule.mode === "custom" ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      {allDays.map((day) => {
+                        const active = customDays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => handleCustomDayToggle(day)}
+                            className={`rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.3em] transition ${
+                              active ? "bg-cyan-300 text-zinc-900" : "bg-white/10 text-zinc-400"
+                            }`}
+                          >
+                            {dayLabels[day].short}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
+                      {editingSummary}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-[11px] uppercase tracking-[0.3em] text-zinc-500">
+                    {editingSummary}
+                  </p>
+                )}
               </div>
-            ) : (
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">{editingSummary}</p>
             )}
-          </div>
-        </div>
-        <div className="mt-8 grid gap-10 lg:grid-cols-[1.2fr,1fr]">
-          <SleepClock startMinutes={startMinutes} endMinutes={endMinutes} onChange={handleClockChange} />
-          <form className="flex min-w-0 flex-col gap-5" onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.3em] text-zinc-400">
-              <p>{isEditing ? `Editing: ${editingDayLabel}` : `Logging: ${dayLabels[focusedDay].long}`}</p>
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold text-white/80 hover:text-white"
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-            <SliderField
-              label="Quality"
-              value={quality}
-              min={1}
-              max={5}
-              onChange={(value) => setQuality(value)}
-              suffix={`/5`}
-            />
-            <SliderField
-              label="Recovery"
-              value={recovery}
-              min={1}
-              max={5}
-              onChange={(value) => setRecovery(value)}
-              suffix={`/5`}
-            />
-            <textarea
-              value={dreams}
-              onChange={(event) => setDreams(event.target.value)}
-              rows={3}
-              placeholder="Dream notes, symbols, themes"
-              className="rounded-2xl border border-white/5 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
-            />
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              rows={3}
-              placeholder="Recovery notes, habits, or HRV cues"
-              className="rounded-2xl border border-white/5 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
-            />
-            <button
-              type="submit"
-              className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
+
+            <form
+              className="flex min-w-0 flex-col gap-5 rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-5 lg:h-full lg:min-h-[520px]"
+              onSubmit={handleSubmit}
+              onKeyDown={handleFormKeyDown}
             >
-              {isEditing ? "Save changes" : "Log sleep"}
-            </button>
-          </form>
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.3em] text-zinc-400">
+                <p>{isEditing ? `Editing: ${editingDayLabel}` : `Logging: ${loggingLabel}`}</p>
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold text-white/80 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <SliderField
+                  label="Quality"
+                  value={quality}
+                  min={1}
+                  max={5}
+                  onChange={(value) => setQuality(value)}
+                  suffix={`/5`}
+                />
+                <SliderField
+                  label="Recovery"
+                  value={recovery}
+                  min={1}
+                  max={5}
+                  onChange={(value) => setRecovery(value)}
+                  suffix={`/5`}
+                />
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+                <textarea
+                  value={dreams}
+                  onChange={(event) => setDreams(event.target.value)}
+                  rows={3}
+                  placeholder="Dream notes, symbols, themes"
+                  className="resize-y rounded-2xl border border-white/5 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none lg:min-h-[240px] lg:h-full"
+                />
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={3}
+                  placeholder="Recovery notes, habits, or HRV cues"
+                  className="resize-y rounded-2xl border border-white/5 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none lg:min-h-[240px] lg:h-full"
+                />
+              </div>
+              <button
+                type="submit"
+                className="mt-auto rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
+              >
+                {isEditing ? "Save changes" : "Log sleep"}
+              </button>
+            </form>
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
+      <div className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileDetailsOpen((current) => !current)}
+          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.3em] text-white/80"
+          aria-expanded={mobileDetailsOpen}
+        >
+          {mobileDetailsOpen ? "Hide details" : "View details"}
+        </button>
+      </div>
+
+      <section className={`grid gap-6 lg:grid-cols-3 ${mobileDetailsOpen ? "lg:grid" : "hidden lg:grid"}`}>
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <h2 className="text-lg font-medium text-white">Recent nights</h2>
@@ -609,10 +698,37 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
   const dialRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<"start" | "end" | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const scrollLockRef = useRef<number | null>(null);
+
+  const lockScroll = useCallback(() => {
+    if (scrollLockRef.current !== null) return;
+    const scrollY = window.scrollY;
+    scrollLockRef.current = scrollY;
+    document.body.classList.add("scroll-locked");
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+  }, []);
+
+  const unlockScroll = useCallback(() => {
+    if (scrollLockRef.current === null) return;
+    const scrollY = scrollLockRef.current;
+    scrollLockRef.current = null;
+    document.body.classList.remove("scroll-locked");
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.left = "";
+    document.body.style.right = "";
+    document.body.style.width = "";
+    window.scrollTo(0, scrollY);
+  }, []);
 
   useEffect(() => {
     function handleMove(event: PointerEvent) {
       if (!draggingRef.current) return;
+      event.preventDefault();
       const dial = dialRef.current;
       if (!dial) return;
       const rect = dial.getBoundingClientRect();
@@ -622,20 +738,27 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
       const dy = event.clientY - centerY;
       const angle = Math.atan2(dy, dx);
       const degrees = ((angle * 180) / Math.PI + 450) % 360;
-      const minutes = snapToFive(Math.round((degrees / 360) * TOTAL_MINUTES) % TOTAL_MINUTES);
+      const dialMinutes = snapToFive(Math.round((degrees / 360) * DIAL_MINUTES) % DIAL_MINUTES);
       if (draggingRef.current === "start") {
-        onChange({ startMinutes: minutes, endMinutes });
+        onChange({
+          startMinutes: dialMinutesToDayMinutes(dialMinutes, startMinutes),
+          endMinutes,
+        });
       } else {
-        onChange({ startMinutes, endMinutes: minutes });
+        onChange({
+          startMinutes,
+          endMinutes: dialMinutesToDayMinutes(dialMinutes, endMinutes),
+        });
       }
     }
 
     function handleUp() {
       draggingRef.current = null;
       setIsDragging(false);
+      unlockScroll();
     }
 
-    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointermove", handleMove, { passive: false });
     window.addEventListener("pointerup", handleUp);
     return () => {
       window.removeEventListener("pointermove", handleMove);
@@ -644,19 +767,20 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
   }, [startMinutes, endMinutes, onChange]);
 
   useEffect(() => {
-    if (!isDragging) return undefined;
-    document.body.classList.add("scroll-locked");
-    return () => {
-      document.body.classList.remove("scroll-locked");
-    };
-  }, [isDragging]);
+    if (!isDragging) return;
+    return () => unlockScroll();
+  }, [isDragging, unlockScroll]);
 
-  const beginDrag = useCallback((handle: "start" | "end") => {
+  const beginDrag = useCallback((handle: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
     draggingRef.current = handle;
+    lockScroll();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     setIsDragging(true);
-  }, []);
+  }, [lockScroll]);
 
-  const segments = buildArcSegments(startMinutes, endMinutes);
+  const dialStart = startMinutes % DIAL_MINUTES;
+  const dialEnd = endMinutes % DIAL_MINUTES;
+  const segments = buildArcSegments(dialStart, dialEnd);
   const durationMins = calculateDuration(startMinutes, endMinutes);
   const duration = formatDuration(durationMins);
 
@@ -664,8 +788,13 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
     <div className="flex w-full flex-col items-center gap-6">
       <div
         ref={dialRef}
-        className="relative select-none"
-        style={{ width: "min(85vw, 340px)", height: "min(85vw, 340px)" }}
+        className="relative mx-auto aspect-square w-full max-w-[320px] select-none touch-none sm:max-w-[340px]"
+        style={{ overscrollBehavior: "contain" }}
+        onTouchMove={(event) => {
+          if (isDragging) {
+            event.preventDefault();
+          }
+        }}
       >
         <svg viewBox={`0 0 ${CLOCK_SIZE} ${CLOCK_SIZE}`} className="h-full w-full">
           <circle
@@ -684,10 +813,10 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
             strokeWidth={10}
             fill="none"
           />
-          {Array.from({ length: 24 }).map((_, index) => {
-            const angle = (index * 15 - 90) * (Math.PI / 180);
+          {Array.from({ length: 60 }).map((_, index) => {
+            const angle = (index * 6 - 90) * (Math.PI / 180);
             const outer = CLOCK_RADIUS - 4;
-            const inner = outer - (index % 2 === 0 ? 16 : 8);
+            const inner = outer - (index % 5 === 0 ? 16 : 8);
             const x1 = CLOCK_SIZE / 2 + outer * Math.cos(angle);
             const y1 = CLOCK_SIZE / 2 + outer * Math.sin(angle);
             const x2 = CLOCK_SIZE / 2 + inner * Math.cos(angle);
@@ -699,8 +828,8 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
                 y1={y1}
                 x2={x2}
                 y2={y2}
-                stroke={index % 2 === 0 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)"}
-                strokeWidth={index % 2 === 0 ? 3 : 1}
+                stroke={index % 5 === 0 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)"}
+                strokeWidth={index % 5 === 0 ? 3 : 1}
               />
             );
           })}
@@ -741,14 +870,22 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
             </linearGradient>
           </defs>
         </svg>
-        <ClockHandle label="Sleep" minutes={startMinutes} onPointerDown={() => beginDrag("start")} />
-        <ClockHandle label="Wake" minutes={endMinutes} onPointerDown={() => beginDrag("end")} />
+        <ClockHandle
+          label="Sleep"
+          minutes={startMinutes}
+          onPointerDown={(event) => beginDrag("start", event)}
+        />
+        <ClockHandle
+          label="Wake"
+          minutes={endMinutes}
+          onPointerDown={(event) => beginDrag("end", event)}
+        />
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Duration</p>
-          <p className="text-2xl font-semibold text-white">{duration}</p>
+          <p className="text-2xl font-semibold text-white whitespace-nowrap leading-tight tabular-nums">{duration}</p>
         </div>
       </div>
-      <div className="grid w-full grid-cols-1 gap-4 text-sm text-zinc-300 sm:grid-cols-2">
+      <div className="grid w-full grid-cols-2 gap-4 text-sm text-zinc-300">
         <div className="rounded-2xl border border-white/10 bg-black/50 p-4">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Lights out</p>
           <p className="text-2xl font-semibold text-white">{formatMinutesLabel(startMinutes)}</p>
@@ -765,7 +902,7 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
 type ClockHandleProps = {
   label: string;
   minutes: number;
-  onPointerDown: () => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 };
 
 function ClockHandle({ label, minutes, onPointerDown }: ClockHandleProps) {
@@ -773,18 +910,44 @@ function ClockHandle({ label, minutes, onPointerDown }: ClockHandleProps) {
   const icon = label === "Sleep" ? "🌙" : "🔔";
   return (
     <button
-      type="button"
+        type="button"
       aria-label={`${label} handle`}
       onPointerDown={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        onPointerDown();
+        onPointerDown(event);
       }}
-      style={{ left: position.x, top: position.y }}
-      className="absolute z-10 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/60 bg-white text-xl text-zinc-900 shadow-xl transition hover:scale-105 focus:outline-none cursor-pointer"
+      style={{ left: `${(position.x / CLOCK_SIZE) * 100}%`, top: `${(position.y / CLOCK_SIZE) * 100}%` }}
+      className="absolute z-10 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/60 bg-white text-xl text-zinc-900 shadow-xl transition hover:scale-105 focus:outline-none cursor-pointer touch-none"
     >
       <span role="presentation">{icon}</span>
     </button>
+  );
+}
+
+function CalendarIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="5" width="18" height="16" rx="3" />
+      <path d="M16 3V7" />
+      <path d="M8 3V7" />
+      <path d="M3 11H21" />
+      <path d="M8 15H8.01" />
+      <path d="M12 15H12.01" />
+      <path d="M16 15H16.01" />
+      <path d="M8 19H8.01" />
+      <path d="M12 19H12.01" />
+      <path d="M16 19H16.01" />
+    </svg>
   );
 }
 
@@ -936,15 +1099,15 @@ function isWeekday(day: Day) {
 }
 
 function buildArcSegments(start: number, end: number) {
-  const diff = (end - start + TOTAL_MINUTES) % TOTAL_MINUTES;
+  const diff = (end - start + DIAL_MINUTES) % DIAL_MINUTES;
   if (diff === 0) {
-    return [{ start: 0, end: TOTAL_MINUTES }];
+    return [{ start: 0, end: DIAL_MINUTES }];
   }
   if (end >= start) {
     return [{ start, end }];
   }
   return [
-    { start, end: TOTAL_MINUTES },
+    { start, end: DIAL_MINUTES },
     { start: 0, end },
   ];
 }
@@ -956,14 +1119,14 @@ function describeArc(start: number, end: number) {
   const endAngle = minutesToDegrees(end);
   const startPoint = polarToCartesian(center, center, radius, startAngle);
   const endPoint = polarToCartesian(center, center, radius, endAngle);
-  const sweep = (end - start + TOTAL_MINUTES) % TOTAL_MINUTES;
-  const largeArcFlag = sweep > TOTAL_MINUTES / 2 ? 1 : 0;
+  const sweep = (end - start + DIAL_MINUTES) % DIAL_MINUTES;
+  const largeArcFlag = sweep > DIAL_MINUTES / 2 ? 1 : 0;
   const sweepFlag = 1;
   return `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${endPoint.x} ${endPoint.y}`;
 }
 
 function minutesToDegrees(minutes: number) {
-  return ((minutes / TOTAL_MINUTES) * 360) - 90;
+  return ((minutes / DIAL_MINUTES) * 360) - 90;
 }
 
 function polarToCartesian(
@@ -982,8 +1145,20 @@ function polarToCartesian(
 function getHandlePosition(minutes: number) {
   const radius = CLOCK_RADIUS;
   const center = CLOCK_SIZE / 2;
-  const angle = minutesToDegrees(minutes);
+  const angle = minutesToDegrees(minutes % DIAL_MINUTES);
   return polarToCartesian(center, center, radius, angle);
+}
+
+function dialMinutesToDayMinutes(dialMinutes: number, currentMinutes: number) {
+  const normalizedCurrent =
+    ((currentMinutes % TOTAL_MINUTES) + TOTAL_MINUTES) % TOTAL_MINUTES;
+  const candidates = [dialMinutes, dialMinutes + DIAL_MINUTES];
+  const distances = candidates.map((candidate) => {
+    const diff = Math.abs(normalizedCurrent - candidate);
+    return Math.min(diff, TOTAL_MINUTES - diff);
+  });
+  const bestIndex = distances[0] <= distances[1] ? 0 : 1;
+  return candidates[bestIndex] % TOTAL_MINUTES;
 }
 
 function formatWindowLabel(entry: SleepEntry) {

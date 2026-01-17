@@ -20,14 +20,15 @@ Current Working App
 - Stack: Next.js (App Router) + React + TypeScript + Tailwind
 - Storage: browser `localStorage` key: `jarvis-state-v1` (clear site data to reset)
 
-### Features
+### What it does now
 
 Sidebar console with dedicated routes:
 
-- **Dashboard**: mood logging, blended timeline feed, quick journal, streak widgets
-- **Journal**: calendar heatmap + day drill-down entries + prompt logging
-- **Todos**: mission planner + time blocking + upcoming block highlights
-- **Sleep**: sleep dial + quality/recovery + dreams + timeline badges
+- **Dashboard**: mood check-ins with tags + notes, operating mode suggestions and lock, Must Win focus, daily review prompt, streaks, and blended timeline.
+- **Journal**: prompt-based entries (morning/priority/free) with calendar view and day drill-down.
+- **Todos**: 15-minute time blocking grid, priorities, colors/icons, repeat rules, and upcoming schedule highlights.
+- **Sleep**: sleep dial logging with quality/recovery/dreams, schedule presets (daily/weekdays/weekends/custom), and recent averages.
+- **Review**: weekly insights (sleep, mood, operating modes, Must Win stats) plus a manual reset form.
 
 ### Run locally
 
@@ -49,58 +50,9 @@ Navigation Map
 - `/v2/journal` — Story Grid (journal calendar + entries)
 - `/v2/todos` — Mission Planner (time blocking)
 - `/v2/sleep` — Recharge Console (sleep logs)
+- `/v2/review` — Weekly Systems Review (insights + reset)
 
 Note: We’ll keep routes stable but move implementation to V3 behavior (see below).
-
-V3 Goals (Next Upgrade)
------------------------
-
-V3 is a polish + precision scheduling release. No backend yet. No chat agent yet. Just making the console feel locked in.
-
-### 1) Sleep Presets (Weekdays / Weekends / Custom Days)
-
-Add saveable wake schedules:
-
-- Presets: Daily / Weekdays / Weekends / Custom
-- Custom supports day grouping (e.g., Mon+Tue same, Wed different, Thu+Fri same)
-- “Log sleep” uses the schedule for the selected day.
-
-**Acceptance**
-
-- You can switch preset modes and edit times.
-- Changes persist in localStorage.
-- Sleep logs feed timeline + averages the same as before.
-
-### 2) Time Blocking in 15-Minute Increments
-
-Upgrade the time block grid:
-
-- Day grid supports 15-minute slots (96 rows/day).
-- Blocks snap to 15-minute boundaries.
-- Start time dropdown shows 15-min increments.
-- Block lengths allow 15-min increments (15, 30, 45, 60, …).
-
-**Acceptance**
-
-- Blocks render aligned to the grid.
-- Drag/resizes snap cleanly.
-- No jitter / weird overlaps.
-
-### 3) Console Polish Pass
-
-Make everything feel premium:
-
-- consistent focus rings, hover states, chip/button sizing
-- keyboard flows:
-  - Todos: Enter adds, Cmd/Ctrl+Enter schedules
-  - Journal: Cmd/Ctrl+Enter saves
-  - Escape exits edits
-- subtle toasts: “Saved”, “Scheduled”, “Logged”
-
-**Acceptance**
-
-- UI feels smooth + consistent across all pages.
-- No “dead clicks” or unclear states.
 
 Core Experience Pillars (Product Direction)
 -------------------------------------------
@@ -134,13 +86,12 @@ type MoodLog = {
   ts: number;
   mood: number;     // 1–10
   note?: string;
-  tags?: string[];
+  tags: string[];
 };
 
 type JournalEntry = {
   id: string;
   ts: number;
-  day: DayKey;
   text: string;
   prompt?: "morning" | "priority" | "free";
 };
@@ -152,18 +103,23 @@ type TodoItem = {
   text: string;
   done: boolean;
   priority: 1 | 2 | 3;
-  startMins?: number;    // minutes from midnight
-  durationMins?: number; // 15-min increments in V3
+  timeblockMins?: number; // 15-min increments
+  startTime?: string;     // "08:30"
+  completedTs?: number;
+  order?: number;
+  color?: string;
+  icon?: string;
 };
 
-type SleepLog = {
+type SleepEntry = {
   id: string;
+  ts: number;
   day: DayKey;
-  lightsOut: string;  // "23:00"
-  wake: string;       // "07:00"
   durationMins: number;
   quality: 1|2|3|4|5;
-  recovery: 1|2|3|4|5;
+  startMinutes?: number;
+  endMinutes?: number;
+  recoveryScore?: number;
   dreams?: string;
   notes?: string;
 };
@@ -177,14 +133,52 @@ type SleepSchedule = {
   weekdays: { lightsOut: string; wake: string };
   weekends: { lightsOut: string; wake: string };
   custom: Record<Day, { lightsOut: string; wake: string }>;
+  lastEditedDay?: Day;
+};
+
+type OperatingMode = "deep-work" | "execution" | "recovery" | "maintenance" | "push-day";
+
+type OperatingModeEntry = {
+  mode: OperatingMode;
+  ts: number;
+  suggestedMode?: OperatingMode;
+};
+
+type MustWinEntry = {
+  text: string;
+  timeBound?: string;
+  done: boolean;
+  ts: number;
+  completedTs?: number;
+};
+
+type DailyReviewEntry = {
+  day: DayKey;
+  ts: number;
+  expected: boolean;
+  reason?: "overplanned" | "low-energy" | "distraction" | "external-interruption";
+  tomorrow?: string;
+};
+
+type WeeklyReviewEntry = {
+  weekKey: string;
+  ts: number;
+  stop: string;
+  doubleDown: string;
+  experiment: string;
 };
 
 type JarvisState = {
   mood: Record<DayKey, MoodLog[]>;
   journal: Record<DayKey, JournalEntry[]>;
   todos: Record<DayKey, TodoItem[]>;
-  sleep: Record<DayKey, SleepLog[]>;
+  sleep: Record<DayKey, SleepEntry[]>;
+  moodTags: string[];
   sleepSchedule: SleepSchedule;
+  operatingMode: Record<DayKey, OperatingModeEntry>;
+  mustWin: Record<DayKey, MustWinEntry>;
+  dailyReview: Record<DayKey, DailyReviewEntry>;
+  weeklyReview: Record<string, WeeklyReviewEntry>;
 };
 ```
 
@@ -216,13 +210,3 @@ jarvis/
   packages/ui/             # shared HUD components (optional later)
   docs/                    # UX flows, prompts, API contracts
 ```
-
-Immediate Next Steps (V3)
--------------------------
-
-1. Implement `sleepSchedule` presets + UI controls on `/v2/sleep`
-2. Upgrade `/v2/todos` time grid to 15-minute increments + snapping
-3. Add polish pass:
-   - keyboard shortcuts
-   - toasts
-   - consistent component sizing + focus styling
