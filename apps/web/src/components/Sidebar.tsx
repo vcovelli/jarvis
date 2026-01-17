@@ -9,6 +9,7 @@ const navLinks = [
   { href: "/journal", label: "Journal", description: "Entries" },
   { href: "/todos", label: "Todos", description: "Planner" },
   { href: "/sleep", label: "Sleep", description: "Rest" },
+  { href: "/review", label: "Weekly Review", description: "Insights" },
 ];
 
 type SidebarProps = {

@@ -68,3 +68,12 @@ body.scroll-locked {
   overflow: hidden;
   touch-action: none;
 }
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
