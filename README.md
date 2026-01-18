@@ -18,7 +18,7 @@ Current Working App
 
 - Location: `apps/web`
 - Stack: Next.js (App Router) + React + TypeScript + Tailwind
-- Storage: browser `localStorage` key: `jarvis-state-v1` (clear site data to reset)
+- Storage: Postgres via Prisma + NextAuth (per-user), with localStorage fallback during sign-in
 
 ### What it does now
 
@@ -35,12 +35,13 @@ Sidebar console with dedicated routes:
 ```
 cd apps/web
 npm install
+npx prisma migrate dev --name init
 npm run dev
 ```
 
 Visit: <http://localhost:3000>
 
-Tip: open DevTools → Application → Local Storage → `jarvis-state-v1` to verify persistence.
+Tip: set up your database connection in `apps/web/.env` (see `apps/web/.env.example`).
 
 Navigation Map
 --------------

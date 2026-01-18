@@ -36,10 +36,6 @@ export default function WeeklyReviewPage() {
     <div className="flex flex-col gap-8">
       <header>
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Weekly Systems Review</p>
-        <h1 className="mt-2 text-4xl font-semibold text-white">Patterns &gt; noise</h1>
-        <p className="mt-3 max-w-2xl text-base text-zinc-300">
-          Auto-insights from the last 7 days plus a short manual reset.
-        </p>
       </header>
 
       <div className="lg:hidden">

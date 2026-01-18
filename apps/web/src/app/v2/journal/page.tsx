@@ -259,7 +259,7 @@ export default function JournalPage() {
               >
                 {submitLabel}
               </button>
-              {isEditing && (
+              {editingEntry && (
                 <button
                   type="button"
                   onClick={() => handleDeleteEntry(editingEntry.entry, editingEntry.day)}

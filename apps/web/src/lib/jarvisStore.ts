@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 
 export type DayKey = string; // YYYY-MM-DD
 
@@ -44,6 +45,7 @@ export type TodoItem = {
   order?: number;
   color?: string;
   icon?: string;
+  seriesId?: string;
 };
 
 export type SleepEntry = {
@@ -196,6 +198,7 @@ type Action =
         day?: DayKey;
         color?: string;
         icon?: string;
+        seriesId?: string;
       };
     }
   | {
@@ -442,6 +445,7 @@ function reducer(state: JarvisState, action: Action): JarvisState {
         startTime: action.payload.startTime,
         color: action.payload.color,
         icon: action.payload.icon,
+        seriesId: action.payload.seriesId,
       };
       return {
         ...state,
@@ -591,30 +595,70 @@ function reducer(state: JarvisState, action: Action): JarvisState {
 export function useJarvisState() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [hydrated, setHydrated] = useState(false);
+  const { status } = useSession();
+  const readyRef = useRef(false);
 
   useEffect(() => {
-    if (hydrated) {
+    if (!hydrated || status !== "authenticated" || !readyRef.current) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
       try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        await fetch("/api/state", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ state }),
+          signal: controller.signal,
+        });
       } catch (error) {
         console.warn("Jarvis state save failed", error);
       }
-    }
-  }, [state, hydrated]);
+    }, 400);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [state, hydrated, status]);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        dispatch({ type: "HYDRATE", payload: sanitizeState(parsed) });
+    if (status === "loading") return;
+    if (status !== "authenticated") {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          dispatch({ type: "HYDRATE", payload: sanitizeState(parsed) });
+        }
+      } catch (error) {
+        console.warn("Jarvis state load failed", error);
+      } finally {
+        readyRef.current = true;
+        setHydrated(true);
       }
-    } catch (error) {
-      console.warn("Jarvis state load failed", error);
-    } finally {
-      setHydrated(true);
+      return;
     }
-  }, []);
+
+    let isMounted = true;
+    fetch("/api/state")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!isMounted) return;
+        if (data?.state) {
+          dispatch({ type: "HYDRATE", payload: sanitizeState(data.state) });
+        }
+      })
+      .catch((error) => {
+        console.warn("Jarvis state load failed", error);
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        readyRef.current = true;
+        setHydrated(true);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [status]);
 
   const logMood = useCallback(
     (payload: { mood: number; note?: string; tags: MoodTag[]; day?: DayKey }) => {
@@ -694,6 +738,7 @@ export function useJarvisState() {
       day?: DayKey;
       color?: string;
       icon?: string;
+      seriesId?: string;
     }) => {
       dispatch({ type: "ADD_TODO", payload });
     },
@@ -862,7 +907,8 @@ function sanitizeState(input: unknown): JarvisState {
 function sanitizeSleepSchedule(schedule?: SleepSchedule): SleepSchedule {
   if (!schedule) return defaultSchedule;
   const custom: Record<Day, SleepWindow> = { ...createCustomSchedule(defaultWindow) };
-  (Object.keys(custom) as Day[]).forEach((day) => {
+  (Object.keys(custom) as Array<`${Day}`>).forEach((dayKey) => {
+    const day = Number(dayKey) as Day;
     if (schedule.custom?.[day]) {
       custom[day] = schedule.custom[day];
     }
