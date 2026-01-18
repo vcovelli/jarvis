@@ -70,7 +70,7 @@ export default function SleepPage() {
     const window = getWindowForDay(schedule, defaultFocus);
     return parseTimeToMinutes(window.wake) ?? 7 * 60;
   });
-  const [quality, setQuality] = useState(4);
+  const [quality, setQuality] = useState(3);
   const [recovery, setRecovery] = useState(3);
   const [dreams, setDreams] = useState("");
   const [notes, setNotes] = useState("");
@@ -92,9 +92,9 @@ export default function SleepPage() {
       case "daily":
         return [lastNightDay];
       case "weekdays":
-        return [1, 2, 3, 4, 5];
+        return [1, 2, 3, 4, 5] as Day[];
       case "weekends":
-        return [0, 6];
+        return [0, 6] as Day[];
       case "custom":
       default:
         return customDays.length ? customDays : [focusedDay];
@@ -671,10 +671,20 @@ type SliderFieldProps = {
 };
 
 function SliderField({ label, value, min, max, suffix = "", onChange }: SliderFieldProps) {
+  const percent = ((value - min) / (max - min)) * 100;
+  const tone =
+    value <= 2
+      ? { text: "text-rose-300", accent: "#f87171" }
+      : value <= 3
+        ? { text: "text-amber-300", accent: "#fbbf24" }
+        : value <= 4
+          ? { text: "text-lime-300", accent: "#84cc16" }
+          : { text: "text-emerald-300", accent: "#34d399" };
+
   return (
     <label className="flex flex-col gap-2 text-sm text-zinc-300">
       <span>
-        {label}: <span className="text-cyan-300">{value}{suffix}</span>
+        {label}: <span className={`slider-emphasis ${tone.text}`}>{value}{suffix}</span>
       </span>
       <input
         type="range"
@@ -682,7 +692,11 @@ function SliderField({ label, value, min, max, suffix = "", onChange }: SliderFi
         max={max}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-2 w-full cursor-pointer appearance-none rounded bg-zinc-700 accent-cyan-300"
+        className="h-2 w-full cursor-pointer appearance-none rounded bg-transparent"
+        style={{
+          accentColor: tone.accent,
+          background: `linear-gradient(90deg, ${tone.accent} 0%, ${tone.accent} ${percent}%, #3f3f46 ${percent}%, #3f3f46 100%)`,
+        }}
       />
     </label>
   );
@@ -780,8 +794,16 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
 
   const dialStart = startMinutes % DIAL_MINUTES;
   const dialEnd = endMinutes % DIAL_MINUTES;
-  const segments = buildArcSegments(dialStart, dialEnd);
   const durationMins = calculateDuration(startMinutes, endMinutes);
+  const baseSegments =
+    durationMins > DIAL_MINUTES
+      ? [{ start: 0, end: DIAL_MINUTES }]
+      : buildArcSegments(dialStart, dialEnd);
+  const overMinutes = Math.max(0, durationMins - DIAL_MINUTES);
+  const overSegments =
+    overMinutes > 0
+      ? buildArcSegments(dialStart, (dialStart + Math.min(overMinutes, DIAL_MINUTES)) % DIAL_MINUTES)
+      : [];
   const duration = formatDuration(durationMins);
 
   return (
@@ -830,6 +852,7 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
                 y2={y2}
                 stroke={index % 5 === 0 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)"}
                 strokeWidth={index % 5 === 0 ? 3 : 1}
+                className="sleep-tick"
               />
             );
           })}
@@ -850,7 +873,7 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
               </text>
             );
           })}
-          {segments.map((segment, index) => {
+          {baseSegments.map((segment, index) => {
             const d = describeArc(segment.start, segment.end);
             return (
               <path
@@ -863,10 +886,27 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
               />
             );
           })}
+          {overSegments.map((segment, index) => {
+            const d = describeArc(segment.start, segment.end, CLOCK_RADIUS - 26);
+            return (
+              <path
+                key={`over-${segment.start}-${segment.end}-${index}`}
+                d={d}
+                stroke="url(#sleepOverGradient)"
+                strokeWidth={18}
+                fill="none"
+                strokeLinecap="round"
+              />
+            );
+          })}
           <defs>
             <linearGradient id="sleepGradient" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#fde68a" />
               <stop offset="100%" stopColor="#f59e0b" />
+            </linearGradient>
+            <linearGradient id="sleepOverGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#fb7185" />
+              <stop offset="100%" stopColor="#f97316" />
             </linearGradient>
           </defs>
         </svg>
@@ -1112,8 +1152,7 @@ function buildArcSegments(start: number, end: number) {
   ];
 }
 
-function describeArc(start: number, end: number) {
-  const radius = CLOCK_RADIUS;
+function describeArc(start: number, end: number, radius = CLOCK_RADIUS) {
   const center = CLOCK_SIZE / 2;
   const startAngle = minutesToDegrees(start);
   const endAngle = minutesToDegrees(end);

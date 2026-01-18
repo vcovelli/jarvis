@@ -11,6 +11,7 @@ import {
   TodoPriority,
   dayKeyToDate,
   getDayKey,
+  normalizeDayKey,
   useJarvisState,
 } from "@/lib/jarvisStore";
 import { useToast } from "@/components/Toast";
@@ -132,6 +133,7 @@ export default function TodosPage() {
   const [editEndTime, setEditEndTime] = useState("");
   const [editColor, setEditColor] = useState<string>(defaultBlockColor);
   const [editIcon, setEditIcon] = useState<string>(defaultTaskIcon);
+  const [applyToSeries, setApplyToSeries] = useState(false);
   const [panelMode, setPanelMode] = useState<"add" | "edit" | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [repeatType, setRepeatType] = useState<RepeatType>("none");
@@ -172,6 +174,11 @@ export default function TodosPage() {
     return options;
   }, [state.todos]);
   const editingTodo = editingId ? todosForDay.find((todo) => todo.id === editingId) : null;
+  const seriesTargets = useMemo(() => {
+    if (!editingTodo) return [];
+    return buildSeriesTargets(state.todos, editingTodo, selectedDay);
+  }, [editingTodo, selectedDay, state.todos]);
+  const hasSeriesTargets = seriesTargets.length > 1;
   const dayLabelFull = dayKeyToDate(selectedDay).toLocaleDateString(undefined, {
     weekday: "long",
     month: "short",
@@ -213,10 +220,12 @@ export default function TodosPage() {
       repeatMonthDay,
       horizonDays: repeatHorizonDays,
     });
+    const seriesId = repeatType === "none" ? undefined : createSeriesId();
     repeatDays.forEach((day) => {
       addTodo({
         ...basePayload,
         day,
+        seriesId,
       });
     });
     setText("");
@@ -270,6 +279,7 @@ export default function TodosPage() {
       setEditEndTime(buildEndTime(todo.startTime ?? "", todo.timeblockMins));
       setEditColor(todo.color ?? defaultBlockColor);
       setEditIcon(todo.icon ?? defaultTaskIcon);
+      setApplyToSeries(false);
       setPanelMode("edit");
     },
     [],
@@ -283,6 +293,7 @@ export default function TodosPage() {
     setEditTimeblock(undefined);
     setEditColor(defaultBlockColor);
     setEditIcon(defaultTaskIcon);
+    setApplyToSeries(false);
   }, []);
 
   const closePanel = useCallback(() => {
@@ -374,19 +385,34 @@ export default function TodosPage() {
     const trimmed = editText.trim();
     if (!trimmed) return;
     const computedTimeblock = computeTimeblockFromTimes(editStartTime, editEndTime);
-    updateTodo({
-      day: selectedDay,
-      id: editingId,
-      updates: {
-        text: trimmed,
-        priority: editPriority,
-        timeblockMins: computedTimeblock,
-        startTime: editStartTime || undefined,
-        color: editColor,
-        icon: editIcon,
-      },
+    const updates = {
+      text: trimmed,
+      priority: editPriority,
+      timeblockMins: computedTimeblock,
+      startTime: editStartTime || undefined,
+      color: editColor,
+      icon: editIcon,
+    };
+    const targets =
+      applyToSeries && seriesTargets.length
+        ? seriesTargets
+        : [{ day: selectedDay, id: editingId }];
+    const seen = new Set<string>();
+    targets.forEach((target) => {
+      const key = `${target.day}-${target.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      updateTodo({
+        day: target.day,
+        id: target.id,
+        updates,
+      });
     });
-    showToast("Todo updated");
+    showToast(
+      applyToSeries && targets.length > 1
+        ? `Updated ${targets.length} tasks`
+        : "Todo updated",
+    );
     closePanel();
   }, [
     editingId,
@@ -400,6 +426,8 @@ export default function TodosPage() {
     updateTodo,
     showToast,
     closePanel,
+    applyToSeries,
+    seriesTargets,
   ]);
 
   const handleEditStartTimeChange = useCallback((value: string) => {
@@ -543,76 +571,14 @@ export default function TodosPage() {
       onSubmit: submitEdit,
       submitLabel: "Save changes",
       onDelete: () => handleDelete(editingId),
+      applyToSeries: hasSeriesTargets ? applyToSeries : undefined,
+      onApplyToSeriesChange: hasSeriesTargets ? setApplyToSeries : undefined,
+      seriesCount: hasSeriesTargets ? seriesTargets.length : undefined,
     };
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="hidden lg:block">
-        <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Todos</p>
-      </header>
-
-      <div className="flex flex-col gap-6">
-        <div className="glass-panel rounded-3xl border border-amber-300/40 bg-gradient-to-br from-amber-500/10 via-white/5 to-rose-500/10 p-6 backdrop-blur-lg">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-medium text-white">Top 1 Must Win</h2>
-              <p className="mt-1 text-sm text-zinc-300">
-                Keep it concrete, time-bound, and binary.
-              </p>
-            </div>
-            {selectedDay === todayKey && todaysMustWin?.done && (
-              <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100">
-                Completed
-              </span>
-            )}
-          </div>
-          {todaysMustWin ? (
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/40 bg-black/40 px-4 py-3">
-              <div>
-                <p className="text-sm font-semibold text-white">{todaysMustWin.text}</p>
-                {todaysMustWin.timeBound && (
-                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-amber-200">
-                    By {todaysMustWin.timeBound}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleMustWin({ day: selectedDay })}
-                className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] ${
-                  todaysMustWin.done
-                    ? "bg-emerald-400 text-emerald-950"
-                    : "bg-amber-300 text-amber-950"
-                }`}
-              >
-                {todaysMustWin.done ? "Won" : "Mark done"}
-              </button>
-            </div>
-          ) : (
-            <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_200px_auto]">
-              <input
-                value={mustWinText}
-                onChange={(event) => setMustWinText(event.target.value)}
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-                placeholder="What actually matters?"
-              />
-              <input
-                value={mustWinTime}
-                onChange={(event) => setMustWinTime(event.target.value)}
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-                placeholder="By when"
-              />
-              <button
-                type="button"
-                onClick={submitMustWin}
-                className="rounded-full bg-amber-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-amber-950"
-              >
-                Lock it
-              </button>
-            </div>
-          )}
-        </div>
+    <div className="flex flex-col gap-6">
         <DayTimeline
           todos={todosForDay}
           selectedDay={selectedDay}
@@ -645,9 +611,8 @@ export default function TodosPage() {
             onJumpToday={jumpToToday}
           />
         </div>
-      </div>
 
-      <div className="space-y-6 hidden lg:flex lg:flex-col">
+      <div className="hidden space-y-6 lg:flex lg:flex-col">
         <TaskList
           todos={todosForDay}
           onEdit={(todo) => beginEdit(todo)}
@@ -660,6 +625,67 @@ export default function TodosPage() {
           }
         />
         <div className="hidden lg:block" />
+      </div>
+
+      <div className="glass-panel rounded-3xl border border-amber-300/40 bg-gradient-to-br from-amber-500/10 via-white/5 to-rose-500/10 p-6 backdrop-blur-lg">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-medium text-white">Top 1 Must Win</h2>
+            <p className="mt-1 text-sm text-zinc-300">
+              Keep it concrete, time-bound, and binary.
+            </p>
+          </div>
+          {selectedDay === todayKey && todaysMustWin?.done && (
+            <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100 mustwin-completed">
+              Completed
+            </span>
+          )}
+        </div>
+        {todaysMustWin ? (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/40 bg-black/40 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white break-words">{todaysMustWin.text}</p>
+              {todaysMustWin.timeBound && (
+                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-amber-200">
+                  By {todaysMustWin.timeBound}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => toggleMustWin({ day: selectedDay })}
+              className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] whitespace-nowrap ${
+                todaysMustWin.done
+                  ? "bg-emerald-400 text-emerald-950"
+                  : "bg-amber-300 text-amber-950"
+              }`}
+            >
+              {todaysMustWin.done ? "Won" : "Mark done"}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_200px_auto]">
+            <input
+              value={mustWinText}
+              onChange={(event) => setMustWinText(event.target.value)}
+              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+              placeholder="What actually matters?"
+            />
+            <input
+              value={mustWinTime}
+              onChange={(event) => setMustWinTime(event.target.value)}
+              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+              placeholder="By when"
+            />
+            <button
+              type="button"
+              onClick={submitMustWin}
+              className="rounded-full bg-amber-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-amber-950"
+            >
+              Lock it
+            </button>
+          </div>
+        )}
       </div>
 
       {panelState && <TaskPanel {...panelState} onClose={closePanel} />}
@@ -701,7 +727,7 @@ function SelectField({
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full appearance-none rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+          className="w-full appearance-none rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none mobile-todos-input sm:text-sm"
         >
           {children}
         </select>
@@ -727,6 +753,7 @@ function TimePillSelector({
   onChange: (value: string) => void;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
+  const scrollTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const list = listRef.current;
@@ -734,6 +761,45 @@ function TimePillSelector({
     const active = list.querySelector<HTMLButtonElement>(`button[data-value="${value}"]`);
     active?.scrollIntoView({ block: "center" });
   }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current !== null) {
+        window.clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    if (scrollTimeoutRef.current !== null) {
+      window.clearTimeout(scrollTimeoutRef.current);
+    }
+    scrollTimeoutRef.current = window.setTimeout(() => {
+      const list = listRef.current;
+      if (!list) return;
+      const buttons = Array.from(
+        list.querySelectorAll("button[data-value]"),
+      ) as HTMLButtonElement[];
+      if (!buttons.length) return;
+      const listRect = list.getBoundingClientRect();
+      const listCenter = listRect.top + listRect.height / 2;
+      let closestValue: string | null = null;
+      let closestDistance = Number.POSITIVE_INFINITY;
+      buttons.forEach((button) => {
+        const rect = button.getBoundingClientRect();
+        const center = rect.top + rect.height / 2;
+        const distance = Math.abs(center - listCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestValue = button.getAttribute("data-value");
+        }
+      });
+      const nextValue = closestValue ?? undefined;
+      if (nextValue && nextValue !== value) {
+        onChange(nextValue);
+      }
+    }, 120);
+  }, [onChange, value]);
 
   return (
     <div className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
@@ -744,6 +810,7 @@ function TimePillSelector({
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#0b1121]/90 to-transparent" />
         <div
           ref={listRef}
+          onScroll={handleScroll}
           className="hide-scrollbar max-h-40 overflow-y-auto snap-y snap-mandatory py-6"
         >
           {options.map((option) => {
@@ -849,7 +916,7 @@ function CustomEmojiField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         maxLength={4}
-        className="rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+        className="rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none mobile-todos-input sm:text-sm"
         placeholder="e.g. 🧠"
       />
     </div>
@@ -889,7 +956,7 @@ function DayTimeline({
   const yearLabel = selectedDate.getFullYear();
   const hasEvents = events.length > 0;
   return (
-    <div className="-mx-4 rounded-none border border-transparent bg-[#0b1224] px-4 py-5 text-white shadow-none sm:mx-0 sm:rounded-3xl lg:hidden">
+    <div className="-mx-4 rounded-none border border-transparent bg-[#0b1224] px-4 py-5 text-white shadow-none mobile-todos-panel sm:mx-0 sm:rounded-3xl lg:hidden">
       <div className="flex flex-col gap-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -1090,12 +1157,28 @@ function TimeBlockingBoard({
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const nowLabel = formatMinutesLabel(nowMinutes);
   const highlightRef = useRef<HTMLDivElement | null>(null);
+  const nowLineRef = useRef<HTMLDivElement | null>(null);
+  const didAutoScrollRef = useRef(false);
   const selectedDate = dayKeyToDate(selectedDay);
   const selectedDayLabel = selectedDate.toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
+
+  useEffect(() => {
+    if (!isToday) {
+      didAutoScrollRef.current = false;
+      return;
+    }
+    if (didAutoScrollRef.current) return;
+    const node = nowLineRef.current;
+    if (!node) return;
+    requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      didAutoScrollRef.current = true;
+    });
+  }, [isToday, selectedDay]);
 
   useEffect(() => {
     function handleMove(event: PointerEvent) {
@@ -1247,7 +1330,7 @@ function TimeBlockingBoard({
           </div>
         </div>
       </div>
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-white/5 bg-black/40">
+      <div className="mt-6 overflow-x-auto rounded-2xl border border-white/5 bg-black/40 lg:overflow-visible">
         <div ref={boardRef} className="relative min-w-[360px]" style={{ height: BOARD_HEIGHT }}>
           <div className="absolute inset-y-0 left-0 w-16 border-r border-white/5 bg-black/30 text-[11px] uppercase tracking-[0.3em] text-zinc-500">
             {HOUR_LABELS.map((hour) => (
@@ -1267,6 +1350,7 @@ function TimeBlockingBoard({
               ))}
               {isToday && (
                 <div
+                  ref={nowLineRef}
                   className="pointer-events-none absolute inset-x-0 z-40"
                   style={{ top: (nowMinutes / SLOT_MINUTES) * SLOT_HEIGHT }}
                 >
@@ -1590,17 +1674,20 @@ function TaskPanel({
   onSubmit,
   submitLabel,
   onDelete,
+  applyToSeries,
+  onApplyToSeriesChange,
+  seriesCount,
   onClose,
 }: TaskPanelProps) {
   const customEmojiValue = iconOptions.some((option) => option.id === icon) ? "" : icon;
   const durationMinutes = computeTimeblockFromTimes(startTime, endTime ?? "");
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end overflow-x-hidden bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex justify-end overflow-x-hidden bg-black/60 backdrop-blur-sm mobile-todos-overlay"
       onClick={onClose}
     >
       <div
-        className="h-full w-full max-w-md overflow-y-auto bg-[#0b1121] p-6 shadow-2xl sm:rounded-l-3xl"
+        className="h-full w-full max-w-md overflow-y-auto bg-[#0b1121] p-6 shadow-2xl mobile-todos-drawer sm:rounded-l-3xl"
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)",
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -1637,7 +1724,7 @@ function TaskPanel({
                 <input
                   value={text}
                   onChange={(event) => onTextChange(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-base text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-base text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none mobile-todos-input sm:text-sm"
                   placeholder="Name the focus block"
                 />
               </div>
@@ -1766,6 +1853,24 @@ function TaskPanel({
                 </SelectField>
               </div>
             )}
+            {onApplyToSeriesChange && typeof applyToSeries === "boolean" && seriesCount && seriesCount > 1 && (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                <label className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">Series</p>
+                    <p className="mt-1 text-xs font-medium text-white/80">
+                      Apply changes to {seriesCount} upcoming tasks
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={applyToSeries}
+                    onChange={(event) => onApplyToSeriesChange(event.target.checked)}
+                    className="h-4 w-4 accent-cyan-300"
+                  />
+                </label>
+              </div>
+            )}
           </section>
           <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between">
@@ -1833,9 +1938,9 @@ function CalendarOverlay({ selectedDay, markers, onSelect, onClose }: CalendarOv
   const monthLabel = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const cells = useMemo(() => buildCalendarMatrix(viewDate), [viewDate]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 calendar-overlay px-4 py-6" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-3xl border border-white/10 bg-[#050912] p-6 text-white shadow-2xl"
+        className="calendar-panel w-full max-w-md rounded-3xl border border-white/10 bg-[#050912] p-6 text-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3">
@@ -1878,7 +1983,7 @@ function CalendarOverlay({ selectedDay, markers, onSelect, onClose }: CalendarOv
                 key={cell.toISOString()}
                 type="button"
                 onClick={() => onSelect(getDayKey(cell))}
-                className={`flex h-14 flex-col items-center justify-center rounded-2xl border text-sm font-semibold transition ${
+                className={`calendar-day flex h-14 flex-col items-center justify-center rounded-2xl border text-sm font-semibold transition ${
                   getDayKey(cell) === selectedDay
                     ? "border-cyan-300/70 bg-cyan-300/20 text-white"
                     : "border-white/10 text-zinc-200 hover:border-white/40"
@@ -1959,6 +2064,9 @@ type TaskPanelState = {
   onSubmit: () => void;
   submitLabel: string;
   onDelete?: () => void;
+  applyToSeries?: boolean;
+  onApplyToSeriesChange?: (value: boolean) => void;
+  seriesCount?: number;
 };
 
 function buildStartTimeOptions(stepMinutes = 15): StartTimeOption[] {
@@ -2088,6 +2196,46 @@ function buildRepeatDays(args: {
     }
   }
   return Array.from(new Set(days));
+}
+
+type SeriesTarget = {
+  day: DayKey;
+  id: string;
+};
+
+function createSeriesId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `series-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildTodoSeriesSignature(todo: TodoItem) {
+  return `${todo.text}|${todo.priority}|${todo.timeblockMins ?? ""}|${todo.startTime ?? ""}|${todo.color ?? ""}|${todo.icon ?? ""}`;
+}
+
+function buildSeriesTargets(
+  record: Record<DayKey, TodoItem[]>,
+  anchor: TodoItem,
+  fromDay: DayKey,
+): SeriesTarget[] {
+  const useSeriesId = Boolean(anchor.seriesId);
+  const seriesKey = useSeriesId ? anchor.seriesId ?? "" : buildTodoSeriesSignature(anchor);
+  const targets: SeriesTarget[] = [];
+  Object.entries(record).forEach(([day, todos]) => {
+    if (day < fromDay) return;
+    todos.forEach((todo) => {
+      if (todo.done) return;
+      if (useSeriesId) {
+        if (todo.seriesId && todo.seriesId === seriesKey) {
+          targets.push({ day: day as DayKey, id: todo.id });
+        }
+      } else if (buildTodoSeriesSignature(todo) === seriesKey) {
+        targets.push({ day: day as DayKey, id: todo.id });
+      }
+    });
+  });
+  return targets;
 }
 
 function getTaskIconSymbol(iconId?: string, fallbackText = "") {

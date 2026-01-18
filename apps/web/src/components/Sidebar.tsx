@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { signOut, useSession } from "next-auth/react";
 
+import { applyTheme, getStoredTheme, onThemeChange, type ThemeMode } from "@/lib/theme";
 const navLinks = [
   { href: "/", label: "Dashboard", description: "Overview" },
   { href: "/journal", label: "Journal", description: "Entries" },
   { href: "/todos", label: "Todos", description: "Planner" },
   { href: "/sleep", label: "Sleep", description: "Rest" },
   { href: "/review", label: "Weekly Review", description: "Insights" },
+  { href: "/account", label: "Account", description: "Security" },
 ];
 
 type SidebarProps = {
@@ -18,6 +21,13 @@ type SidebarProps = {
 
 export function Sidebar({ basePath = "/" }: SidebarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const [theme, setTheme] = useState<ThemeMode>("dark");
+
+  useEffect(() => {
+    setTheme(getStoredTheme());
+    return onThemeChange(setTheme);
+  }, []);
   const normalizedBase =
     !basePath || basePath === "/" ? "" : basePath.replace(/\/$/, "");
   const activePath =
@@ -107,15 +117,54 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
           <nav className="flex flex-1 flex-col gap-3 overflow-y-auto">
             {navItems()}
           </nav>
-          <div className="mt-auto rounded-2xl border border-white/5 bg-white/5 p-4 text-xs text-zinc-300">
-            Future: Chat agent will live here with confirmation queue.
+          <div className="mt-auto space-y-3 rounded-2xl border border-white/5 bg-white/5 p-4 text-xs text-zinc-300">
+            {session?.user?.email && (
+              <div className="rounded-2xl border border-white/5 bg-black/30 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">
+                  Signed in
+                </p>
+                <p className="mt-1 truncate text-xs text-white/80">
+                  {session.user.email}
+                </p>
+              </div>
+            )}
+            <div className="inline-flex w-full rounded-full border border-white/10 bg-white/5 p-1 text-[10px] uppercase tracking-[0.3em]">
+              {(["dark", "light"] as const).map((option) => {
+                const active = theme === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      setTheme(option);
+                      applyTheme(option);
+                    }}
+                    className={`flex-1 rounded-full px-3 py-2 font-semibold transition ${
+                      active ? "bg-white text-zinc-900" : "text-zinc-300 hover:text-white"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
+            >
+              Sign out
+            </button>
+            <p className="text-[11px] text-zinc-400">
+              Future: Chat agent will live here with confirmation queue.
+            </p>
           </div>
         </div>
       </aside>
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex mobile-sidebar-overlay">
           <div
-            className="flex h-full w-72 flex-col gap-6 bg-[#050b18] px-6 py-8 text-sm text-zinc-200 shadow-2xl"
+            className="mobile-sidebar flex h-full w-72 flex-col gap-6 bg-[#050b18] px-6 py-8 text-sm text-zinc-200 shadow-2xl"
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
               paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -131,7 +180,48 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
                 Close
               </button>
             </div>
-            <nav className="flex flex-1 flex-col gap-3 overflow-y-auto">{navItems(true, () => setMobileOpen(false))}</nav>
+            <nav className="flex flex-1 flex-col gap-3 overflow-y-auto">
+              {navItems(true, () => setMobileOpen(false))}
+            </nav>
+            <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-4 text-xs text-zinc-300">
+              {session?.user?.email && (
+                <div className="rounded-2xl border border-white/5 bg-black/30 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">
+                    Signed in
+                  </p>
+                  <p className="mt-1 truncate text-xs text-white/80">
+                    {session.user.email}
+                  </p>
+                </div>
+              )}
+              <div className="inline-flex w-full rounded-full border border-white/10 bg-white/5 p-1 text-[10px] uppercase tracking-[0.3em]">
+                {(["dark", "light"] as const).map((option) => {
+                  const active = theme === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => {
+                        setTheme(option);
+                        applyTheme(option);
+                      }}
+                      className={`flex-1 rounded-full px-3 py-2 font-semibold transition ${
+                        active ? "bg-white text-zinc-900" : "text-zinc-300 hover:text-white"
+                      }`}
+                    >
+                      {option}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
           <button
             type="button"

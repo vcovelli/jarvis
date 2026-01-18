@@ -153,6 +153,19 @@ export default function Home() {
     [hasMoodToday, hasJournalToday, hasTodoDoneToday, hasMustWinDone],
   );
   const moodTagLibrary = useMemo(() => state.moodTags ?? [], [state.moodTags]);
+  const moodTone = useMemo(() => {
+    if (moodValue <= 3) {
+      return { text: "text-rose-300", accent: "#f87171" };
+    }
+    if (moodValue <= 5) {
+      return { text: "text-amber-300", accent: "#fbbf24" };
+    }
+    if (moodValue <= 7) {
+      return { text: "text-lime-300", accent: "#84cc16" };
+    }
+    return { text: "text-emerald-300", accent: "#34d399" };
+  }, [moodValue]);
+  const moodPercent = useMemo(() => ((moodValue - 1) / 9) * 100, [moodValue]);
   const moodTagOptions: MoodTag[] = useMemo(() => {
     const seen = new Set<string>();
     const combined = [...defaultMoodTags, ...moodTagLibrary];
@@ -243,7 +256,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!focusKey) return;
-    const map: Record<FocusKey, React.RefObject<HTMLDivElement>> = {
+    const map: Record<FocusKey, React.RefObject<HTMLDivElement | null>> = {
       mood: moodPanelRef,
       journal: journalPanelRef,
       todos: todosPanelRef,
@@ -369,18 +382,12 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-8 pb-32 sm:pb-10">
-      <header>
-        <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">
-          Jarvis Mode / v1 draft
-        </p>
-        <h1 className="mt-2 text-4xl font-semibold text-white sm:text-5xl">
-          Daily Systems Console
-        </h1>
-        <p className="mt-3 max-w-2xl text-base text-zinc-300">
-          Mood + journal + todos in one HUD so the future chat agent can plug in
-          without rewrites.
-        </p>
+      <header className="hidden lg:block">
+        <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
       </header>
+      <div className="lg:hidden">
+        <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
+      </div>
 
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2">
@@ -449,11 +456,13 @@ export default function Home() {
           </p>
           {todaysMustWin ? (
             <div className="mt-6 rounded-2xl border border-amber-400/50 bg-black/40 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-white">{todaysMustWin.text}</p>
+              <div className="flex flex-col gap-4">
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-white leading-relaxed break-words">
+                    {todaysMustWin.text}
+                  </p>
                   {todaysMustWin.timeBound && (
-                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-amber-200">
+                    <p className="mt-2 text-xs uppercase tracking-[0.2em] text-amber-200">
                       By {todaysMustWin.timeBound}
                     </p>
                   )}
@@ -461,7 +470,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => toggleMustWin({ day: todayKey })}
-                  className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] whitespace-nowrap ${
+                  className={`w-full rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
                     todaysMustWin.done
                       ? "bg-emerald-400 text-emerald-950"
                       : "bg-amber-300 text-amber-950"
@@ -520,7 +529,7 @@ export default function Home() {
           {!moodPanelCollapsed ? (
             <form className="mt-6 flex flex-col gap-5" onSubmit={handleMoodSubmit}>
               <label className="text-sm font-medium text-zinc-200">
-                Mood: <span className="text-cyan-300">{moodValue}/10</span>
+                Mood: <span className={`slider-emphasis ${moodTone.text}`}>{moodValue}/10</span>
               </label>
               <input
                 type="range"
@@ -528,7 +537,11 @@ export default function Home() {
                 max={10}
                 value={moodValue}
                 onChange={(event) => setMoodValue(Number(event.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded bg-zinc-700 accent-cyan-300"
+                className="h-2 w-full cursor-pointer appearance-none rounded bg-transparent"
+                style={{
+                  accentColor: moodTone.accent,
+                  background: `linear-gradient(90deg, ${moodTone.accent} 0%, ${moodTone.accent} ${moodPercent}%, #3f3f46 ${moodPercent}%, #3f3f46 100%)`,
+                }}
               />
               <div className="flex flex-wrap gap-2">
               {moodTagOptions.map((tag) => {
@@ -699,12 +712,12 @@ export default function Home() {
 
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <h2 className="text-lg font-medium text-white">Sleep trend</h2>
-          <div className="mt-4 flex items-baseline justify-between gap-4">
-            <div>
+          <div className="mt-4 flex items-start justify-between gap-4">
+            <div className="flex flex-col">
               <span className="text-4xl font-semibold text-white">
                 {sleepTrend.today !== null ? `${sleepTrend.today.toFixed(1)}h` : "–"}
               </span>
-              <span className="ml-2 text-sm text-zinc-300">last log</span>
+              <span className="mt-1 text-sm text-zinc-300">last log</span>
             </div>
             <div className="text-right text-xs uppercase tracking-[0.3em] text-zinc-400">
               <p>7d avg</p>
@@ -1064,6 +1077,7 @@ function labelForOperatingMode(mode: OperatingMode): string {
 function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): TimelineEntry[] {
   const entries: TimelineEntry[] = [];
   const todayKey = getDayKey();
+  const allowedDays = todayOnly ? new Set([todayKey]) : new Set(getLastNDays(7));
 
   Object.entries(state.mood).forEach(([day, logs]) => {
     logs.forEach((log) =>
@@ -1152,7 +1166,7 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
   });
 
   const sorted = entries.sort((a, b) => b.ts - a.ts);
-  const filtered = todayOnly ? sorted.filter((entry) => entry.dayKey === todayKey) : sorted;
+  const filtered = sorted.filter((entry) => allowedDays.has(entry.dayKey));
   return filtered.slice(0, limit);
 }
 
@@ -1219,7 +1233,7 @@ type TimelinePanelProps = {
   entries: TimelineEntry[];
   filter: TimelineFilter;
   onFilterChange: (value: TimelineFilter) => void;
-  wrapperRef?: RefObject<HTMLDivElement>;
+  wrapperRef?: RefObject<HTMLDivElement | null>;
   className?: string;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -1339,7 +1353,7 @@ function QuickNavLink({ href, label, emoji, attention = false }: QuickNavLinkPro
 
 type TodosPanelProps = {
   className?: string;
-  panelRef?: RefObject<HTMLDivElement>;
+  panelRef?: RefObject<HTMLDivElement | null>;
   todos: TodoItem[];
   toggleTodo: (id: string) => void;
   updatePriority: (id: string, priority: TodoPriority) => void;
@@ -1436,7 +1450,7 @@ function TodosPanel({ className = "", panelRef, collapsed = false, onToggleColla
 
 type JournalPanelProps = {
   className?: string;
-  panelRef?: RefObject<HTMLDivElement>;
+  panelRef?: RefObject<HTMLDivElement | null>;
   journalText: string;
   setJournalText: (value: string) => void;
   prompt?: JournalPrompt;
