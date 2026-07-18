@@ -597,13 +597,25 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col gap-8 pb-32 sm:pb-10">
+    <div className="flex flex-col gap-8 pb-24 sm:pb-10">
       <header className="hidden lg:block">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
       </header>
       <div className="lg:hidden">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
       </div>
+
+      <section className="lg:hidden">
+        <div className="rounded-3xl border border-white/10 bg-slate-950/90 p-4 shadow-xl shadow-black/30 backdrop-blur-xl">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-400">Quick actions</p>
+          <div className="mt-3 grid grid-cols-2 gap-3 text-white">
+            <QuickNavLink href="/v2?focus=mood" label="Mood" attention={!hasMoodToday} />
+            <QuickNavLink href="/v2?focus=mustwin" label="Must Win" attention={!todaysMustWin?.done} />
+            <QuickNavLink href="/v2?focus=todos" label="Todos" attention={todaysTodos.length === 0 || !hasTodoDoneToday} />
+            <QuickNavLink href="/v2/review" label="Review" attention={!todaysReview} />
+          </div>
+        </div>
+      </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
@@ -1484,32 +1496,6 @@ export default function Home() {
           </div>
         </div>
       )}
-      <nav
-        aria-label="Quick actions"
-        className="fixed bottom-4 left-1/2 z-40 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-3xl border border-white/10 bg-black/50 p-3 backdrop-blur-xl sm:hidden"
-      >
-        <div className="grid grid-cols-4 gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">
-          <QuickNavLink href="/v2?focus=mood" label="Mood" emoji="😊" attention={!hasMoodToday} />
-          <QuickNavLink
-            href="/v2?focus=mustwin"
-            label="Must Win"
-            emoji="🎯"
-            attention={!todaysMustWin?.done}
-          />
-          <QuickNavLink
-            href="/v2?focus=todos"
-            label="Todos"
-            emoji="📋"
-            attention={todaysTodos.length === 0 || !hasTodoDoneToday}
-          />
-          <QuickNavLink
-            href="/v2/review"
-            label="Review"
-            emoji="📈"
-            attention={!todaysReview}
-          />
-        </div>
-      </nav>
     </div>
   );
 }
@@ -1756,7 +1742,7 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
         detail:
           `Mood ${log.mood}/10` + (log.tags?.length ? ` • ${log.tags.join(", ")}` : ""),
         badge: "Mood",
-        icon: "😊",
+        icon: "Mood",
         href: "/v2?focus=mood",
         dayKey: day as DayKey,
         timeLabel: formatTimelineTime(log.ts),
@@ -1774,7 +1760,7 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
         title: entry.text.slice(0, 80) + (entry.text.length > 80 ? "…" : ""),
         detail: entry.prompt ? `${entry.prompt} journal` : "Journal entry",
         badge: "Journal",
-        icon: "📝",
+        icon: "Journal",
         href: `/v2/journal?day=${day}&focus=${entry.id}`,
         dayKey: day as DayKey,
         timeLabel: formatTimelineTime(entry.ts),
@@ -1797,7 +1783,7 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
           ? `${plannedWindow ? `Planned ${plannedWindow} • ` : ""}Actual ${actualTime ?? "Logged"} • P${todo.priority}`
           : `${plannedWindow ? `Planned ${plannedWindow} • ` : ""}${todo.timeblockMins ? `${todo.timeblockMins}m block` : "Planned task"} • P${todo.priority}`,
         badge: "Todo",
-        icon: "📋",
+        icon: "Todo",
         href: `/v2/todos?day=${day}&focus=${todo.id}`,
         dayKey: day as DayKey,
         timeLabel: formatTimelineTime(todo.completedTs ?? todo.createdTs),
@@ -1815,7 +1801,7 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
         title: `${(night.durationMins / 60).toFixed(1)}h sleep`,
         detail: `Quality ${night.quality}/5`,
         badge: "Sleep",
-        icon: "🌙",
+        icon: "Sleep",
         href: `/v2/sleep?day=${day}&focus=${night.id}`,
         dayKey: day as DayKey,
         timeLabel: formatTimelineTime(night.ts),
@@ -1834,7 +1820,7 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
         ? `Must Win completed${entry.timeBound ? ` • by ${entry.timeBound}` : ""}`
         : `Must Win locked${entry.timeBound ? ` • by ${entry.timeBound}` : ""}`,
       badge: "Must Win",
-      icon: entry.done ? "🏁" : "🎯",
+      icon: entry.done ? "Must Win" : "Must Win",
       href: `/v2?focus=mustwin`,
       dayKey: day as DayKey,
       timeLabel: formatTimelineTime(entry.completedTs ?? entry.ts),
@@ -1989,22 +1975,21 @@ function TimelinePanel({
             entries.map((item) => {
               const content = (
                 <>
-                  <div className="flex flex-1 min-w-0 items-center gap-4">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-xl">
-                      {item.icon}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-white wrap-break-word">{item.title}</p>
-                      <p className="text-xs uppercase tracking-[0.25em] text-zinc-400 wrap-break-word">
-                        {item.detail}
-                      </p>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <span className="inline-flex h-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-200 whitespace-nowrap">
+                        {item.badge}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-white leading-tight break-words">{item.title}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.25em] text-zinc-400 break-words">
+                          {item.detail}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col items-start text-[11px] uppercase tracking-[0.3em] text-zinc-400 sm:items-end sm:text-right">
-                    <p>{item.timeLabel}</p>
-                    <span className="mt-2 inline-block rounded-full bg-white/10 px-3 py-1 font-semibold text-cyan-200">
-                      {item.badge}
-                    </span>
+                    <div className="flex flex-col items-start gap-1 text-[11px] uppercase tracking-[0.3em] text-zinc-400 sm:items-end">
+                      <p>{item.timeLabel}</p>
+                    </div>
                   </div>
                 </>
               );
@@ -2040,7 +2025,6 @@ function TimelinePanel({
 type QuickNavLinkProps = {
   href: string;
   label: string;
-  emoji: string;
   attention?: boolean;
 };
 
@@ -2054,17 +2038,26 @@ function CommandMetric({ label, value, detail }: { label: string; value: string;
   );
 }
 
-function QuickNavLink({ href, label, emoji, attention = false }: QuickNavLinkProps) {
+function QuickNavLink({ href, label, attention = false }: QuickNavLinkProps) {
   return (
     <Link
       href={href}
-      className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-center transition ${
-        attention ? "border-cyan-300/60 text-white" : "border-white/10 text-zinc-300"
+      className={`flex flex-col items-center justify-between gap-2 rounded-[24px] border px-4 py-4 text-center text-sm font-semibold uppercase tracking-[0.18em] transition ${
+        attention
+          ? "border-cyan-300/70 bg-cyan-300/10 text-white shadow-[0_16px_40px_rgba(14,165,233,0.12)]"
+          : "border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10"
       }`}
     >
-      <span className="text-xl">{emoji}</span>
-      <span className="text-[10px] uppercase tracking-[0.3em]">{label}</span>
-      {attention && <span className="text-[10px] font-semibold text-cyan-200">✺</span>}
+      <span>{label}</span>
+      {attention ? (
+        <span className="rounded-full bg-cyan-300/10 px-2 py-1 text-[10px] font-semibold text-cyan-200">
+          ⚡
+        </span>
+      ) : (
+        <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold text-zinc-300">
+          Go
+        </span>
+      )}
     </Link>
   );
 }
