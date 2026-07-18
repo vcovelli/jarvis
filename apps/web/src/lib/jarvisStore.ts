@@ -1,7 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import {
+  createElement,
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
+
+import { createETagFromJson } from "@/lib/stateHash";
 
 export type DayKey = string; // YYYY-MM-DD
 
@@ -117,6 +129,50 @@ export type WeeklyReviewEntry = {
   experiment: string;
 };
 
+export type ObjectiveStatus = "active" | "paused" | "done";
+
+export type ObjectiveProject = {
+  id: string;
+  title: string;
+  milestone?: string;
+  done: boolean;
+  ts: number;
+  completedTs?: number;
+};
+
+export type Objective = {
+  id: string;
+  title: string;
+  area?: string;
+  target?: string;
+  nextAction?: string;
+  status: ObjectiveStatus;
+  ts: number;
+  updatedTs: number;
+  projects: ObjectiveProject[];
+};
+
+export type HomelabActionType =
+  | "refresh-snapshot"
+  | "service-health-check"
+  | "service-restart-review"
+  | "docs-review";
+
+export type HomelabActionStatus = "recorded" | "completed" | "blocked";
+
+export type HomelabActionRisk = "low" | "guarded";
+
+export type HomelabActionLog = {
+  id: string;
+  ts: number;
+  action: HomelabActionType;
+  label: string;
+  target?: string;
+  status: HomelabActionStatus;
+  risk: HomelabActionRisk;
+  note?: string;
+};
+
 export type JarvisState = {
   mood: Record<DayKey, MoodLog[]>;
   journal: Record<DayKey, JournalEntry[]>;
@@ -128,9 +184,100 @@ export type JarvisState = {
   mustWin: Record<DayKey, MustWinEntry>;
   dailyReview: Record<DayKey, DailyReviewEntry>;
   weeklyReview: Record<string, WeeklyReviewEntry>;
+  objectives: Objective[];
+  homelabActions: HomelabActionLog[];
 };
 
 const STORAGE_KEY = "jarvis-state-v1";
+const STORAGE_META_KEY = "jarvis-state-meta-v1";
+const DEFAULT_SAVE_DELAY_MS = 700;
+const MAX_HOMELAB_ACTIONS = 100;
+
+type StoredMeta = {
+  etag?: string;
+  savedAt?: number;
+};
+
+type NetworkInformation = {
+  effectiveType?: "slow-2g" | "2g" | "3g" | "4g";
+  saveData?: boolean;
+};
+
+function buildStorageKey(userId?: string) {
+  return `${STORAGE_KEY}:${userId ?? "guest"}`;
+}
+
+function buildMetaKey(userId?: string) {
+  return `${STORAGE_META_KEY}:${userId ?? "guest"}`;
+}
+
+function readStoredState(key: string): JarvisState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return sanitizeState(parsed);
+  } catch (error) {
+    console.warn("Jarvis state load failed", error);
+    return null;
+  }
+}
+
+function writeStoredState(key: string, stateJson: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, stateJson);
+  } catch (error) {
+    console.warn("Jarvis state cache save failed", error);
+  }
+}
+
+function readStoredMeta(key: string): StoredMeta | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as StoredMeta;
+  } catch (error) {
+    console.warn("Jarvis state meta load failed", error);
+    return null;
+  }
+}
+
+function writeStoredMeta(key: string, meta: StoredMeta) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(meta));
+  } catch (error) {
+    console.warn("Jarvis state meta save failed", error);
+  }
+}
+
+function getNetworkInfo(): NetworkInformation | null {
+  if (typeof navigator === "undefined") return null;
+  return (navigator as Navigator & { connection?: NetworkInformation }).connection ?? null;
+}
+
+function getSaveDelayMs() {
+  const info = getNetworkInfo();
+  if (!info) return DEFAULT_SAVE_DELAY_MS;
+  if (info.saveData) return 2000;
+  switch (info.effectiveType) {
+    case "slow-2g":
+    case "2g":
+      return 2500;
+    case "3g":
+      return 1200;
+    default:
+      return DEFAULT_SAVE_DELAY_MS;
+  }
+}
+
+function canUseNetwork() {
+  if (typeof navigator === "undefined") return true;
+  return navigator.onLine !== false;
+}
 
 const defaultWindow: SleepWindow = {
   lightsOut: "23:00",
@@ -157,11 +304,22 @@ const initialState: JarvisState = {
   mustWin: {},
   dailyReview: {},
   weeklyReview: {},
+  objectives: [],
+  homelabActions: [],
 };
 
 type Action =
   | { type: "HYDRATE"; payload: JarvisState }
   | { type: "LOG_MOOD"; payload: { mood: number; note?: string; tags: MoodTag[]; day?: DayKey } }
+  | {
+      type: "UPDATE_MOOD";
+      payload: {
+        day: DayKey;
+        id: string;
+        updates: Partial<Pick<MoodLog, "mood" | "note" | "tags">>;
+      };
+    }
+  | { type: "DELETE_MOOD"; payload: { day: DayKey; id: string } }
   | { type: "ADD_MOOD_TAG"; payload: { tag: string } }
   | { type: "RENAME_MOOD_TAG"; payload: { from: string; to: string } }
   | { type: "DELETE_MOOD_TAG"; payload: { tag: string } }
@@ -182,6 +340,26 @@ type Action =
   | {
       type: "SAVE_WEEKLY_REVIEW";
       payload: { weekKey: string; stop: string; doubleDown: string; experiment: string };
+    }
+  | {
+      type: "ADD_OBJECTIVE";
+      payload: { title: string; area?: string; target?: string; nextAction?: string };
+    }
+  | {
+      type: "UPDATE_OBJECTIVE";
+      payload: {
+        id: string;
+        updates: Partial<Pick<Objective, "title" | "area" | "target" | "nextAction" | "status">>;
+      };
+    }
+  | { type: "DELETE_OBJECTIVE"; payload: { id: string } }
+  | {
+      type: "ADD_OBJECTIVE_PROJECT";
+      payload: { objectiveId: string; title: string; milestone?: string };
+    }
+  | {
+      type: "TOGGLE_OBJECTIVE_PROJECT";
+      payload: { objectiveId: string; projectId: string };
     }
   | {
       type: "UPDATE_JOURNAL";
@@ -249,6 +427,17 @@ type Action =
         startTime?: string;
         timeblockMins?: Timeblock;
       };
+    }
+  | {
+      type: "RECORD_HOMELAB_ACTION";
+      payload: {
+        action: HomelabActionType;
+        label: string;
+        target?: string;
+        status: HomelabActionStatus;
+        risk: HomelabActionRisk;
+        note?: string;
+      };
     };
 
 function reducer(state: JarvisState, action: Action): JarvisState {
@@ -268,6 +457,28 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       return {
         ...state,
         mood: insertItem(state.mood, day, entry),
+      };
+    }
+    case "UPDATE_MOOD": {
+      const logs = state.mood[action.payload.day] ?? [];
+      return {
+        ...state,
+        mood: {
+          ...state.mood,
+          [action.payload.day]: logs.map((log) =>
+            log.id === action.payload.id ? { ...log, ...action.payload.updates } : log,
+          ),
+        },
+      };
+    }
+    case "DELETE_MOOD": {
+      const logs = state.mood[action.payload.day] ?? [];
+      return {
+        ...state,
+        mood: {
+          ...state.mood,
+          [action.payload.day]: logs.filter((log) => log.id !== action.payload.id),
+        },
       };
     }
     case "ADD_MOOD_TAG": {
@@ -408,6 +619,89 @@ function reducer(state: JarvisState, action: Action): JarvisState {
           ...state.weeklyReview,
           [action.payload.weekKey]: entry,
         },
+      };
+    }
+    case "ADD_OBJECTIVE": {
+      const now = Date.now();
+      const objective: Objective = {
+        id: createId(),
+        title: action.payload.title.trim(),
+        area: action.payload.area?.trim() || undefined,
+        target: action.payload.target?.trim() || undefined,
+        nextAction: action.payload.nextAction?.trim() || undefined,
+        status: "active",
+        ts: now,
+        updatedTs: now,
+        projects: [],
+      };
+      return {
+        ...state,
+        objectives: [objective, ...state.objectives],
+      };
+    }
+    case "UPDATE_OBJECTIVE": {
+      const now = Date.now();
+      return {
+        ...state,
+        objectives: state.objectives.map((objective) =>
+          objective.id === action.payload.id
+            ? {
+                ...objective,
+                ...sanitizeObjectiveUpdates(action.payload.updates),
+                updatedTs: now,
+              }
+            : objective,
+        ),
+      };
+    }
+    case "DELETE_OBJECTIVE": {
+      return {
+        ...state,
+        objectives: state.objectives.filter((objective) => objective.id !== action.payload.id),
+      };
+    }
+    case "ADD_OBJECTIVE_PROJECT": {
+      const now = Date.now();
+      const project: ObjectiveProject = {
+        id: createId(),
+        title: action.payload.title.trim(),
+        milestone: action.payload.milestone?.trim() || undefined,
+        done: false,
+        ts: now,
+      };
+      return {
+        ...state,
+        objectives: state.objectives.map((objective) =>
+          objective.id === action.payload.objectiveId
+            ? {
+                ...objective,
+                updatedTs: now,
+                projects: [project, ...objective.projects],
+              }
+            : objective,
+        ),
+      };
+    }
+    case "TOGGLE_OBJECTIVE_PROJECT": {
+      const now = Date.now();
+      return {
+        ...state,
+        objectives: state.objectives.map((objective) => {
+          if (objective.id !== action.payload.objectiveId) return objective;
+          return {
+            ...objective,
+            updatedTs: now,
+            projects: objective.projects.map((project) => {
+              if (project.id !== action.payload.projectId) return project;
+              const done = !project.done;
+              return {
+                ...project,
+                done,
+                completedTs: done ? now : undefined,
+              };
+            }),
+          };
+        }),
       };
     }
     case "UPDATE_JOURNAL": {
@@ -587,22 +881,49 @@ function reducer(state: JarvisState, action: Action): JarvisState {
         },
       };
     }
+    case "RECORD_HOMELAB_ACTION": {
+      const entry: HomelabActionLog = {
+        id: createId(),
+        ts: Date.now(),
+        action: sanitizeHomelabActionType(action.payload.action),
+        label: action.payload.label.trim() || "Homelab action",
+        target: cleanOptionalString(action.payload.target),
+        status: sanitizeHomelabActionStatus(action.payload.status),
+        risk: sanitizeHomelabActionRisk(action.payload.risk),
+        note: cleanOptionalString(action.payload.note),
+      };
+      return {
+        ...state,
+        homelabActions: [entry, ...state.homelabActions].slice(0, MAX_HOMELAB_ACTIONS),
+      };
+    }
     default:
       return state;
   }
 }
 
-export function useJarvisState() {
+function useJarvisStoreInternal() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [hydrated, setHydrated] = useState(false);
-  const { status } = useSession();
+  const { status, data: session } = useSession();
   const readyRef = useRef(false);
+  const lastUserRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!hydrated || status !== "authenticated" || !readyRef.current) return;
+    if (!hydrated || !readyRef.current) return;
+    const isAuthenticated = status === "authenticated" && Boolean(session?.user?.id);
+    const userId = isAuthenticated ? session?.user?.id : undefined;
+    const storageKey = buildStorageKey(userId);
+    const metaKey = buildMetaKey(userId);
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       try {
+        const stateJson = JSON.stringify(state);
+        writeStoredState(storageKey, stateJson);
+        writeStoredMeta(metaKey, { etag: createETagFromJson(stateJson), savedAt: Date.now() });
+
+        if (!isAuthenticated || !canUseNetwork()) return;
+
         await fetch("/api/state", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -612,38 +933,78 @@ export function useJarvisState() {
       } catch (error) {
         console.warn("Jarvis state save failed", error);
       }
-    }, 400);
+    }, getSaveDelayMs());
     return () => {
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [state, hydrated, status]);
+  }, [state, hydrated, status, session?.user?.id]);
 
   useEffect(() => {
     if (status === "loading") return;
-    if (status !== "authenticated") {
-      try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          dispatch({ type: "HYDRATE", payload: sanitizeState(parsed) });
-        }
-      } catch (error) {
-        console.warn("Jarvis state load failed", error);
-      } finally {
-        readyRef.current = true;
-        setHydrated(true);
-      }
-      return;
+    readyRef.current = false;
+    let isMounted = true;
+    const markHydrated = (value: boolean) => {
+      Promise.resolve().then(() => {
+        if (!isMounted) return;
+        setHydrated(value);
+      });
+    };
+    markHydrated(false);
+
+    const isAuthenticated = status === "authenticated" && Boolean(session?.user?.id);
+    const userId = isAuthenticated ? session?.user?.id : undefined;
+    const userKey = isAuthenticated ? userId ?? "user" : "guest";
+    const storageKey = buildStorageKey(userId);
+    const metaKey = buildMetaKey(userId);
+
+    const shouldReset = lastUserRef.current !== userKey;
+    lastUserRef.current = userKey;
+
+    const cachedState = readStoredState(storageKey);
+    if (cachedState) {
+      dispatch({ type: "HYDRATE", payload: cachedState });
+    } else if (shouldReset) {
+      dispatch({ type: "HYDRATE", payload: initialState });
     }
 
-    let isMounted = true;
-    fetch("/api/state")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (!isMounted) return;
-        if (data?.state) {
-          dispatch({ type: "HYDRATE", payload: sanitizeState(data.state) });
+    if (!isAuthenticated || !canUseNetwork()) {
+      readyRef.current = true;
+      markHydrated(true);
+      return () => {
+        isMounted = false;
+      };
+    }
+    const cachedMeta = readStoredMeta(metaKey);
+    const headers: HeadersInit = cachedMeta?.etag ? { "If-None-Match": cachedMeta.etag } : {};
+    fetch("/api/state", { headers })
+      .then(async (response) => {
+        if (response.status === 304) {
+          return { status: 304 as const, etag: cachedMeta?.etag ?? undefined };
+        }
+        if (!response.ok) {
+          return { status: response.status };
+        }
+        const data = await response.json().catch(() => null);
+        const etag = response.headers.get("etag") ?? undefined;
+        return { status: 200 as const, state: data?.state ?? null, etag };
+      })
+      .then((result) => {
+        if (!isMounted || !result) return;
+        if (result.status === 200 && result.state) {
+          const shouldSkip =
+            result.etag && cachedMeta?.etag ? result.etag === cachedMeta.etag : false;
+          if (!shouldSkip) {
+            dispatch({ type: "HYDRATE", payload: sanitizeState(result.state) });
+          }
+          const stateJson = JSON.stringify(result.state);
+          writeStoredState(storageKey, stateJson);
+          writeStoredMeta(metaKey, {
+            etag: result.etag ?? createETagFromJson(stateJson),
+            savedAt: Date.now(),
+          });
+        } else if (result.etag) {
+          writeStoredMeta(metaKey, { etag: result.etag, savedAt: Date.now() });
         }
       })
       .catch((error) => {
@@ -652,13 +1013,13 @@ export function useJarvisState() {
       .finally(() => {
         if (!isMounted) return;
         readyRef.current = true;
-        setHydrated(true);
+        markHydrated(true);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [status]);
+  }, [status, session?.user?.id]);
 
   const logMood = useCallback(
     (payload: { mood: number; note?: string; tags: MoodTag[]; day?: DayKey }) => {
@@ -666,6 +1027,17 @@ export function useJarvisState() {
     },
     [],
   );
+
+  const updateMood = useCallback(
+    (payload: { day: DayKey; id: string; updates: Partial<Pick<MoodLog, "mood" | "note" | "tags">> }) => {
+      dispatch({ type: "UPDATE_MOOD", payload });
+    },
+    [],
+  );
+
+  const deleteMood = useCallback((payload: { day: DayKey; id: string }) => {
+    dispatch({ type: "DELETE_MOOD", payload });
+  }, []);
 
   const addMoodTagToLibrary = useCallback((payload: { tag: string }) => {
     dispatch({ type: "ADD_MOOD_TAG", payload });
@@ -714,6 +1086,41 @@ export function useJarvisState() {
   const saveWeeklyReview = useCallback(
     (payload: { weekKey: string; stop: string; doubleDown: string; experiment: string }) => {
       dispatch({ type: "SAVE_WEEKLY_REVIEW", payload });
+    },
+    [],
+  );
+
+  const addObjective = useCallback(
+    (payload: { title: string; area?: string; target?: string; nextAction?: string }) => {
+      dispatch({ type: "ADD_OBJECTIVE", payload });
+    },
+    [],
+  );
+
+  const updateObjective = useCallback(
+    (payload: {
+      id: string;
+      updates: Partial<Pick<Objective, "title" | "area" | "target" | "nextAction" | "status">>;
+    }) => {
+      dispatch({ type: "UPDATE_OBJECTIVE", payload });
+    },
+    [],
+  );
+
+  const deleteObjective = useCallback((payload: { id: string }) => {
+    dispatch({ type: "DELETE_OBJECTIVE", payload });
+  }, []);
+
+  const addObjectiveProject = useCallback(
+    (payload: { objectiveId: string; title: string; milestone?: string }) => {
+      dispatch({ type: "ADD_OBJECTIVE_PROJECT", payload });
+    },
+    [],
+  );
+
+  const toggleObjectiveProject = useCallback(
+    (payload: { objectiveId: string; projectId: string }) => {
+      dispatch({ type: "TOGGLE_OBJECTIVE_PROJECT", payload });
     },
     [],
   );
@@ -819,10 +1226,26 @@ export function useJarvisState() {
     dispatch({ type: "SET_SLEEP_SCHEDULE", payload });
   }, []);
 
+  const recordHomelabAction = useCallback(
+    (payload: {
+      action: HomelabActionType;
+      label: string;
+      target?: string;
+      status: HomelabActionStatus;
+      risk: HomelabActionRisk;
+      note?: string;
+    }) => {
+      dispatch({ type: "RECORD_HOMELAB_ACTION", payload });
+    },
+    [],
+  );
+
   return {
     state,
     hydrated,
     logMood,
+    updateMood,
+    deleteMood,
     addMoodTag: addMoodTagToLibrary,
     renameMoodTag,
     deleteMoodTag: deleteMoodTagFromLibrary,
@@ -832,6 +1255,11 @@ export function useJarvisState() {
     toggleMustWin,
     logDailyReview,
     saveWeeklyReview,
+    addObjective,
+    updateObjective,
+    deleteObjective,
+    addObjectiveProject,
+    toggleObjectiveProject,
     updateJournalEntry,
     deleteJournalEntry,
     addTodo,
@@ -845,7 +1273,25 @@ export function useJarvisState() {
     updateSleepEntry,
     deleteSleepEntry,
     updateSleepSchedule,
+    recordHomelabAction,
   } as const;
+}
+
+type JarvisStore = ReturnType<typeof useJarvisStoreInternal>;
+
+const JarvisStateContext = createContext<JarvisStore | null>(null);
+
+export function JarvisStateProvider({ children }: { children: ReactNode }) {
+  const store = useJarvisStoreInternal();
+  return createElement(JarvisStateContext.Provider, { value: store }, children);
+}
+
+export function useJarvisState() {
+  const context = useContext(JarvisStateContext);
+  if (!context) {
+    throw new Error("useJarvisState must be used within JarvisStateProvider");
+  }
+  return context;
 }
 
 export function getDayKey(date = new Date()): DayKey {
@@ -901,6 +1347,8 @@ function sanitizeState(input: unknown): JarvisState {
     mustWin: sanitizeDayValueRecord(state.mustWin),
     dailyReview: sanitizeDayValueRecord(state.dailyReview),
     weeklyReview: sanitizeKeyRecord(state.weeklyReview),
+    objectives: sanitizeObjectives(state.objectives),
+    homelabActions: sanitizeHomelabActions(state.homelabActions),
   };
 }
 
@@ -980,6 +1428,117 @@ function sanitizeKeyRecord<T>(record?: Record<string, T>): Record<string, T> {
     }
     return acc;
   }, {} as Record<string, T>);
+}
+
+function sanitizeObjectives(value?: unknown): Objective[] {
+  if (!Array.isArray(value)) return [];
+  const objectives: Objective[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const objective = entry as Partial<Objective>;
+    if (!objective.title || typeof objective.title !== "string") continue;
+    const ts = typeof objective.ts === "number" ? objective.ts : Date.now();
+    objectives.push({
+      id: typeof objective.id === "string" ? objective.id : createId(),
+      title: objective.title.trim(),
+      area: cleanOptionalString(objective.area),
+      target: cleanOptionalString(objective.target),
+      nextAction: cleanOptionalString(objective.nextAction),
+      status: sanitizeObjectiveStatus(objective.status),
+      ts,
+      updatedTs: typeof objective.updatedTs === "number" ? objective.updatedTs : ts,
+      projects: sanitizeObjectiveProjects(objective.projects),
+    });
+  }
+  return objectives;
+}
+
+function sanitizeObjectiveProjects(value?: unknown): ObjectiveProject[] {
+  if (!Array.isArray(value)) return [];
+  const projects: ObjectiveProject[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const project = entry as Partial<ObjectiveProject>;
+    if (!project.title || typeof project.title !== "string") continue;
+    projects.push({
+      id: typeof project.id === "string" ? project.id : createId(),
+      title: project.title.trim(),
+      milestone: cleanOptionalString(project.milestone),
+      done: Boolean(project.done),
+      ts: typeof project.ts === "number" ? project.ts : Date.now(),
+      completedTs: typeof project.completedTs === "number" ? project.completedTs : undefined,
+    });
+  }
+  return projects;
+}
+
+function sanitizeObjectiveUpdates(
+  updates: Partial<Pick<Objective, "title" | "area" | "target" | "nextAction" | "status">>,
+) {
+  const next: Partial<Pick<Objective, "title" | "area" | "target" | "nextAction" | "status">> = {};
+  if (typeof updates.title === "string") {
+    const title = cleanOptionalString(updates.title);
+    if (title) next.title = title;
+  }
+  if (typeof updates.area === "string") next.area = cleanOptionalString(updates.area);
+  if (typeof updates.target === "string") next.target = cleanOptionalString(updates.target);
+  if (typeof updates.nextAction === "string") next.nextAction = cleanOptionalString(updates.nextAction);
+  if (updates.status) next.status = sanitizeObjectiveStatus(updates.status);
+  return next;
+}
+
+function sanitizeObjectiveStatus(value?: string): ObjectiveStatus {
+  if (value === "paused" || value === "done") return value;
+  return "active";
+}
+
+function sanitizeHomelabActions(value?: unknown): HomelabActionLog[] {
+  if (!Array.isArray(value)) return [];
+  const actions: HomelabActionLog[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const action = entry as Partial<HomelabActionLog>;
+    const label = cleanOptionalString(action.label);
+    if (!label) continue;
+    actions.push({
+      id: typeof action.id === "string" ? action.id : createId(),
+      ts: typeof action.ts === "number" ? action.ts : Date.now(),
+      action: sanitizeHomelabActionType(action.action),
+      label,
+      target: cleanOptionalString(action.target),
+      status: sanitizeHomelabActionStatus(action.status),
+      risk: sanitizeHomelabActionRisk(action.risk),
+      note: cleanOptionalString(action.note),
+    });
+    if (actions.length >= MAX_HOMELAB_ACTIONS) break;
+  }
+  return actions;
+}
+
+function sanitizeHomelabActionType(value?: string): HomelabActionType {
+  if (
+    value === "service-health-check" ||
+    value === "service-restart-review" ||
+    value === "docs-review"
+  ) {
+    return value;
+  }
+  return "refresh-snapshot";
+}
+
+function sanitizeHomelabActionStatus(value?: string): HomelabActionStatus {
+  if (value === "completed" || value === "blocked") return value;
+  return "recorded";
+}
+
+function sanitizeHomelabActionRisk(value?: string): HomelabActionRisk {
+  return value === "guarded" ? "guarded" : "low";
+}
+
+function cleanOptionalString(value?: string) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
 function createId() {

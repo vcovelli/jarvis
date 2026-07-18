@@ -28,7 +28,6 @@ const SLOT_HEIGHT = 12;
 const BOARD_HEIGHT = SLOTS_PER_DAY * SLOT_HEIGHT;
 const HOUR_LABELS = Array.from({ length: 24 }, (_, index) => index);
 const DAY_MINUTES = 24 * 60;
-const timeblockOptions: Timeblock[] = Array.from({ length: 16 }, (_, index) => (index + 1) * 15);
 const startTimeOptions = buildStartTimeOptions(SLOT_MINUTES);
 const blockColors = [
   "#f472b6",
@@ -154,7 +153,6 @@ export default function TodosPage() {
     () => getOrderedTodos(state.todos[selectedDay] ?? []),
     [state.todos, selectedDay],
   );
-  const upcoming = useMemo(() => buildUpcomingSchedule(state.todos), [state.todos]);
   const existingTaskOptions = useMemo(() => {
     const flattened = Object.values(state.todos).flat();
     const sorted = [...flattened].sort((a, b) => b.createdTs - a.createdTs);
@@ -759,7 +757,11 @@ function TimePillSelector({
     const list = listRef.current;
     if (!list) return;
     const active = list.querySelector<HTMLButtonElement>(`button[data-value="${value}"]`);
-    active?.scrollIntoView({ block: "center" });
+    if (!active) return;
+    const target =
+      active.offsetTop - list.clientHeight / 2 + active.offsetHeight / 2;
+    const nextTop = Math.max(0, Math.min(target, list.scrollHeight - list.clientHeight));
+    list.scrollTo({ top: nextTop });
   }, [value]);
 
   useEffect(() => {
@@ -1373,7 +1375,6 @@ function TimeBlockingBoard({
                     ? {
                         backgroundColor: block.color,
                         borderColor: block.color,
-                        color: "#030712",
                       }
                     : undefined;
                   const isCompact = block.durationMinutes <= SLOT_MINUTES;
@@ -1388,7 +1389,7 @@ function TimeBlockingBoard({
                       key={block.id}
                       ref={highlight ? highlightRef : undefined}
                       onPointerDown={(event) => handleDragStart(event, block.originalTodo, "move")}
-                      className={`group absolute left-4 right-4 z-10 cursor-grab rounded-2xl border px-3 text-xs shadow-lg ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""} ${
+                      className={`scheduled-block group absolute left-4 right-4 z-10 cursor-grab rounded-2xl border px-3 text-xs shadow-lg ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""} ${
                         isCompact ? "py-1" : "py-2"
                       }`}
                       style={{
@@ -1604,41 +1605,6 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
   );
 }
 
-type UpcomingBlocksProps = {
-  slots: ReturnType<typeof buildUpcomingSchedule>;
-};
-
-function UpcomingBlocks({ slots }: UpcomingBlocksProps) {
-  return (
-    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg min-w-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h3 className="text-lg font-medium text-white">Upcoming blocks</h3>
-        <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-          {slots.length ? `${slots.length} queued` : "Empty"}
-        </span>
-      </div>
-      <div className="mt-4 space-y-4">
-        {slots.length === 0 ? (
-          <p className="text-sm text-zinc-400">
-            Add start times to future todos to preview your calendar.
-          </p>
-        ) : (
-          slots.map((slot) => (
-            <div
-              key={`${slot.day}-${slot.label}`}
-              className="rounded-2xl border border-white/5 bg-black/20 px-4 py-3"
-            >
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">{slot.dayLabel}</p>
-              <p className="text-base font-semibold text-white break-words">{slot.label}</p>
-              <p className="text-sm text-zinc-400 break-words">{slot.meta}</p>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
 type TaskPanelProps = TaskPanelState & {
   onClose: () => void;
 };
@@ -1650,8 +1616,6 @@ function TaskPanel({
   onTextChange,
   priority,
   onPriorityChange,
-  timeblock,
-  onTimeblockChange,
   startTime,
   onStartTimeChange,
   endTime,
@@ -2284,36 +2248,6 @@ function buildDayColorMap(record: Record<DayKey, TodoItem[]>): Record<DayKey, st
     }
     return acc;
   }, {} as Record<DayKey, string[]>);
-}
-
-function buildUpcomingSchedule(record: Record<DayKey, TodoItem[]>) {
-  const entries: { day: DayKey; dayLabel: string; label: string; meta: string; sortKey: number }[] = [];
-  Object.entries(record).forEach(([day, todos]) => {
-    todos.forEach((todo) => {
-      if (!todo.startTime) return;
-      const startMinutes = parseTimeToMinutes(todo.startTime) ?? DAY_MINUTES;
-      entries.push({
-        day,
-        dayLabel: dayKeyToDate(day).toLocaleDateString(undefined, {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        }),
-        label: todo.text,
-        meta: `${formatTodoTimeWindow(todo) || "No block"} • ${priorityLabel(todo.priority)}`,
-        sortKey: startMinutes,
-      });
-    });
-  });
-  return entries
-    .sort((a, b) => {
-      if (a.day === b.day) {
-        return a.sortKey - b.sortKey;
-      }
-      return a.day > b.day ? 1 : -1;
-    })
-    .slice(0, 6)
-    .map((entry) => ({ day: entry.day, dayLabel: entry.dayLabel, label: entry.label, meta: entry.meta }));
 }
 
 function buildScheduledBlocks(todos: TodoItem[], drag?: DragState | null): ScheduledBlock[] {
