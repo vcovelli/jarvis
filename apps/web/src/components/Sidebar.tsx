@@ -89,10 +89,10 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
     items.map((item) => {
       const active = isActive(item);
       const linkClass =
-        "rounded-2xl border px-4 py-3 transition " +
+        "group rounded-[20px] border px-4 py-3 transition-all duration-200 " +
         (active
-          ? "border-cyan-400/60 bg-white/10 text-white"
-          : "border-white/5 bg-white/0 hover:border-white/15 hover:bg-white/5") +
+          ? "border-cyan-400/50 bg-cyan-400/12 text-white shadow-[0_10px_30px_rgba(34,211,238,0.16)]"
+          : "border-white/10 bg-white/0 text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-white") +
         (dense ? " text-sm" : "");
       return (
         <Link
@@ -101,12 +101,15 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
           onClick={() => onNavigate?.()}
           className={linkClass}
         >
-          <p className={"font-semibold " + (dense ? "text-sm" : "text-base")}>{item.label}</p>
-          {!dense && (
-            <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-400">
-              {item.description}
-            </p>
-          )}
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className={"font-semibold " + (dense ? "text-sm" : "text-[15px]")}>{item.label}</p>
+              {!dense && <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-zinc-400">{item.description}</p>}
+            </div>
+            <span className={"inline-flex h-8 w-8 items-center justify-center rounded-full border text-[12px] font-semibold " + (active ? "border-cyan-300/40 bg-cyan-300/10 text-cyan-100" : "border-white/10 bg-white/5 text-zinc-400 group-hover:border-white/20 group-hover:text-white") }>
+              {item.label.charAt(0)}
+            </span>
+          </div>
         </Link>
       );
     });
@@ -116,7 +119,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       {!desktopOpen && (
         <button
           type="button"
-          className="fixed left-4 z-30 hidden rounded-full bg-black/60 p-3 text-white shadow-lg lg:block"
+          className="fixed left-4 z-30 hidden rounded-full border border-white/10 bg-white/10 p-3 text-sm font-semibold text-white shadow-lg backdrop-blur-xl lg:block"
           style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
           aria-label="Expand sidebar"
           onClick={() => setDesktopOpen(true)}
@@ -127,27 +130,18 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
 
       <aside
         className={
-          "hidden w-72 flex-shrink-0 bg-black/30 px-4 py-8 text-sm text-zinc-400 backdrop-blur-xl lg:sticky lg:top-0 " +
-          (desktopOpen ? "lg:flex" : "lg:hidden") +
-          " lg:h-dvh"
+          "hidden w-72 shrink-0 px-4 py-6 text-sm text-zinc-400 lg:sticky lg:top-0 lg:flex lg:h-dvh " +
+          (desktopOpen ? "lg:flex" : "lg:hidden")
         }
       >
-        <div className="flex w-full flex-col gap-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.5em] text-cyan-200/80">Jarvis OS</p>
-              <h1 className="mt-2 text-2xl font-semibold text-white">Console</h1>
-            </div>
-            <button
-              type="button"
-              onClick={() => setDesktopOpen(false)}
-              className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/60 hover:text-white"
-            >
-              Hide
-            </button>
+        <div className="flex w-full flex-col gap-5 rounded-[32px] border border-white/10 bg-white/[0.05] p-4 shadow-[0_24px_80px_rgba(2,6,23,0.25)] backdrop-blur-2xl">
+          <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-cyan-400/12 via-white/6 to-indigo-400/10 p-4">
+            <p className="text-[10px] uppercase tracking-[0.45em] text-cyan-200/80">Jarvis OS</p>
+            <h1 className="mt-2 text-2xl font-semibold text-white">Console</h1>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Smooth daily planning, reflection, and review from anywhere.</p>
           </div>
 
-          <nav className="flex flex-1 flex-col gap-5 overflow-y-auto pr-1">
+          <nav className="flex flex-1 flex-col gap-4 overflow-y-auto pr-1">
             <NavGroup title="Core">{navItems(coreLinks)}</NavGroup>
             <NavGroup title="Systems">{navItems(systemLinks)}</NavGroup>
             <NavGroup title="Growth">{navItems(growthLinks)}</NavGroup>
@@ -159,7 +153,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       </aside>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black/80 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.35rem)] pt-2 backdrop-blur-xl lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/80 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.35rem)] pt-2 backdrop-blur-2xl lg:hidden"
         aria-label="Primary mobile navigation"
       >
         <div className="grid grid-cols-5 gap-1">
@@ -170,8 +164,8 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
                 key={item.href + "-" + item.label}
                 href={buildHref(item.href)}
                 className={
-                  "rounded-2xl px-2 py-2 text-center text-[11px] font-semibold " +
-                  (active ? "bg-cyan-300 text-zinc-950" : "text-zinc-300")
+                  "rounded-2xl px-2 py-2 text-center text-[11px] font-semibold transition " +
+                  (active ? "bg-cyan-300 text-zinc-950 shadow-lg" : "text-zinc-300")
                 }
               >
                 {item.label}
@@ -193,7 +187,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex mobile-sidebar-overlay lg:hidden">
           <div
-            className="mobile-sidebar flex h-full w-80 max-w-[86vw] flex-col gap-6 bg-[#050b18] px-6 py-8 text-sm text-zinc-200 shadow-2xl"
+            className="mobile-sidebar flex h-full w-80 max-w-[86vw] flex-col gap-6 bg-slate-950/95 px-6 py-8 text-sm text-zinc-200 shadow-2xl backdrop-blur-2xl"
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
               paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -217,11 +211,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
             </nav>
             <ShellControls sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme} />
           </div>
-          <button
-            type="button"
-            className="h-full flex-1 bg-black/60"
-            onClick={() => setMobileOpen(false)}
-          >
+          <button type="button" className="h-full flex-1 bg-black/60" onClick={() => setMobileOpen(false)}>
             <span className="sr-only">Close menu</span>
           </button>
         </div>
@@ -249,9 +239,9 @@ function ShellControls({
   setTheme: (theme: ThemeMode) => void;
 }) {
   return (
-    <div className="mt-auto space-y-3 rounded-2xl border border-white/5 bg-white/5 p-4 text-xs text-zinc-300">
+    <div className="mt-auto space-y-3 rounded-[24px] border border-white/10 bg-white/5 p-4 text-xs text-zinc-300">
       {sessionEmail && (
-        <div className="rounded-2xl border border-white/5 bg-black/30 px-3 py-2">
+        <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
           <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Signed in</p>
           <p className="mt-1 truncate text-xs text-white/80">{sessionEmail}</p>
         </div>
@@ -269,7 +259,7 @@ function ShellControls({
               }}
               className={
                 "flex-1 rounded-full px-3 py-2 font-semibold transition " +
-                (active ? "bg-white text-zinc-900" : "text-zinc-300 hover:text-white")
+                (active ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-300 hover:text-white")
               }
             >
               {option}
@@ -280,7 +270,7 @@ function ShellControls({
       <button
         type="button"
         onClick={() => signOut({ callbackUrl: "/login" })}
-        className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
+        className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/20 hover:text-white"
       >
         Sign out
       </button>
