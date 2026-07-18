@@ -57,7 +57,7 @@ export default function SleepPage() {
   const todayDay = getDayOfWeek();
   const schedule = state.sleepSchedule;
   const lastNightDay = ((todayDay + 6) % 7) as Day;
-  const defaultFocus = schedule.lastEditedDay ?? (schedule.mode === "daily" ? lastNightDay : todayDay);
+  const defaultFocus = todayDay;
   const [focusedDay, setFocusedDay] = useState<Day>(defaultFocus);
   const [customDays, setCustomDays] = useState<Day[]>(() =>
     schedule.mode === "custom" ? [defaultFocus] : [defaultFocus],
@@ -75,11 +75,7 @@ export default function SleepPage() {
   const [dreams, setDreams] = useState("");
   const [notes, setNotes] = useState("");
   const [editingNight, setEditingNight] = useState<SleepEntry | null>(null);
-  const [calendarDay, setCalendarDay] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 1);
-    return getDayKey(date);
-  });
+  const [calendarDay, setCalendarDay] = useState(() => getDayKey());
   const [manualLogDayKey, setManualLogDayKey] = useState<string | null>(null);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
@@ -184,18 +180,6 @@ export default function SleepPage() {
     if (!focusNightId || !focusNightRef.current) return;
     focusNightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focusNightId, recentNights.length]);
-
-  useEffect(() => {
-    if (manualLogDayKey) return;
-    if (
-      schedule.lastEditedDay !== undefined &&
-      schedule.lastEditedDay !== focusedDay &&
-      !focusQueryDay
-    ) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFocusedDay(schedule.lastEditedDay);
-    }
-  }, [schedule.lastEditedDay, focusedDay, focusQueryDay, manualLogDayKey]);
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
@@ -315,6 +299,7 @@ export default function SleepPage() {
       editingNight,
       updateSleepEntry,
       manualLogDayKey,
+      manualLogDayLabel,
       showToast,
     ],
   );
@@ -778,7 +763,7 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [startMinutes, endMinutes, onChange]);
+  }, [startMinutes, endMinutes, onChange, unlockScroll]);
 
   useEffect(() => {
     if (!isDragging) return;

@@ -3,8 +3,9 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createStateETag } from "@/lib/stateHash";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) {
@@ -15,7 +16,18 @@ export async function GET() {
     where: { userId },
   });
 
-  return NextResponse.json({ state: record?.state ?? null });
+  const state = record?.state ?? null;
+  const etag = createStateETag(state);
+  const headers = {
+    "Cache-Control": "private, max-age=0, must-revalidate",
+    ETag: etag,
+  };
+  const ifNoneMatch = request.headers.get("if-none-match");
+  if (ifNoneMatch && ifNoneMatch === etag) {
+    return new NextResponse(null, { status: 304, headers });
+  }
+
+  return NextResponse.json({ state }, { headers });
 }
 
 export async function PUT(request: Request) {
@@ -37,5 +49,12 @@ export async function PUT(request: Request) {
     update: { state },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(
+    { ok: true },
+    {
+      headers: {
+        ETag: createStateETag(state),
+      },
+    },
+  );
 }

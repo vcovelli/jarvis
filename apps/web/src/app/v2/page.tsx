@@ -54,14 +54,31 @@ type OperatingModeSuggestion = {
   };
 };
 type PanelKey = "mood" | "timeline" | "todos" | "journal";
+type HomelabDashboardSummary = {
+  generatedAt: string | null;
+  services: {
+    active: number;
+    total: number;
+  };
+  storage: string;
+  attention: Array<{
+    id: string;
+    title: string;
+    detail: string;
+    severity: "info" | "warning" | "critical";
+  }>;
+};
 const PANEL_PREF_KEY = "jarvis-panel-preferences";
 const TIMELINE_FILTER_KEY = "jarvis-timeline-filter";
+const OPERATING_MODE_COLLAPSE_KEY = "jarvis-operating-mode-collapsed";
 
 export default function Home() {
   const {
     state,
     hydrated,
     logMood,
+    updateMood,
+    deleteMood,
     addMoodTag,
     deleteMoodTag,
     renameMoodTag,
@@ -86,17 +103,25 @@ export default function Home() {
   const highlightClass = "ring-2 ring-cyan-300/70 shadow-[0_0_35px_rgba(8,145,178,0.3)]";
 
   const todayKey = getDayKey();
-  const todaysTodos = state.todos[todayKey] ?? [];
-  const todaysJournal = state.journal[todayKey] ?? [];
-  const todaysMood = state.mood[todayKey] ?? [];
-  const todaysSleep = state.sleep[todayKey] ?? [];
-  const todaysOperatingMode = state.operatingMode[todayKey];
-  const todaysMustWin = state.mustWin[todayKey];
-  const todaysReview = state.dailyReview[todayKey];
+  const todaysTodos = useMemo(() => state.todos[todayKey] ?? [], [state.todos, todayKey]);
+  const todaysMood = useMemo(() => state.mood[todayKey] ?? [], [state.mood, todayKey]);
+  const todaysSleep = useMemo(() => state.sleep[todayKey] ?? [], [state.sleep, todayKey]);
+  const todaysOperatingMode = useMemo(
+    () => state.operatingMode[todayKey],
+    [state.operatingMode, todayKey],
+  );
+  const todaysMustWin = useMemo(() => state.mustWin[todayKey], [state.mustWin, todayKey]);
+  const todaysReview = useMemo(() => state.dailyReview[todayKey], [state.dailyReview, todayKey]);
 
   const [moodValue, setMoodValue] = useState(5);
   const [moodNote, setMoodNote] = useState("");
   const [selectedMoodTags, setSelectedMoodTags] = useState<MoodTag[]>([]);
+  const [editingMood, setEditingMood] = useState<{ day: DayKey; log: MoodLog } | null>(null);
+  const [editMoodValue, setEditMoodValue] = useState(5);
+  const [editMoodNote, setEditMoodNote] = useState("");
+  const [editMoodTags, setEditMoodTags] = useState<MoodTag[]>([]);
+  const [editTagManagerOpen, setEditTagManagerOpen] = useState(false);
+  const [editNewTagValue, setEditNewTagValue] = useState("");
   const [journalText, setJournalText] = useState("");
   const [journalPrompt, setJournalPrompt] =
     useState<JournalPrompt | undefined>();
@@ -114,13 +139,12 @@ export default function Home() {
   const [collapsedPanels, setCollapsedPanels] = useState<Partial<Record<PanelKey, boolean>>>({});
   const [panelPrefsLoaded, setPanelPrefsLoaded] = useState(false);
   const [mobileInsightsOpen, setMobileInsightsOpen] = useState(false);
+  const [operatingModeCollapsed, setOperatingModeCollapsed] = useState(false);
+  const [homelabSummary, setHomelabSummary] = useState<HomelabDashboardSummary | null>(null);
+  const [homelabSummaryUpdatedAt, setHomelabSummaryUpdatedAt] = useState<number | null>(null);
+  const [homelabSummaryError, setHomelabSummaryError] = useState<string | null>(null);
   const handleTimelineFilterChange = useCallback((value: TimelineFilter) => {
     setTimelineFilter(value);
-    try {
-      window.localStorage.setItem(TIMELINE_FILTER_KEY, value);
-    } catch (error) {
-      console.warn("Timeline filter save failed", error);
-    }
   }, []);
 
   const timelineEntries = useMemo(
@@ -132,25 +156,18 @@ export default function Home() {
   const moodTrend = trendStats.mood;
   const sleepTrend = trendStats.sleep;
   const mustWinStats = trendStats.mustWin;
-  const streak = useMemo(() => calculateStreak(state), [state]);
+  const sleepDebt = trendStats.sleepDebt;
+  const sleepConsistency = trendStats.sleepConsistency;
+  const recoveryTrend = trendStats.recoveryTrend;
+  const todayStreakComplete =
+    (todaysMood.length > 0 || todaysSleep.length > 0) && Boolean(todaysMustWin?.done);
+  const streak = useMemo(() => calculateStreak(state, todayStreakComplete), [state, todayStreakComplete]);
   const hasMoodToday = todaysMood.length > 0;
-  const hasJournalToday = todaysJournal.length > 0;
   const hasTodoDoneToday = todaysTodos.some((todo) => todo.done);
-  const hasMustWinDone = Boolean(todaysMustWin?.done);
   const allTodosDone = todaysTodos.length > 0 && todaysTodos.every((todo) => todo.done);
   const suggestedMode = useMemo(
     () => getOperatingModeSuggestion({ mood: todaysMood, todos: todaysTodos, sleep: todaysSleep }),
     [todaysMood, todaysTodos, todaysSleep],
-  );
-  const suggestions = useMemo(
-    () =>
-      buildSuggestions({
-        hasMood: hasMoodToday,
-        hasJournal: hasJournalToday,
-        hasTodoDone: hasTodoDoneToday,
-        hasMustWinDone,
-      }),
-    [hasMoodToday, hasJournalToday, hasTodoDoneToday, hasMustWinDone],
   );
   const moodTagLibrary = useMemo(() => state.moodTags ?? [], [state.moodTags]);
   const moodTone = useMemo(() => {
@@ -166,6 +183,19 @@ export default function Home() {
     return { text: "text-emerald-300", accent: "#34d399" };
   }, [moodValue]);
   const moodPercent = useMemo(() => ((moodValue - 1) / 9) * 100, [moodValue]);
+  const editMoodTone = useMemo(() => {
+    if (editMoodValue <= 3) {
+      return { text: "text-rose-300", accent: "#f87171" };
+    }
+    if (editMoodValue <= 5) {
+      return { text: "text-amber-300", accent: "#fbbf24" };
+    }
+    if (editMoodValue <= 7) {
+      return { text: "text-lime-300", accent: "#84cc16" };
+    }
+    return { text: "text-emerald-300", accent: "#34d399" };
+  }, [editMoodValue]);
+  const editMoodPercent = useMemo(() => ((editMoodValue - 1) / 9) * 100, [editMoodValue]);
   const moodTagOptions: MoodTag[] = useMemo(() => {
     const seen = new Set<string>();
     const combined = [...defaultMoodTags, ...moodTagLibrary];
@@ -181,6 +211,7 @@ export default function Home() {
     [],
   );
   const activeOperatingMode = todaysOperatingMode?.mode ?? suggestedMode?.mode ?? null;
+  const operatingModeLabel = activeOperatingMode ? labelForOperatingMode(activeOperatingMode) : "—";
   const operatingModeMetrics = useMemo(() => {
     if (!suggestedMode) return null;
     const { context } = suggestedMode;
@@ -211,6 +242,36 @@ export default function Home() {
   const timelinePanelCollapsed = Boolean(collapsedPanels.timeline);
   const todosPanelCollapsed = Boolean(collapsedPanels.todos);
   const journalPanelCollapsed = Boolean(collapsedPanels.journal);
+  const commandCenter = useMemo(() => {
+    const openTodos = todaysTodos.filter((todo) => !todo.done);
+    const highPriorityOpen = openTodos.filter((todo) => todo.priority === 1);
+    const completedTodos = todaysTodos.length - openTodos.length;
+    const serviceScore =
+      homelabSummary && homelabSummary.services.total > 0
+        ? Math.round((homelabSummary.services.active / homelabSummary.services.total) * 100)
+        : null;
+    const readiness = Math.min(
+      100,
+      (todaysMustWin ? (todaysMustWin.done ? 25 : 18) : 0) +
+        (hasMoodToday ? 15 : 0) +
+        (todaysSleep.length ? 15 : 0) +
+        (openTodos.length === 0 ? 20 : openTodos.length <= 3 ? 15 : 8) +
+        (serviceScore === null ? 10 : serviceScore >= 90 ? 20 : serviceScore >= 75 ? 12 : 5) +
+        (todaysReview ? 5 : 0),
+    );
+    const nextAction = !todaysMustWin
+      ? "Lock the day with one Must Win"
+      : !hasMoodToday
+        ? "Log a mood signal"
+        : highPriorityOpen[0]
+          ? `Move the high-priority task: ${highPriorityOpen[0].text}`
+          : homelabSummary?.attention[0]?.severity === "critical"
+            ? "Review critical homelab attention"
+            : !todaysReview
+              ? "Close the loop with a review"
+              : "Maintain the system and protect focus";
+    return { completedTodos, highPriorityOpen, nextAction, openTodos, readiness, serviceScore };
+  }, [hasMoodToday, homelabSummary, todaysMustWin, todaysReview, todaysSleep, todaysTodos]);
 
   useEffect(() => {
     try {
@@ -248,11 +309,63 @@ export default function Home() {
 
   useEffect(() => {
     try {
+      const raw = window.localStorage.getItem(OPERATING_MODE_COLLAPSE_KEY);
+      if (raw === "true" || raw === "false") {
+        setOperatingModeCollapsed(raw === "true");
+      }
+    } catch (error) {
+      console.warn("Operating mode preference load failed", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        OPERATING_MODE_COLLAPSE_KEY,
+        operatingModeCollapsed ? "true" : "false",
+      );
+    } catch (error) {
+      console.warn("Operating mode preference save failed", error);
+    }
+  }, [operatingModeCollapsed]);
+
+  useEffect(() => {
+    try {
       window.localStorage.setItem(TIMELINE_FILTER_KEY, timelineFilter);
     } catch (error) {
       console.warn("Timeline filter save failed", error);
     }
   }, [timelineFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHomelabSummary() {
+      try {
+        const response = await fetch("/api/homelab/summary", {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error(`Homelab summary failed with ${response.status}`);
+        const summary = (await response.json()) as HomelabDashboardSummary;
+        if (cancelled) return;
+        setHomelabSummary(summary);
+        setHomelabSummaryUpdatedAt(Date.now());
+        setHomelabSummaryError(null);
+      } catch (error) {
+        if (cancelled) return;
+        console.warn("Homelab summary load failed", error);
+        setHomelabSummaryError("Homelab summary unavailable");
+      }
+    }
+    void loadHomelabSummary();
+    const interval = window.setInterval(() => {
+      void loadHomelabSummary();
+    }, 45_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if (!focusKey) return;
@@ -380,6 +493,82 @@ export default function Home() {
     showToast("Mood tag removed");
   }
 
+  function handleEditMoodTag(tag: MoodTag) {
+    setEditMoodTags((current) =>
+      current.includes(tag)
+        ? current.filter((item) => item !== tag)
+        : [...current, tag],
+    );
+  }
+
+  function handleOpenMoodEdit(day: DayKey, id: string) {
+    const logs = state.mood[day] ?? [];
+    const log = logs.find((entry) => entry.id === id);
+    if (!log) return;
+    setEditingMood({ day, log });
+    setEditMoodValue(log.mood);
+    setEditMoodNote(log.note ?? "");
+    setEditMoodTags(log.tags ?? []);
+    setEditTagManagerOpen(false);
+    setEditNewTagValue("");
+  }
+
+  function handleSaveMoodEdit() {
+    if (!editingMood) return;
+    updateMood({
+      day: editingMood.day,
+      id: editingMood.log.id,
+      updates: {
+        mood: editMoodValue,
+        note: editMoodNote.trim() || undefined,
+        tags: editMoodTags,
+      },
+    });
+    showToast("Mood updated");
+    setEditingMood(null);
+  }
+
+  function handleDeleteMoodEdit() {
+    if (!editingMood) return;
+    const confirmed = window.confirm("Delete this mood entry?");
+    if (!confirmed) return;
+    deleteMood({ day: editingMood.day, id: editingMood.log.id });
+    showToast("Mood deleted");
+    setEditingMood(null);
+  }
+
+  function handleAddEditMoodTag() {
+    const trimmed = editNewTagValue.trim();
+    if (!trimmed) return;
+    addMoodTag({ tag: trimmed });
+    setEditMoodTags((current) =>
+      current.includes(trimmed) ? current : [...current, trimmed],
+    );
+    setEditNewTagValue("");
+    setEditTagManagerOpen(false);
+    showToast("Mood tag added");
+  }
+
+  function handleRenameEditMoodTag(tag: string) {
+    const next = window.prompt("Rename tag", tag);
+    if (!next) return;
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === tag) return;
+    renameMoodTag({ from: tag, to: trimmed });
+    setEditMoodTags((current) =>
+      current.map((value) => (value === tag ? trimmed : value)),
+    );
+    showToast("Mood tag updated");
+  }
+
+  function handleDeleteEditMoodTag(tag: string) {
+    const confirmed = window.confirm(`Remove "${tag}" from quick tags?`);
+    if (!confirmed) return;
+    deleteMoodTag({ tag });
+    setEditMoodTags((current) => current.filter((value) => value !== tag));
+    showToast("Mood tag removed");
+  }
+
   return (
     <div className="flex flex-col gap-8 pb-32 sm:pb-10">
       <header className="hidden lg:block">
@@ -389,59 +578,172 @@ export default function Home() {
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
       </div>
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2">
+      <section className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-medium text-white">Operating Mode</h2>
-              <p className="mt-1 text-sm text-zinc-300">
-                Auto-suggested from sleep, mood, and workload. You can override it.
-              </p>
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Daily command center</p>
+              <h1 className="mt-3 text-3xl font-semibold text-white">{commandCenter.readiness}% ready</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">{commandCenter.nextAction}</p>
             </div>
-            {suggestedMode && (
-              <span className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-cyan-100">
-                Suggested: {labelForOperatingMode(suggestedMode.mode)}
-              </span>
-            )}
+            <Link
+              href="/v2/daily"
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
+            >
+              Planner
+            </Link>
           </div>
-          {suggestedMode && (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-zinc-300">
-              <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-200/80">Auto logic</p>
-              <p className="mt-1 text-sm text-white">{suggestedMode.reason}</p>
-              {operatingModeMetrics && (
-                <div className="mt-3 flex flex-wrap gap-4 text-[11px] uppercase tracking-[0.3em] text-zinc-400">
-                  <span>Sleep: {operatingModeMetrics.sleep}</span>
-                  <span>Mood: {operatingModeMetrics.mood}</span>
-                  <span>Load: {operatingModeMetrics.load}</span>
-                </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <CommandMetric label="Open" value={String(commandCenter.openTodos.length)} detail="todos" />
+            <CommandMetric label="Done" value={String(commandCenter.completedTodos)} detail="today" />
+            <CommandMetric label="High" value={String(commandCenter.highPriorityOpen.length)} detail="priority" />
+            <CommandMetric
+              label="Infra"
+              value={commandCenter.serviceScore !== null ? `${commandCenter.serviceScore}%` : "-"}
+              detail="services"
+            />
+          </div>
+        </div>
+
+        <div
+          className={`glass-panel rounded-3xl border p-6 backdrop-blur-lg ${
+            homelabSummary?.attention[0]?.severity === "critical"
+              ? "border-rose-300/40 bg-rose-500/10"
+              : homelabSummary?.attention[0]?.severity === "warning"
+                ? "border-amber-300/40 bg-amber-500/10"
+                : "border-white/10 bg-white/5"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">System awareness</p>
+          <h2 className="mt-4 text-xl font-semibold text-white">
+            {homelabSummary
+              ? `${homelabSummary.services.active}/${homelabSummary.services.total} services active`
+              : "Homelab pending"}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">
+            {homelabSummary?.attention[0]?.title ?? homelabSummaryError ?? "Waiting for backend snapshot."}
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <Link
+              href="/v2/homelab"
+              className="rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-zinc-950"
+            >
+              Homelab
+            </Link>
+            <span className="text-xs uppercase tracking-[0.25em] text-zinc-500">
+              {homelabSummaryUpdatedAt ? `Updated ${formatShortTime(homelabSummaryUpdatedAt)}` : "Polling"}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-3">
+        <div
+          className={`glass-panel rounded-3xl border border-white/10 bg-white/5 px-6 py-6 backdrop-blur-lg lg:col-span-2 ${
+            operatingModeCollapsed ? "lg:py-4" : ""
+          }`}
+        >
+          <div
+            className={`flex flex-wrap items-start justify-between gap-4 ${
+              operatingModeCollapsed ? "lg:flex-nowrap lg:items-center lg:gap-3" : ""
+            }`}
+          >
+            <div>
+              <h2 className="text-lg font-medium text-white">Operating Mode</h2>
+              {operatingModeCollapsed ? (
+                <p className="mt-2 text-sm text-zinc-300 lg:mt-1">Current: {operatingModeLabel}</p>
+              ) : (
+                <p className="mt-1 text-sm text-zinc-300">
+                  Auto-suggested from sleep, mood, and workload. You can override it.
+                </p>
               )}
             </div>
-          )}
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            {operatingModeOptions.map((option) => {
-              const active = activeOperatingMode === option.id;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => handleOperatingModeSelect(option.id)}
-                  className={`flex items-start gap-4 rounded-2xl border px-4 py-3 text-left transition ${
-                    active
-                      ? "border-cyan-300/70 bg-cyan-300/10 text-white"
-                      : "border-white/10 bg-white/5 text-zinc-300 hover:border-cyan-300/40"
-                  }`}
-                >
-                  <span className="text-2xl">{option.emoji}</span>
-                  <span>
-                    <span className="block text-sm font-semibold text-white">{option.label}</span>
-                    <span className="block text-xs uppercase tracking-[0.2em] text-zinc-400">
-                      {option.blurb}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+            <div className="flex items-center gap-2 lg:shrink-0">
+              {suggestedMode && (
+                <span className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-cyan-100 whitespace-nowrap">
+                  Suggested: {labelForOperatingMode(suggestedMode.mode)}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setOperatingModeCollapsed((current) => !current)}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
+                aria-label={operatingModeCollapsed ? "Expand operating mode" : "Collapse operating mode"}
+              >
+                {operatingModeCollapsed ? "↓" : "↑"}
+              </button>
+            </div>
           </div>
+          {operatingModeCollapsed && (
+            <div className="mt-4 hidden w-full grid-cols-4 gap-2 text-[11px] text-white/70 lg:grid">
+              <div className="rounded-xl border border-white/15 bg-white/5 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Suggested</p>
+                <p className="mt-1 text-sm font-semibold text-cyan-100">
+                  {suggestedMode ? labelForOperatingMode(suggestedMode.mode) : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/15 bg-white/5 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Sleep</p>
+                <p className="mt-1 text-sm font-semibold text-white/90">
+                  {operatingModeMetrics?.sleep ?? "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/15 bg-white/5 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Mood</p>
+                <p className="mt-1 text-sm font-semibold text-white/90">
+                  {operatingModeMetrics?.mood ?? "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/15 bg-white/5 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Load</p>
+                <p className="mt-1 text-sm font-semibold text-white/90">
+                  {operatingModeMetrics?.load ?? "—"}
+                </p>
+              </div>
+            </div>
+          )}
+          {!operatingModeCollapsed && (
+            <>
+              {suggestedMode && (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-zinc-300">
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-200/80">Auto logic</p>
+                  <p className="mt-1 text-sm text-white">{suggestedMode.reason}</p>
+                  {operatingModeMetrics && (
+                    <div className="mt-3 flex flex-wrap gap-4 text-[11px] uppercase tracking-[0.3em] text-zinc-400">
+                      <span>Sleep: {operatingModeMetrics.sleep}</span>
+                      <span>Mood: {operatingModeMetrics.mood}</span>
+                      <span>Load: {operatingModeMetrics.load}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {operatingModeOptions.map((option) => {
+                  const active = activeOperatingMode === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleOperatingModeSelect(option.id)}
+                      className={`flex items-start gap-4 rounded-2xl border px-4 py-3 text-left transition ${
+                        active
+                          ? "border-cyan-300/70 bg-cyan-300/10 text-white"
+                          : "border-white/10 bg-white/5 text-zinc-300 hover:border-cyan-300/40"
+                      }`}
+                    >
+                      <span className="text-2xl">{option.emoji}</span>
+                      <span>
+                        <span className="block text-sm font-semibold text-white">{option.label}</span>
+                        <span className="block text-xs uppercase tracking-[0.2em] text-zinc-400">
+                          {option.blurb}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         <div
@@ -635,6 +937,7 @@ export default function Home() {
           entries={timelineEntries}
           filter={timelineFilter}
           onFilterChange={handleTimelineFilterChange}
+          onMoodSelect={handleOpenMoodEdit}
           className={focusKey === "timeline" ? highlightClass : ""}
           collapsed={timelinePanelCollapsed}
           onToggleCollapse={() => togglePanelCollapse("timeline")}
@@ -683,7 +986,35 @@ export default function Home() {
         </button>
       </div>
 
-      <section className={`grid gap-6 md:grid-cols-2 lg:grid-cols-4 ${mobileInsightsOpen ? "lg:grid" : "hidden lg:grid"}`}>
+      <section className={`grid gap-6 md:grid-cols-2 lg:grid-cols-3 ${mobileInsightsOpen ? "lg:grid" : "hidden lg:grid"}`}>
+        {homelabSummary && (
+          <Link
+            href="/v2/homelab"
+            className={`glass-panel rounded-3xl border p-6 backdrop-blur-lg transition hover:border-cyan-300/40 ${
+              homelabSummary.attention[0]?.severity === "critical"
+                ? "border-rose-300/40 bg-rose-500/10"
+                : homelabSummary.attention[0]?.severity === "warning"
+                  ? "border-amber-300/40 bg-amber-500/10"
+                  : "border-white/10 bg-white/5"
+            }`}
+          >
+            <h2 className="text-lg font-medium text-white">Homelab</h2>
+            <div className="mt-4 flex items-baseline gap-2">
+              <span className="text-4xl font-semibold text-cyan-200">
+                {homelabSummary.services.active}/{homelabSummary.services.total}
+              </span>
+              <span className="text-sm text-zinc-300">services active</span>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-white">
+              {homelabSummary.attention[0]?.title ?? "No service issues"}
+            </p>
+            <p className="mt-2 text-sm text-zinc-300">{homelabSummary.storage}</p>
+            <p className="mt-3 text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+              {homelabSummaryUpdatedAt ? `Updated ${formatShortTime(homelabSummaryUpdatedAt)}` : "Polling"}
+            </p>
+          </Link>
+        )}
+
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <h2 className="text-lg font-medium text-white">Mood signal</h2>
           <div className="mt-4 flex items-baseline justify-between gap-4">
@@ -735,9 +1066,53 @@ export default function Home() {
         </div>
 
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+          <h2 className="text-lg font-medium text-white">Sleep debt</h2>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-4xl font-semibold text-cyan-200">
+              {sleepDebt !== null ? `${sleepDebt.toFixed(1)}h` : "–"}
+            </span>
+            <span className="text-sm text-zinc-300">7d total</span>
+          </div>
+          <p className="mt-3 text-sm text-zinc-300">
+            Tracks missed hours below the 7.5h target.
+          </p>
+        </div>
+
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+          <h2 className="text-lg font-medium text-white">Sleep consistency</h2>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-4xl font-semibold text-amber-200">
+              {sleepConsistency !== null ? `${sleepConsistency.toFixed(1)}h` : "–"}
+            </span>
+            <span className="text-sm text-zinc-300">std dev</span>
+          </div>
+          <p className="mt-3 text-sm text-zinc-300">
+            Lower variance means steadier recovery.
+          </p>
+        </div>
+
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+          <h2 className="text-lg font-medium text-white">Recovery trend</h2>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-4xl font-semibold text-emerald-200">
+              {recoveryTrend !== null
+                ? `${recoveryTrend >= 0 ? "+" : ""}${recoveryTrend.toFixed(1)}`
+                : "–"}
+            </span>
+            <span className="text-sm text-zinc-300">7d slope</span>
+          </div>
+          <p className="mt-3 text-sm text-zinc-300">
+            Measures whether recovery scores are rising or fading.
+          </p>
+        </div>
+
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <h2 className="text-lg font-medium text-white">Streak</h2>
           <p className="mt-1 text-sm text-zinc-300">
             Mood or sleep logged + Must Win done.
+          </p>
+          <p className="mt-2 text-xs uppercase tracking-[0.3em] text-zinc-500">
+            Today: {todayStreakComplete ? "complete" : "incomplete"}
           </p>
           <div className="mt-6 flex items-end gap-2">
             <span className="text-5xl font-semibold text-cyan-200">{streak}</span>
@@ -748,14 +1123,6 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-          <h2 className="text-lg font-medium text-white">Up Next</h2>
-          <ul className="mt-4 space-y-3 text-sm text-zinc-300">
-            {suggestions.map((item) => (
-              <li key={item}>• {item}</li>
-            ))}
-          </ul>
-        </div>
       </section>
 
       <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
@@ -890,6 +1257,148 @@ export default function Home() {
           </div>
         </div>
       )}
+      {editingMood && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          onClick={() => setEditingMood(null)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#0b1326] p-6 text-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">Edit mood</h3>
+                <p className="mt-1 text-sm text-zinc-300">
+                  Logged{" "}
+                  {new Date(editingMood.log.ts).toLocaleString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                  .
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingMood(null)}
+                className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-6 flex flex-col gap-5">
+              <label className="text-sm font-medium text-zinc-200">
+                Mood: <span className={`slider-emphasis ${editMoodTone.text}`}>{editMoodValue}/10</span>
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={editMoodValue}
+                onChange={(event) => setEditMoodValue(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded bg-transparent"
+                style={{
+                  accentColor: editMoodTone.accent,
+                  background: `linear-gradient(90deg, ${editMoodTone.accent} 0%, ${editMoodTone.accent} ${editMoodPercent}%, #3f3f46 ${editMoodPercent}%, #3f3f46 100%)`,
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                {moodTagOptions.map((tag) => {
+                  const active = editMoodTags.includes(tag);
+                  const normalized = tag.toLowerCase();
+                  const isCustom = !builtInMoodTagSet.has(normalized);
+                  return (
+                    <div key={tag} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => handleEditMoodTag(tag)}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] transition ${active ? "bg-cyan-300 text-zinc-900" : "bg-white/10 text-zinc-300"}`}
+                      >
+                        {tag}
+                      </button>
+                      {editTagManagerOpen && isCustom && (
+                        <div className="absolute -top-2 -right-2 flex gap-1 rounded-full bg-black/60 px-1 py-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRenameEditMoodTag(tag)}
+                            className="text-[10px] text-cyan-200 hover:text-white"
+                            aria-label={`Rename ${tag}`}
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEditMoodTag(tag)}
+                            className="text-[10px] text-rose-300 hover:text-white"
+                            aria-label={`Delete ${tag}`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setEditTagManagerOpen((prev) => !prev)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${editTagManagerOpen ? "bg-cyan-300/20 text-cyan-100" : "bg-white/10 text-zinc-400"}`}
+                >
+                  {editTagManagerOpen ? "Done" : "+ Tag"}
+                </button>
+              </div>
+              {editTagManagerOpen && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <input
+                    value={editNewTagValue}
+                    onChange={(event) => setEditNewTagValue(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleAddEditMoodTag();
+                      }
+                    }}
+                    className="flex-1 min-w-[180px] rounded-2xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white placeholder:text-zinc-500"
+                    placeholder="e.g. calm, foggy, dialed"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddEditMoodTag()}
+                    className="rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-900"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+              <textarea
+                placeholder="Anything notable?"
+                value={editMoodNote}
+                onChange={(event) => setEditMoodNote(event.target.value)}
+                rows={4}
+                className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
+              />
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveMoodEdit}
+                  className="rounded-2xl bg-gradient-to-r from-cyan-400 via-indigo-400 to-blue-500 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90"
+                >
+                  Save changes
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteMoodEdit}
+                  className="rounded-2xl border border-rose-400/50 px-4 py-3 text-sm font-semibold text-rose-200 hover:border-rose-300/80"
+                >
+                  Delete entry
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <nav
         aria-label="Quick actions"
         className="fixed bottom-4 left-1/2 z-40 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-3xl border border-white/10 bg-black/50 p-3 backdrop-blur-xl sm:hidden"
@@ -930,6 +1439,8 @@ type TimelineEntry = {
   href: string;
   dayKey: DayKey;
   timeLabel: string;
+  kind: "mood" | "journal" | "todo" | "sleep" | "mustwin";
+  sourceId?: string;
 };
 
 function getOperatingModeSuggestion(args: {
@@ -994,6 +1505,9 @@ type TrendStats = {
     average: number | null;
     delta: number | null;
   };
+  sleepDebt: number | null;
+  sleepConsistency: number | null;
+  recoveryTrend: number | null;
   mustWin: {
     lockedDays: number;
     wonDays: number;
@@ -1005,6 +1519,7 @@ function buildTrendStats(state: JarvisState, rangeDays = 7): TrendStats {
   const dayKeys = getLastNDays(rangeDays);
   const moodValues: number[] = [];
   const sleepValues: number[] = [];
+  const recoveryValues: number[] = [];
   let todayMood: number | null = null;
   let todaySleep: number | null = null;
   let mustWinLocked = 0;
@@ -1025,6 +1540,9 @@ function buildTrendStats(state: JarvisState, rangeDays = 7): TrendStats {
       const latestSleep = sleepLogs.slice().sort((a, b) => b.ts - a.ts)[0];
       const hours = latestSleep.durationMins / 60;
       sleepValues.push(hours);
+      if (typeof latestSleep.recoveryScore === "number") {
+        recoveryValues.push(latestSleep.recoveryScore);
+      }
       if (index === dayKeys.length - 1) {
         todaySleep = hours;
       }
@@ -1053,6 +1571,9 @@ function buildTrendStats(state: JarvisState, rangeDays = 7): TrendStats {
       average: sleepAverage,
       delta: todaySleep !== null && sleepAverage !== null ? todaySleep - sleepAverage : null,
     },
+    sleepDebt: sleepValues.length >= 3 ? calculateSleepDebt(sleepValues) : null,
+    sleepConsistency: sleepValues.length > 1 ? standardDeviation(sleepValues) : null,
+    recoveryTrend: recoveryValues.length >= 4 ? computeTrendDelta(recoveryValues) : null,
     mustWin: {
       lockedDays: mustWinLocked,
       wonDays: mustWinWon,
@@ -1092,6 +1613,8 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
         href: "/v2?focus=mood",
         dayKey: day as DayKey,
         timeLabel: formatTimelineTime(log.ts),
+        kind: "mood",
+        sourceId: log.id,
       }),
     );
   });
@@ -1108,6 +1631,8 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
         href: `/v2/journal?day=${day}&focus=${entry.id}`,
         dayKey: day as DayKey,
         timeLabel: formatTimelineTime(entry.ts),
+        kind: "journal",
+        sourceId: entry.id,
       }),
     );
   });
@@ -1129,6 +1654,8 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
         href: `/v2/todos?day=${day}&focus=${todo.id}`,
         dayKey: day as DayKey,
         timeLabel: formatTimelineTime(todo.completedTs ?? todo.createdTs),
+        kind: "todo",
+        sourceId: todo.id,
       });
     });
   });
@@ -1145,6 +1672,8 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
         href: `/v2/sleep?day=${day}&focus=${night.id}`,
         dayKey: day as DayKey,
         timeLabel: formatTimelineTime(night.ts),
+        kind: "sleep",
+        sourceId: night.id,
       }),
     );
   });
@@ -1162,12 +1691,17 @@ function buildTimeline(state: JarvisState, todayOnly = false, limit = 8): Timeli
       href: `/v2?focus=mustwin`,
       dayKey: day as DayKey,
       timeLabel: formatTimelineTime(entry.completedTs ?? entry.ts),
+      kind: "mustwin",
     });
   });
 
   const sorted = entries.sort((a, b) => b.ts - a.ts);
   const filtered = sorted.filter((entry) => allowedDays.has(entry.dayKey));
   return filtered.slice(0, limit);
+}
+
+function formatShortTime(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatTimelineTime(timestamp: number) {
@@ -1184,9 +1718,9 @@ function getLatestMood(state: JarvisState): MoodLog | undefined {
   return all.sort((a, b) => b.ts - a.ts)[0];
 }
 
-function calculateStreak(state: JarvisState, windowDays = 30): number {
+function calculateStreak(state: JarvisState, includeToday: boolean, windowDays = 30): number {
   let streak = 0;
-  for (let offset = 0; offset < windowDays; offset += 1) {
+  for (let offset = includeToday ? 0 : 1; offset < windowDays; offset += 1) {
     const date = new Date();
     date.setDate(date.getDate() - offset);
     const key = getDayKey(date);
@@ -1202,24 +1736,30 @@ function calculateStreak(state: JarvisState, windowDays = 30): number {
   return streak;
 }
 
-function buildSuggestions(args: {
-  hasMood: boolean;
-  hasJournal: boolean;
-  hasTodoDone: boolean;
-  hasMustWinDone: boolean;
-}): string[] {
-  const tips: string[] = [];
-  if (!args.hasMood) tips.push("Log your mood to keep the streak alive.");
-  if (!args.hasJournal) tips.push("Drop a 2-minute journal entry to clear the head.");
-  if (!args.hasTodoDone) tips.push("Check off one priority task for the day.");
-  if (!args.hasMustWinDone) tips.push("Lock in the Must Win and protect it.");
-  if (tips.length < 3) tips.push("Timeblock one todo with a 30m focus block.");
-  return tips.slice(0, 3);
-}
-
 function average(values: number[]): number {
   if (!values.length) return 0;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function standardDeviation(values: number[]): number {
+  if (values.length <= 1) return 0;
+  const mean = average(values);
+  const variance = average(values.map((value) => (value - mean) ** 2));
+  return Math.sqrt(variance);
+}
+
+function calculateSleepDebt(values: number[], targetHours = 7.5): number {
+  const net = values.reduce((sum, value) => sum + (targetHours - value), 0);
+  return Math.max(0, net);
+}
+
+function computeTrendDelta(values: number[], windowSize = 3): number | null {
+  if (values.length < 4) return null;
+  const size = Math.min(windowSize, Math.floor(values.length / 2));
+  if (size === 0) return null;
+  const start = average(values.slice(0, size));
+  const end = average(values.slice(values.length - size));
+  return end - start;
 }
 
 function formatDeltaText(value: number | null, unit: string) {
@@ -1233,6 +1773,7 @@ type TimelinePanelProps = {
   entries: TimelineEntry[];
   filter: TimelineFilter;
   onFilterChange: (value: TimelineFilter) => void;
+  onMoodSelect?: (day: DayKey, id: string) => void;
   wrapperRef?: RefObject<HTMLDivElement | null>;
   className?: string;
   collapsed?: boolean;
@@ -1243,6 +1784,7 @@ function TimelinePanel({
   entries,
   filter,
   onFilterChange,
+  onMoodSelect,
   wrapperRef,
   className = "",
   collapsed = false,
@@ -1297,31 +1839,50 @@ function TimelinePanel({
               No entries yet. Log moods, journal, todos, or sleep to see them populate.
             </p>
           ) : (
-            entries.map((item) => (
-              <Link
-                key={item.id}
-                href={item.href}
-                className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-black/30 px-4 py-3 transition hover:border-cyan-300/50 hover:bg-black/40 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex flex-1 min-w-0 items-center gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-xl">
-                    {item.icon}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-white break-words">{item.title}</p>
-                    <p className="text-xs uppercase tracking-[0.25em] text-zinc-400 break-words">
-                      {item.detail}
-                    </p>
+            entries.map((item) => {
+              const content = (
+                <>
+                  <div className="flex flex-1 min-w-0 items-center gap-4">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-xl">
+                      {item.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-white break-words">{item.title}</p>
+                      <p className="text-xs uppercase tracking-[0.25em] text-zinc-400 break-words">
+                        {item.detail}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-start text-[11px] uppercase tracking-[0.3em] text-zinc-400 sm:items-end sm:text-right">
-                  <p>{item.timeLabel}</p>
-                  <span className="mt-2 inline-block rounded-full bg-white/10 px-3 py-1 font-semibold text-cyan-200">
-                    {item.badge}
-                  </span>
-                </div>
-              </Link>
-            ))
+                  <div className="flex flex-col items-start text-[11px] uppercase tracking-[0.3em] text-zinc-400 sm:items-end sm:text-right">
+                    <p>{item.timeLabel}</p>
+                    <span className="mt-2 inline-block rounded-full bg-white/10 px-3 py-1 font-semibold text-cyan-200">
+                      {item.badge}
+                    </span>
+                  </div>
+                </>
+              );
+              if (item.kind === "mood" && item.sourceId && onMoodSelect) {
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onMoodSelect(item.dayKey, item.sourceId as string)}
+                    className="flex w-full flex-col gap-3 rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-left transition hover:border-cyan-300/50 hover:bg-black/40 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    {content}
+                  </button>
+                );
+              }
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-black/30 px-4 py-3 transition hover:border-cyan-300/50 hover:bg-black/40 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  {content}
+                </Link>
+              );
+            })
           )}
         </div>
       )}
@@ -1335,6 +1896,16 @@ type QuickNavLinkProps = {
   emoji: string;
   attention?: boolean;
 };
+
+function CommandMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+      <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-400">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-500">{detail}</p>
+    </div>
+  );
+}
 
 function QuickNavLink({ href, label, emoji, attention = false }: QuickNavLinkProps) {
   return (

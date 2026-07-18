@@ -29,6 +29,14 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+.scheduled-block {
+  color: #f8fafc;
+}
+
+html[data-theme="light"] .scheduled-block {
+  color: #0f172a;
+}
+
 html[data-theme="light"] body {
   background-color: #f5f7fb;
   color: #0f172a;

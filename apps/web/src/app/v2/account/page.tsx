@@ -7,7 +7,7 @@ import { applyTheme, getStoredTheme, onThemeChange, type ThemeMode } from "@/lib
 
 export default function AccountPage() {
   const { data: session } = useSession();
-  const [theme, setTheme] = useState<ThemeMode>("dark");
+  const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -23,7 +23,6 @@ export default function AccountPage() {
   const deletePhrase = "delete my account";
 
   useEffect(() => {
-    setTheme(getStoredTheme());
     return onThemeChange(setTheme);
   }, []);
 
