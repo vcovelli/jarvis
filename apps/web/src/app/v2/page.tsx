@@ -116,6 +116,8 @@ export default function Home() {
   const [moodValue, setMoodValue] = useState(5);
   const [moodNote, setMoodNote] = useState("");
   const [selectedMoodTags, setSelectedMoodTags] = useState<MoodTag[]>([]);
+  const [pulseMoodValue, setPulseMoodValue] = useState(5);
+  const [pulseNote, setPulseNote] = useState("");
   const [editingMood, setEditingMood] = useState<{ day: DayKey; log: MoodLog } | null>(null);
   const [editMoodValue, setEditMoodValue] = useState(5);
   const [editMoodNote, setEditMoodNote] = useState("");
@@ -153,6 +155,7 @@ export default function Home() {
   );
   const latestMood = useMemo(() => getLatestMood(state), [state]);
   const trendStats = useMemo(() => buildTrendStats(state), [state]);
+  const weeklyInsight = useMemo(() => buildWeeklyInsight(state), [state]);
   const moodTrend = trendStats.mood;
   const sleepTrend = trendStats.sleep;
   const mustWinStats = trendStats.mustWin;
@@ -182,6 +185,18 @@ export default function Home() {
     }
     return { text: "text-emerald-300", accent: "#34d399" };
   }, [moodValue]);
+  const pulseMoodTone = useMemo(() => {
+    if (pulseMoodValue <= 3) {
+      return { text: "text-rose-300", accent: "#f87171" };
+    }
+    if (pulseMoodValue <= 5) {
+      return { text: "text-amber-300", accent: "#fbbf24" };
+    }
+    if (pulseMoodValue <= 7) {
+      return { text: "text-lime-300", accent: "#84cc16" };
+    }
+    return { text: "text-emerald-300", accent: "#34d399" };
+  }, [pulseMoodValue]);
   const moodPercent = useMemo(() => ((moodValue - 1) / 9) * 100, [moodValue]);
   const editMoodTone = useMemo(() => {
     if (editMoodValue <= 3) {
@@ -405,6 +420,18 @@ export default function Home() {
     showToast("Mood logged");
   }
 
+  function handlePulseSubmit(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    const trimmed = pulseNote.trim();
+    logMood({ mood: pulseMoodValue, note: trimmed || undefined, tags: [] });
+    if (trimmed) {
+      addJournal({ text: trimmed, prompt: "free" });
+    }
+    setPulseMoodValue(5);
+    setPulseNote("");
+    showToast(trimmed ? "Pulse logged and journal saved" : "Pulse logged");
+  }
+
   function handleJournalSubmit(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const trimmed = journalText.trim();
@@ -578,7 +605,7 @@ export default function Home() {
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
       </div>
 
-      <section className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -633,6 +660,64 @@ export default function Home() {
             <span className="text-xs uppercase tracking-[0.25em] text-zinc-500">
               {homelabSummaryUpdatedAt ? `Updated ${formatShortTime(homelabSummaryUpdatedAt)}` : "Polling"}
             </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="glass-panel rounded-3xl border border-cyan-400/20 bg-linear-to-br from-cyan-400/10 via-white/5 to-indigo-500/10 p-6 backdrop-blur-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Daily pulse</p>
+              <h2 className="mt-3 text-xl font-semibold text-white">Capture the signal in under 20 seconds</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">
+                Log your energy and save a short note without breaking your flow.
+              </p>
+            </div>
+          </div>
+          <form className="mt-6 flex flex-col gap-4" onSubmit={handlePulseSubmit}>
+            <label className="text-sm font-medium text-zinc-200">
+              Energy: <span className={`slider-emphasis ${pulseMoodTone.text}`}>{pulseMoodValue}/10</span>
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={pulseMoodValue}
+              onChange={(event) => setPulseMoodValue(Number(event.target.value))}
+              className="h-2 w-full cursor-pointer appearance-none rounded bg-transparent"
+              style={{
+                accentColor: pulseMoodTone.accent,
+                background: `linear-gradient(90deg, ${pulseMoodTone.accent} 0%, ${pulseMoodTone.accent} ${((pulseMoodValue - 1) / 9) * 100}%, #3f3f46 ${((pulseMoodValue - 1) / 9) * 100}%, #3f3f46 100%)`,
+              }}
+            />
+            <textarea
+              value={pulseNote}
+              onChange={(event) => setPulseNote(event.target.value)}
+              rows={4}
+              className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
+              placeholder="What matters most right now?"
+            />
+            <button
+              type="submit"
+              className="rounded-2xl bg-linear-to-r from-cyan-400 via-indigo-400 to-blue-500 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90"
+            >
+              Log pulse
+            </button>
+          </form>
+        </div>
+
+        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+          <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Weekly insight</p>
+          <h2 className="mt-3 text-xl font-semibold text-white">{weeklyInsight.headline}</h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">{weeklyInsight.detail}</p>
+          <div className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
+            <div className="text-sm text-zinc-200">
+              <span className="font-semibold text-cyan-200">Focus:</span> {weeklyInsight.focus}
+            </div>
+            <div className="text-sm text-zinc-200">
+              <span className="font-semibold text-cyan-200">Signal:</span> {weeklyInsight.signal}
+            </div>
           </div>
         </div>
       </section>
@@ -748,7 +833,7 @@ export default function Home() {
 
         <div
           ref={mustWinPanelRef}
-          className={`glass-panel rounded-3xl border border-amber-300/40 bg-gradient-to-br from-amber-500/10 via-white/5 to-rose-500/10 p-6 backdrop-blur-lg min-w-0 ${
+          className={`glass-panel rounded-3xl border border-amber-300/40 bg-linear-to-br from-amber-500/10 via-white/5 to-rose-500/10 p-6 backdrop-blur-lg min-w-0 ${
             focusKey === "mustwin" ? highlightClass : ""
           }`}
         >
@@ -760,7 +845,7 @@ export default function Home() {
             <div className="mt-6 rounded-2xl border border-amber-400/50 bg-black/40 p-4">
               <div className="flex flex-col gap-4">
                 <div className="min-w-0">
-                  <p className="text-base font-semibold text-white leading-relaxed break-words">
+                  <p className="text-base font-semibold text-white leading-relaxed wrap-break-word">
                     {todaysMustWin.text}
                   </p>
                   {todaysMustWin.timeBound && (
@@ -901,7 +986,7 @@ export default function Home() {
                       handleAddMoodTag();
                     }
                   }}
-                  className="flex-1 min-w-[180px] rounded-2xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white placeholder:text-zinc-500"
+                  className="flex-1 min-w-45 rounded-2xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white placeholder:text-zinc-500"
                   placeholder="e.g. calm, foggy, dialed"
                 />
                 <button
@@ -922,7 +1007,7 @@ export default function Home() {
             />
             <button
               type="submit"
-              className="rounded-2xl bg-gradient-to-r from-cyan-400 via-indigo-400 to-blue-500 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90"
+              className="rounded-2xl bg-linear-to-r from-cyan-400 via-indigo-400 to-blue-500 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90"
             >
               Log check-in
             </button>
@@ -1360,7 +1445,7 @@ export default function Home() {
                         handleAddEditMoodTag();
                       }
                     }}
-                    className="flex-1 min-w-[180px] rounded-2xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white placeholder:text-zinc-500"
+                    className="flex-1 min-w-45 rounded-2xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white placeholder:text-zinc-500"
                     placeholder="e.g. calm, foggy, dialed"
                   />
                   <button
@@ -1383,7 +1468,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleSaveMoodEdit}
-                  className="rounded-2xl bg-gradient-to-r from-cyan-400 via-indigo-400 to-blue-500 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90"
+                  className="rounded-2xl bg-linear-to-r from-cyan-400 via-indigo-400 to-blue-500 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90"
                 >
                   Save changes
                 </button>
@@ -1514,6 +1599,68 @@ type TrendStats = {
     rangeDays: number;
   };
 };
+
+function buildWeeklyInsight(state: JarvisState, rangeDays = 7) {
+  const recentDays = getLastNDays(rangeDays);
+  const moodValues: number[] = [];
+  const sleepValues: number[] = [];
+  const tagCounts = new Map<string, number>();
+
+  recentDays.forEach((day) => {
+    const moodLogs = state.mood[day] ?? [];
+    if (moodLogs.length) {
+      const latest = moodLogs.slice().sort((a, b) => b.ts - a.ts)[0];
+      moodValues.push(latest.mood);
+      latest.tags.forEach((tag) => {
+        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+      });
+    }
+
+    const sleepLogs = state.sleep[day] ?? [];
+    if (sleepLogs.length) {
+      const latestSleep = sleepLogs.slice().sort((a, b) => b.ts - a.ts)[0];
+      sleepValues.push(latestSleep.durationMins / 60);
+    }
+  });
+
+  const moodAverage = moodValues.length ? average(moodValues) : null;
+  const sleepAverage = sleepValues.length ? average(sleepValues) : null;
+  const topTag = [...tagCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  if (moodAverage !== null && sleepAverage !== null) {
+    if (moodAverage >= 7.5 && sleepAverage >= 7) {
+      return {
+        headline: "Momentum is strong.",
+        detail: `You averaged ${moodAverage.toFixed(1)}/10 energy and ${sleepAverage.toFixed(1)}h of sleep over the last ${rangeDays} days.`,
+        focus: "Protect the routine that is working and keep your calendar light.",
+        signal: topTag ? `Most common signal is ${topTag}.` : "No strong tag pattern yet, but the rhythm is building.",
+      };
+    }
+    if (sleepAverage < 6.5) {
+      return {
+        headline: "Recovery needs attention.",
+        detail: `Sleep averaged ${sleepAverage.toFixed(1)}h, which is below your ideal range for sustainable output.`,
+        focus: "Cut one commitment tonight and protect a stronger reset window.",
+        signal: topTag ? `The repeating signal is ${topTag}.` : "Use your notes to identify what is draining energy.",
+      };
+    }
+    if (moodAverage <= 4.5) {
+      return {
+        headline: "The week feels heavy.",
+        detail: `Energy is landing around ${moodAverage.toFixed(1)}/10, so the next moves should stay simple.`,
+        focus: "Focus on one win, one recovery action, and one clear stop to reduce friction.",
+        signal: topTag ? `Your strongest pattern is ${topTag}.` : "Keep tagging the moments that feel most draining.",
+      };
+    }
+  }
+
+  return {
+    headline: "Your rhythm is becoming legible.",
+    detail: "Add a few more entries and the insights will become sharper and more useful.",
+    focus: "Keep your check-ins steady so the system can begin predicting your best days.",
+    signal: topTag ? `You have been noticing ${topTag} more often.` : "Log a few more moods and tags to sharpen the pattern recognition.",
+  };
+}
 
 function buildTrendStats(state: JarvisState, rangeDays = 7): TrendStats {
   const dayKeys = getLastNDays(rangeDays);
@@ -1847,8 +1994,8 @@ function TimelinePanel({
                       {item.icon}
                     </span>
                     <div className="min-w-0">
-                      <p className="font-semibold text-white break-words">{item.title}</p>
-                      <p className="text-xs uppercase tracking-[0.25em] text-zinc-400 break-words">
+                      <p className="font-semibold text-white wrap-break-word">{item.title}</p>
+                      <p className="text-xs uppercase tracking-[0.25em] text-zinc-400 wrap-break-word">
                         {item.detail}
                       </p>
                     </div>
@@ -1963,7 +2110,7 @@ function TodosPanel({ className = "", panelRef, collapsed = false, onToggleColla
         <>
           <Link
             href="/v2/todos"
-            className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
+            className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-linear-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
           >
             Add task
           </Link>
@@ -1985,7 +2132,7 @@ function TodosPanel({ className = "", panelRef, collapsed = false, onToggleColla
                       onChange={() => props.toggleTodo(todo.id)}
                     />
                     <div>
-                      <p className={`text-sm font-medium break-words ${todo.done ? "text-zinc-400 line-through" : "text-white"}`}>
+                      <p className={`text-sm font-medium wrap-break-word ${todo.done ? "text-zinc-400 line-through" : "text-white"}`}>
                         {todo.text}
                       </p>
                       <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
@@ -2097,7 +2244,7 @@ function JournalPanel({
             />
             <button
               type="submit"
-              className="rounded-2xl bg-gradient-to-r from-fuchsia-400 to-purple-500 px-4 py-3 text-sm font-semibold text-white"
+              className="rounded-2xl bg-linear-to-r from-fuchsia-400 to-purple-500 px-4 py-3 text-sm font-semibold text-white"
             >
               Save entry
             </button>
