@@ -28,7 +28,10 @@ const SLOT_HEIGHT = 12;
 const BOARD_HEIGHT = SLOTS_PER_DAY * SLOT_HEIGHT;
 const HOUR_LABELS = Array.from({ length: 24 }, (_, index) => index);
 const DAY_MINUTES = 24 * 60;
+const DEFAULT_START_TIME = "08:00";
+const DEFAULT_TIMEBLOCK: Timeblock = 30;
 const startTimeOptions = buildStartTimeOptions(SLOT_MINUTES);
+const durationPresets: Timeblock[] = [15, 30, 45, 60, 90, 120];
 const blockColors = [
   "#f472b6",
   "#f97316",
@@ -117,8 +120,8 @@ export default function TodosPage() {
   const todaysMustWin = state.mustWin[selectedDay];
   const [text, setText] = useState("");
   const [priority, setPriority] = useState<TodoPriority>(1);
-  const [timeblock, setTimeblock] = useState<Timeblock | undefined>(30);
-  const [startTime, setStartTime] = useState("08:00");
+  const [timeblock, setTimeblock] = useState<Timeblock | undefined>(DEFAULT_TIMEBLOCK);
+  const [startTime, setStartTime] = useState(DEFAULT_START_TIME);
   const [endTime, setEndTime] = useState("08:30");
   const [color, setColor] = useState<string>(defaultBlockColor);
   const [icon, setIcon] = useState<string>(defaultTaskIcon);
@@ -227,8 +230,8 @@ export default function TodosPage() {
       });
     });
     setText("");
-    setTimeblock(30);
-    setStartTime("08:00");
+    setTimeblock(DEFAULT_TIMEBLOCK);
+    setStartTime(DEFAULT_START_TIME);
     setEndTime("08:30");
     setColor(defaultBlockColor);
     setIcon(defaultTaskIcon);
@@ -308,9 +311,9 @@ export default function TodosPage() {
     setRepeatWeekdays([]);
     setRepeatMonthDay(dayKeyToDate(selectedDay).getDate());
     setExistingTaskId("");
-    setStartTime("08:00");
+    setStartTime(DEFAULT_START_TIME);
     setEndTime("08:30");
-    setTimeblock(30);
+    setTimeblock(DEFAULT_TIMEBLOCK);
     setPanelMode("add");
   }, [cancelEdit, selectedDay]);
 
@@ -329,36 +332,29 @@ export default function TodosPage() {
     [panelMode, styleLocked],
   );
 
+  const applyTimeRange = useCallback((range: TimeRangeState) => {
+    setStartTime(range.startTime);
+    setEndTime(range.endTime);
+    setTimeblock(range.timeblock);
+  }, []);
+
   const handleStartTimeChange = useCallback((value: string) => {
-    setStartTime(value);
-    const end = endTime || buildEndTime(value, timeblock);
-    const duration = computeTimeblockFromTimes(value, end);
-    if (duration) {
-      setTimeblock(duration);
-    } else {
-      setTimeblock(undefined);
-    }
-    if (end) {
-      setEndTime(end);
-    }
-  }, [endTime, timeblock]);
+    const duration = getTimeRangeDuration(startTime, endTime, timeblock);
+    applyTimeRange(buildRangeFromStart(value, duration));
+  }, [applyTimeRange, endTime, startTime, timeblock]);
 
   const handleEndTimeChange = useCallback((value: string) => {
-    if (!startTime) {
-      setEndTime(value);
-      setStartTime(value);
-      setTimeblock(undefined);
-      return;
-    }
-    const duration = computeTimeblockFromTimes(startTime, value);
-    if (!duration) {
-      setEndTime(startTime);
-      setTimeblock(undefined);
-      return;
-    }
-    setEndTime(value);
-    setTimeblock(duration);
-  }, [startTime]);
+    const duration = getTimeRangeDuration(startTime, endTime, timeblock);
+    applyTimeRange(buildRangeFromEnd(value, startTime, duration));
+  }, [applyTimeRange, endTime, startTime, timeblock]);
+
+  const handleDurationChange = useCallback((duration: Timeblock) => {
+    applyTimeRange(buildRangeFromStart(startTime || DEFAULT_START_TIME, duration));
+  }, [applyTimeRange, startTime]);
+
+  const handleClearTimeRange = useCallback(() => {
+    applyTimeRange({ startTime: "", endTime: "", timeblock: undefined });
+  }, [applyTimeRange]);
 
   const handleSelectExisting = useCallback(
     (id: string) => {
@@ -428,32 +424,29 @@ export default function TodosPage() {
     seriesTargets,
   ]);
 
+  const applyEditTimeRange = useCallback((range: TimeRangeState) => {
+    setEditStartTime(range.startTime);
+    setEditEndTime(range.endTime);
+    setEditTimeblock(range.timeblock);
+  }, []);
+
   const handleEditStartTimeChange = useCallback((value: string) => {
-    setEditStartTime(value);
-    const end = editEndTime || buildEndTime(value, editTimeblock);
-    const duration = computeTimeblockFromTimes(value, end);
-    setEditTimeblock(duration);
-    if (end) {
-      setEditEndTime(end);
-    }
-  }, [editEndTime, editTimeblock]);
+    const duration = getTimeRangeDuration(editStartTime, editEndTime, editTimeblock);
+    applyEditTimeRange(buildRangeFromStart(value, duration));
+  }, [applyEditTimeRange, editEndTime, editStartTime, editTimeblock]);
 
   const handleEditEndTimeChange = useCallback((value: string) => {
-    if (!editStartTime) {
-      setEditEndTime(value);
-      setEditStartTime(value);
-      setEditTimeblock(undefined);
-      return;
-    }
-    const duration = computeTimeblockFromTimes(editStartTime, value);
-    if (!duration) {
-      setEditEndTime(editStartTime);
-      setEditTimeblock(undefined);
-      return;
-    }
-    setEditEndTime(value);
-    setEditTimeblock(duration);
-  }, [editStartTime]);
+    const duration = getTimeRangeDuration(editStartTime, editEndTime, editTimeblock);
+    applyEditTimeRange(buildRangeFromEnd(value, editStartTime, duration));
+  }, [applyEditTimeRange, editEndTime, editStartTime, editTimeblock]);
+
+  const handleEditDurationChange = useCallback((duration: Timeblock) => {
+    applyEditTimeRange(buildRangeFromStart(editStartTime || DEFAULT_START_TIME, duration));
+  }, [applyEditTimeRange, editStartTime]);
+
+  const handleEditClearTimeRange = useCallback(() => {
+    applyEditTimeRange({ startTime: "", endTime: "", timeblock: undefined });
+  }, [applyEditTimeRange]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -514,11 +507,12 @@ export default function TodosPage() {
       priority,
       onPriorityChange: setPriority,
       timeblock,
-      onTimeblockChange: setTimeblock,
       startTime,
       onStartTimeChange: handleStartTimeChange,
       endTime,
       onEndTimeChange: handleEndTimeChange,
+      onDurationChange: handleDurationChange,
+      onClearTimeRange: handleClearTimeRange,
       color,
       onColorChange: (value) => {
         setStyleLocked(true);
@@ -555,11 +549,12 @@ export default function TodosPage() {
       priority: editPriority,
       onPriorityChange: setEditPriority,
       timeblock: editTimeblock,
-      onTimeblockChange: setEditTimeblock,
       startTime: editStartTime,
       onStartTimeChange: handleEditStartTimeChange,
       endTime: editEndTime,
       onEndTimeChange: handleEditEndTimeChange,
+      onDurationChange: handleEditDurationChange,
+      onClearTimeRange: handleEditClearTimeRange,
       color: editColor,
       onColorChange: setEditColor,
       colorOptions: blockColors,
@@ -739,6 +734,79 @@ function SelectField({
   );
 }
 
+function TimeRangeSelector({
+  startTime,
+  endTime,
+  timeblock,
+  options,
+  onStartTimeChange,
+  onEndTimeChange,
+  onDurationChange,
+  onClear,
+}: {
+  startTime: string;
+  endTime: string;
+  timeblock?: Timeblock;
+  options: StartTimeOption[];
+  onStartTimeChange: (value: string) => void;
+  onEndTimeChange: (value: string) => void;
+  onDurationChange: (value: Timeblock) => void;
+  onClear: () => void;
+}) {
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = parseTimeToMinutes(endTime);
+  const hasRange = startMinutes !== null && endMinutes !== null && endMinutes > startMinutes;
+  const durationMinutes = timeblock ?? (hasRange ? endMinutes - startMinutes : undefined);
+  const startLabel = startMinutes !== null ? formatMinutesLabel(startMinutes) : "Choose start";
+  const endLabel = endMinutes !== null ? formatMinutesLabel(endMinutes) : "Choose end";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">Time window</p>
+          <p className="mt-1 text-sm font-semibold text-white">
+            {hasRange ? `${startLabel} to ${endLabel}` : "No time selected"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          className="rounded-full border border-white/15 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-white/40 hover:text-white"
+        >
+          No time
+        </button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TimePillSelector label="Start" value={startTime} options={options} onChange={onStartTimeChange} />
+        <TimePillSelector label="End" value={endTime} options={options} onChange={onEndTimeChange} />
+      </div>
+      <div className="space-y-2">
+        <p className="pl-1 text-xs uppercase tracking-[0.3em] text-zinc-400">Duration</p>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {durationPresets.map((duration) => {
+            const active = durationMinutes === duration;
+            return (
+              <button
+                key={duration}
+                type="button"
+                onClick={() => onDurationChange(duration)}
+                className={`rounded-2xl border px-2 py-3 text-xs font-semibold transition ${
+                  active
+                    ? "border-cyan-300/70 bg-cyan-300/15 text-cyan-100"
+                    : "border-white/10 bg-black/20 text-white/70 hover:border-white/30 hover:text-white"
+                }`}
+              >
+                {formatDurationPreset(duration)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimePillSelector({
   label,
   value,
@@ -752,16 +820,37 @@ function TimePillSelector({
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
+  const activeIndex = options.findIndex((option) => option.value === value);
+  const fallbackIndex = Math.max(
+    options.findIndex((option) => option.value === DEFAULT_START_TIME),
+    0,
+  );
+  const currentIndex = activeIndex >= 0 ? activeIndex : fallbackIndex;
+  const canMoveEarlier = currentIndex > 0;
+  const canMoveLater = currentIndex < options.length - 1;
+
+  const moveBy = useCallback(
+    (delta: number) => {
+      const nextIndex = Math.min(Math.max(currentIndex + delta, 0), options.length - 1);
+      const nextOption = options[nextIndex];
+      if (nextOption) {
+        onChange(nextOption.value);
+      }
+    },
+    [currentIndex, onChange, options],
+  );
 
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
     const active = list.querySelector<HTMLButtonElement>(`button[data-value="${value}"]`);
     if (!active) return;
-    const target =
-      active.offsetTop - list.clientHeight / 2 + active.offsetHeight / 2;
+    const target = active.offsetTop - list.clientHeight / 2 + active.offsetHeight / 2;
     const nextTop = Math.max(0, Math.min(target, list.scrollHeight - list.clientHeight));
-    list.scrollTo({ top: nextTop });
+    const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+    list.scrollTo({ top: nextTop, behavior });
   }, [value]);
 
   useEffect(() => {
@@ -800,20 +889,43 @@ function TimePillSelector({
       if (nextValue && nextValue !== value) {
         onChange(nextValue);
       }
-    }, 120);
+    }, 90);
   }, [onChange, value]);
 
   return (
     <div className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
-      <span className="pl-1">{label}</span>
-      <div className="relative rounded-2xl border border-white/10 bg-black/30 p-2">
-        <div className="pointer-events-none absolute inset-x-3 top-1/2 h-10 -translate-y-1/2 rounded-full border border-white/10 bg-white/5" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-[#0b1121]/90 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#0b1121]/90 to-transparent" />
+      <div className="flex items-center justify-between gap-2 pl-1">
+        <span>{label}</span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => moveBy(-1)}
+            disabled={!canMoveEarlier}
+            aria-label={`Move ${label} earlier`}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-sm text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            -
+          </button>
+          <button
+            type="button"
+            onClick={() => moveBy(1)}
+            disabled={!canMoveLater}
+            aria-label={`Move ${label} later`}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-sm text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            +
+          </button>
+        </div>
+      </div>
+      <div className="relative rounded-2xl border border-white/10 bg-black/30 p-2 shadow-inner">
+        <div className="pointer-events-none absolute inset-x-3 top-1/2 h-10 -translate-y-1/2 rounded-full border border-cyan-200/20 bg-white/[0.04]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-8 rounded-t-2xl bg-gradient-to-b from-[#0b1121] via-[#0b1121]/85 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-2xl bg-gradient-to-t from-[#0b1121] via-[#0b1121]/85 to-transparent" />
         <div
           ref={listRef}
           onScroll={handleScroll}
-          className="hide-scrollbar max-h-40 overflow-y-auto snap-y snap-mandatory py-6"
+          className="hide-scrollbar h-44 overflow-y-auto overscroll-contain scroll-smooth snap-y snap-mandatory py-[68px]"
+          aria-label={`${label} selector`}
         >
           {options.map((option) => {
             const active = option.value === value;
@@ -822,11 +934,22 @@ function TimePillSelector({
                 key={option.value}
                 type="button"
                 data-value={option.value}
+                aria-pressed={active}
                 onClick={() => onChange(option.value)}
-                className={`mx-auto block w-full snap-center rounded-full px-4 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.25em] transition ${
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+                    event.preventDefault();
+                    moveBy(1);
+                  }
+                  if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+                    event.preventDefault();
+                    moveBy(-1);
+                  }
+                }}
+                className={`mx-auto flex h-10 w-full snap-center items-center justify-center rounded-full px-4 text-center text-[11px] font-semibold uppercase tracking-[0.25em] transition ${
                   active
-                    ? "text-cyan-200"
-                    : "text-white/70 hover:text-white"
+                    ? "text-cyan-100"
+                    : "text-white/60 hover:bg-white/5 hover:text-white"
                 }`}
               >
                 {option.label}
@@ -1006,8 +1129,8 @@ function DayTimeline({
                     {day.date.getDate()}
                   </span>
                   <div className="mt-1 flex min-h-[8px] gap-0.5">
-                    {colors.slice(0, 3).map((color) => (
-                      <span key={`${day.key}-${color}`} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+                    {colors.slice(0, 3).map((color, colorIndex) => (
+                      <span key={`${day.key}-${color}-${colorIndex}`} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
                     ))}
                   </div>
                   {day.isToday && (
@@ -1616,10 +1739,13 @@ function TaskPanel({
   onTextChange,
   priority,
   onPriorityChange,
+  timeblock,
   startTime,
   onStartTimeChange,
   endTime,
   onEndTimeChange,
+  onDurationChange,
+  onClearTimeRange,
   color,
   onColorChange,
   colorOptions,
@@ -1644,14 +1770,14 @@ function TaskPanel({
   onClose,
 }: TaskPanelProps) {
   const customEmojiValue = iconOptions.some((option) => option.id === icon) ? "" : icon;
-  const durationMinutes = computeTimeblockFromTimes(startTime, endTime ?? "");
+  const durationMinutes = timeblock ?? computeTimeblockFromTimes(startTime, endTime);
   return (
     <div
       className="fixed inset-0 z-40 flex justify-end overflow-x-hidden bg-black/60 backdrop-blur-sm mobile-todos-overlay"
       onClick={onClose}
     >
       <div
-        className="h-full w-full max-w-md overflow-y-auto bg-[#0b1121] p-6 shadow-2xl mobile-todos-drawer sm:rounded-l-3xl"
+        className="h-full w-full max-w-md overflow-y-auto bg-[#0b1121] p-6 shadow-2xl mobile-todos-drawer sm:rounded-l-3xl lg:max-w-2xl"
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)",
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -1726,59 +1852,41 @@ function TaskPanel({
                 {durationMinutes ? `${durationMinutes}m` : "No duration"}
               </span>
             </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <SelectField
-                label="Priority"
-                value={priority.toString()}
-                onChange={(value) => onPriorityChange(Number(value) as TodoPriority)}
-              >
-                {[1, 2, 3].map((value) => (
-                  <option key={value} value={value}>
-                    {priorityLabel(value as TodoPriority)}
-                  </option>
-                ))}
-              </SelectField>
-              <div className="sm:hidden">
-                <TimePillSelector label="Start time" value={startTime} options={startTimeOptions} onChange={onStartTimeChange} />
-              </div>
-              <div className="hidden sm:block">
-                <SelectField label="Start time" value={startTime} onChange={(value) => onStartTimeChange(value)}>
-                  <option value="">-- select --</option>
-                  {startTimeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+            <div className="mt-4 space-y-4">
+              <TimeRangeSelector
+                startTime={startTime}
+                endTime={endTime}
+                timeblock={timeblock}
+                options={startTimeOptions}
+                onStartTimeChange={onStartTimeChange}
+                onEndTimeChange={onEndTimeChange}
+                onDurationChange={onDurationChange}
+                onClear={onClearTimeRange}
+              />
+              <div className={`grid gap-4 ${onRepeatTypeChange ? "sm:grid-cols-2" : ""}`}>
+                <SelectField
+                  label="Priority"
+                  value={priority.toString()}
+                  onChange={(value) => onPriorityChange(Number(value) as TodoPriority)}
+                >
+                  {[1, 2, 3].map((value) => (
+                    <option key={value} value={value}>
+                      {priorityLabel(value as TodoPriority)}
                     </option>
                   ))}
                 </SelectField>
+                {onRepeatTypeChange && (
+                  <SelectField
+                    label="Repeat"
+                    value={repeatType ?? "none"}
+                    onChange={(value) => onRepeatTypeChange(value as RepeatType)}
+                  >
+                    <option value="none">Once</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </SelectField>
+                )}
               </div>
-              {onEndTimeChange && (
-                <>
-                  <div className="sm:hidden">
-                    <TimePillSelector label="End time" value={endTime ?? ""} options={startTimeOptions} onChange={onEndTimeChange} />
-                  </div>
-                  <div className="hidden sm:block">
-                    <SelectField label="End time" value={endTime ?? ""} onChange={(value) => onEndTimeChange(value)}>
-                      <option value="">-- select --</option>
-                      {startTimeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </SelectField>
-                  </div>
-                </>
-              )}
-              {onRepeatTypeChange && (
-                <SelectField
-                  label="Repeat"
-                  value={repeatType ?? "none"}
-                  onChange={(value) => onRepeatTypeChange(value as RepeatType)}
-                >
-                  <option value="none">Once</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                </SelectField>
-              )}
             </div>
             {repeatType === "weekly" && repeatWeekdays && onToggleRepeatWeekday && (
               <div className="mt-4 flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
@@ -1955,8 +2063,8 @@ function CalendarOverlay({ selectedDay, markers, onSelect, onClose }: CalendarOv
               >
                 <span>{cell.getDate()}</span>
                 <span className="mt-1 flex gap-1">
-                  {(markers[getDayKey(cell)] ?? []).slice(0, 3).map((color) => (
-                    <span key={`${cell.toISOString()}-${color}`} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+                  {(markers[getDayKey(cell)] ?? []).slice(0, 3).map((color, colorIndex) => (
+                    <span key={`${cell.toISOString()}-${color}-${colorIndex}`} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
                   ))}
                 </span>
               </button>
@@ -1997,6 +2105,12 @@ type StartTimeOption = {
   label: string;
 };
 
+type TimeRangeState = {
+  startTime: string;
+  endTime: string;
+  timeblock?: Timeblock;
+};
+
 type TaskPanelState = {
   title: string;
   subtitle: string;
@@ -2005,11 +2119,12 @@ type TaskPanelState = {
   priority: TodoPriority;
   onPriorityChange: (value: TodoPriority) => void;
   timeblock?: Timeblock;
-  onTimeblockChange: (value: Timeblock | undefined) => void;
   startTime: string;
   onStartTimeChange: (value: string) => void;
-  endTime?: string;
-  onEndTimeChange?: (value: string) => void;
+  endTime: string;
+  onEndTimeChange: (value: string) => void;
+  onDurationChange: (value: Timeblock) => void;
+  onClearTimeRange: () => void;
   color?: string;
   onColorChange: (value: string) => void;
   colorOptions: string[];
@@ -2057,12 +2172,76 @@ function computeTimeblockFromTimes(start: string, end: string) {
   return diff % SLOT_MINUTES === 0 ? (diff as Timeblock) : (Math.round(diff / SLOT_MINUTES) * SLOT_MINUTES as Timeblock);
 }
 
+function getTimeRangeDuration(start: string, end: string, fallback?: Timeblock): Timeblock {
+  const computed = computeTimeblockFromTimes(start, end);
+  if (computed) return computed;
+  if (fallback && fallback >= SLOT_MINUTES) return fallback;
+  return DEFAULT_TIMEBLOCK;
+}
+
+function buildRangeFromStart(start: string, duration: Timeblock): TimeRangeState {
+  if (!start) return { startTime: "", endTime: "", timeblock: undefined };
+  const parsedStart = parseTimeToMinutes(start);
+  if (parsedStart === null) return { startTime: "", endTime: "", timeblock: undefined };
+  const startMinutes = snapToSlot(parsedStart);
+  const maxDuration = DAY_MINUTES - SLOT_MINUTES - startMinutes;
+  const normalizedStart = minutesToTimeString(startMinutes);
+  if (maxDuration < SLOT_MINUTES) {
+    return { startTime: normalizedStart, endTime: "", timeblock: undefined };
+  }
+  const nextDuration = Math.min(
+    Math.max(snapToSlot(duration), SLOT_MINUTES),
+    maxDuration,
+  ) as Timeblock;
+  return {
+    startTime: normalizedStart,
+    endTime: minutesToTimeString(startMinutes + nextDuration),
+    timeblock: nextDuration,
+  };
+}
+
+function buildRangeFromEnd(end: string, currentStart: string, duration: Timeblock): TimeRangeState {
+  if (!end) return { startTime: currentStart, endTime: "", timeblock: undefined };
+  const parsedEnd = parseTimeToMinutes(end);
+  if (parsedEnd === null) return { startTime: currentStart, endTime: "", timeblock: undefined };
+  const endMinutes = snapToSlot(parsedEnd);
+  const startMinutes = currentStart ? parseTimeToMinutes(currentStart) : null;
+  if (startMinutes !== null && endMinutes > startMinutes) {
+    const normalizedStart = minutesToTimeString(snapToSlot(startMinutes));
+    const normalizedEnd = minutesToTimeString(endMinutes);
+    return {
+      startTime: normalizedStart,
+      endTime: normalizedEnd,
+      timeblock: computeTimeblockFromTimes(normalizedStart, normalizedEnd),
+    };
+  }
+  if (endMinutes < SLOT_MINUTES) {
+    return { startTime: "", endTime: minutesToTimeString(endMinutes), timeblock: undefined };
+  }
+  const nextDuration = Math.min(
+    Math.max(snapToSlot(duration), SLOT_MINUTES),
+    endMinutes,
+  ) as Timeblock;
+  const nextStart = endMinutes - nextDuration;
+  return {
+    startTime: minutesToTimeString(nextStart),
+    endTime: minutesToTimeString(endMinutes),
+    timeblock: nextDuration,
+  };
+}
+
+function formatDurationPreset(duration: Timeblock) {
+  if (duration < 60) return `${duration}m`;
+  const hours = duration / 60;
+  return Number.isInteger(hours) ? `${hours}h` : `${duration}m`;
+}
+
 function buildEndTime(start: string, duration?: Timeblock) {
   if (!start || !duration) return "";
   const startMinutes = parseTimeToMinutes(start);
   if (startMinutes === null) return "";
   const endMinutes = startMinutes + duration;
-  if (endMinutes > (24 * 60) - SLOT_MINUTES) return "";
+  if (endMinutes > DAY_MINUTES - SLOT_MINUTES) return "";
   return minutesToTimeString(endMinutes);
 }
 
