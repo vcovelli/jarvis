@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const state = record?.state ?? null;
   const etag = createStateETag(state);
   const headers = {
-    "Cache-Control": "private, max-age=0, must-revalidate",
+    "Cache-Control": "private, no-store, max-age=0, must-revalidate",
     ETag: etag,
   };
   const ifNoneMatch = request.headers.get("if-none-match");
