@@ -160,17 +160,16 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
         <div className="mx-auto grid max-w-xl grid-cols-5 items-end gap-1">
           <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
           <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
-          <button
-            type="button"
-            aria-label="Voice action placeholder"
-            aria-disabled="true"
-            className="flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold text-cyan-100"
+          <Link
+            href={buildHref("/assistant?voice=1")}
+            aria-label="Start voice action"
+            className="flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold text-cyan-100 transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-200/70"
           >
             <span className="flex h-14 w-14 items-center justify-center rounded-full border border-cyan-200/60 bg-cyan-300 text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.32)]">
               <MicrophoneIcon className="h-6 w-6" />
             </span>
             <span className="truncate">Voice</span>
-          </button>
+          </Link>
           <MobileBarLink item={mobileLinks[2]} active={isActive(mobileLinks[2])} href={buildHref(mobileLinks[2].href)} />
           <button
             type="button"

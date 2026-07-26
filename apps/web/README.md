@@ -26,6 +26,15 @@ Required variables:
 - NEXTAUTH_URL
 - NEXTAUTH_SECRET
 
+Optional integration variables:
+
+- OPENAI_API_KEY enables server transcription when the browser cannot do speech recognition directly.
+- OPENAI_TRANSCRIPTION_MODEL defaults to `gpt-4o-mini-transcribe`.
+- PLAID_ENV, PLAID_CLIENT_ID, and PLAID_SECRET enable Plaid Link in the finance dashboard.
+- PLAID_PRODUCTS defaults to `transactions,investments`; add `liabilities` later if Plaid access is approved and the UI is extended for debts.
+- PLAID_COUNTRY_CODES defaults to `US`.
+- FINANCIAL_DATA_KEY encrypts Plaid access tokens at rest. Use a stable 64-character hex value from `openssl rand -hex 32`.
+
 ## Main areas
 
 - dashboard and daily check-in
@@ -43,6 +52,19 @@ Jarvis is configured as an installable web app with a manifest, standalone displ
 - Android Chrome: open Jarvis in Chrome, tap the three-dot menu, then tap **Add to Home screen** or **Install app**. Launch Jarvis from the new Home Screen icon.
 - iPhone or iPad: Safari is the most reliable path. Open Jarvis in Safari, tap Share, tap **Add to Home Screen**, keep **Open as Web App** enabled if shown, then tap **Add**.
 - Chrome on iPhone may expose Add to Home Screen through the iOS share sheet on newer iOS versions, but Safari is still the cleanest install path to verify first.
+
+## Voice and finance integrations
+
+Voice action starts from the center mic in the mobile bottom bar or the Assistant page. The browser Speech Recognition API is used first for fast command capture. If the browser does not support it, Jarvis records a short audio clip and posts it to `/api/assistant/transcribe`, which uses OpenAI when `OPENAI_API_KEY` is configured. The transcript is routed through the existing assistant command flow, so voice-created items still show the normal confirmation card before they are saved.
+
+Finance data is intentionally separate from the local-first Jarvis state blob. Plaid access tokens are stored only on the server in `FinancialConnection.accessTokenEncrypted`, protected by `FINANCIAL_DATA_KEY` or `NEXTAUTH_SECRET`. Accounts, transactions, and investment holdings sync into dedicated Prisma tables and are exposed through `/api/finance/summary`. The first version is read-only: Jarvis can connect, sync, display, and analyze data, but it cannot move money.
+
+Before using Plaid locally, run the finance migration and regenerate Prisma:
+
+```bash
+npx prisma migrate dev --name finance_foundation
+npx prisma generate
+```
 
 ## State persistence
 
