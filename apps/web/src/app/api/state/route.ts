@@ -27,34 +27,42 @@ export async function GET(request: Request) {
     return new NextResponse(null, { status: 304, headers });
   }
 
-  return NextResponse.json({ state }, { headers });
+  return NextResponse.json({ state, updatedAt: record?.updatedAt?.getTime() ?? null }, { headers });
 }
 
-export async function PUT(request: Request) {
+async function saveUserState(request: Request) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const state = body?.state;
   if (!state || typeof state !== "object") {
     return NextResponse.json({ error: "Invalid state payload." }, { status: 400 });
   }
 
-  await prisma.userState.upsert({
+  const record = await prisma.userState.upsert({
     where: { userId },
     create: { userId, state },
     update: { state },
   });
 
   return NextResponse.json(
-    { ok: true },
+    { ok: true, updatedAt: record.updatedAt.getTime() },
     {
       headers: {
         ETag: createStateETag(state),
       },
     },
   );
+}
+
+export async function PUT(request: Request) {
+  return saveUserState(request);
+}
+
+export async function POST(request: Request) {
+  return saveUserState(request);
 }

@@ -239,6 +239,13 @@ html[data-theme="light"] .danger-panel p {
   color: #7f1d1d !important;
 }
 
+@media (max-width: 768px) {
+  input:not([type="range"]),
+  textarea {
+    font-size: 1rem;
+  }
+}
+
 html[data-theme="light"] .danger-panel button {
   border-color: #fca5a5 !important;
   color: #7f1d1d !important;

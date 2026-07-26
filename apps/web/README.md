@@ -35,6 +35,17 @@ Required variables:
 - review and reflections
 - account and auth flows
 
+## State persistence
+
+Jarvis state is managed in `src/lib/jarvisStore.ts` and persisted in two layers:
+
+- Local browser cache: every hydrated state change writes the full sanitized state to `localStorage` under a user-specific key. UI preferences, such as planner day and planner view mode, use separate localStorage keys.
+- Authenticated server sync: signed-in users also sync the same state to `/api/state`, backed by Prisma `UserState`. Saves are debounced during normal use, retried when the browser comes back online, and flushed with a best-effort beacon or keepalive request when the tab is hidden or closed.
+
+Each local snapshot has metadata with its ETag, local save time, remote sync time, and whether a remote save is pending. During startup, a pending local snapshot wins over older server data so recently entered app data is not replaced by stale remote state. Once the server confirms the same ETag, the pending flag is cleared.
+
+The v2 shell displays the current save status: loading, saving soon, saving, synced, saved locally, or save issue.
+
 ## Related documentation
 
 - [../../README.md](../../README.md) — repository overview

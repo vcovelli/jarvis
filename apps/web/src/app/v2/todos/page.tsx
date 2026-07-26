@@ -6,6 +6,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "re
 import {
   Day,
   DayKey,
+  MustWinEntry,
   Timeblock,
   TodoItem,
   TodoPriority,
@@ -24,10 +25,18 @@ import {
 
 const SLOT_MINUTES = 15;
 const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES; // 96
-const SLOT_HEIGHT = 12;
+const SLOT_HEIGHT = 22;
 const BOARD_HEIGHT = SLOTS_PER_DAY * SLOT_HEIGHT;
 const HOUR_LABELS = Array.from({ length: 24 }, (_, index) => index);
 const DAY_MINUTES = 24 * 60;
+const NOW_UPDATE_MS = 15_000;
+const PLANNER_SELECTED_DAY_KEY = "jarvis-daily-planner-selected-day-v1";
+const PLANNER_TIMELINE_MODE_KEY = "jarvis-daily-planner-timeline-mode-v1";
+const MOBILE_TASK_MIN_HEIGHT = 44;
+const MOBILE_TASK_MINUTE_HEIGHT = 0.85;
+const MOBILE_GAP_MIN_HEIGHT = 36;
+const MOBILE_GAP_MAX_HEIGHT = 96;
+const MOBILE_GAP_MINUTE_HEIGHT = 0.18;
 const DEFAULT_START_TIME = "08:00";
 const DEFAULT_TIMEBLOCK: Timeblock = 30;
 const startTimeOptions = buildStartTimeOptions(SLOT_MINUTES);
@@ -88,6 +97,7 @@ type RollingDay = {
   isToday: boolean;
 };
 type RepeatType = "none" | "weekly" | "monthly";
+type TimelineMode = "list" | "schedule";
 type ExistingTaskOption = {
   id: string;
   label: string;
@@ -116,7 +126,7 @@ export default function TodosPage() {
   const focusTodoId = search?.get("focus") ?? undefined;
   const focusDay = search?.get("day");
   const todayKey = getDayKey();
-  const [selectedDay, setSelectedDay] = useState<DayKey>(todayKey);
+  const [selectedDay, setSelectedDay] = useState<DayKey>(() => readStoredDayKey(todayKey));
   const todaysMustWin = state.mustWin[selectedDay];
   const [text, setText] = useState("");
   const [priority, setPriority] = useState<TodoPriority>(1);
@@ -473,6 +483,10 @@ export default function TodosPage() {
   }, [focusDay]);
 
   useEffect(() => {
+    writePlannerPreference(PLANNER_SELECTED_DAY_KEY, selectedDay);
+  }, [selectedDay]);
+
+  useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         (document.activeElement as HTMLElement)?.blur();
@@ -582,9 +596,10 @@ export default function TodosPage() {
           onAddTask={openAddPanel}
           onEdit={beginEdit}
           onToggle={(id) => toggleTodo({ day: selectedDay, id })}
+          onShiftDay={handleShiftDay}
           onJumpToday={jumpToToday}
         />
-        <div className="hidden lg:block">
+        <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
           <TimeBlockingBoard
             todos={todosForDay}
             selectedDay={selectedDay}
@@ -603,83 +618,42 @@ export default function TodosPage() {
             onOpenCalendar={() => setCalendarOpen(true)}
             onJumpToday={jumpToToday}
           />
+          <DesktopPlannerRail
+            todos={todosForDay}
+            selectedDay={selectedDay}
+            todayKey={todayKey}
+            todaysMustWin={todaysMustWin}
+            mustWinText={mustWinText}
+            mustWinTime={mustWinTime}
+            onMustWinTextChange={setMustWinText}
+            onMustWinTimeChange={setMustWinTime}
+            onSubmitMustWin={submitMustWin}
+            onToggleMustWin={() => toggleMustWin({ day: selectedDay })}
+            onEdit={(todo) => beginEdit(todo)}
+            onDelete={(id) => handleDelete(id)}
+            onReorder={handleReorder}
+            highlightId={focusTodoId}
+            onToggle={(id) => toggleTodo({ day: selectedDay, id })}
+            onCyclePriority={(id, next) =>
+              updateTodoPriority({ day: selectedDay, id, priority: next })
+            }
+            onAddTask={openAddPanel}
+          />
         </div>
 
-      <div className="hidden space-y-6 lg:flex lg:flex-col">
-        <TaskList
-          todos={todosForDay}
-          onEdit={(todo) => beginEdit(todo)}
-          onDelete={(id) => handleDelete(id)}
-          onReorder={handleReorder}
-          highlightId={focusTodoId}
-          onToggle={(id) => toggleTodo({ day: selectedDay, id })}
-          onCyclePriority={(id, next) =>
-            updateTodoPriority({ day: selectedDay, id, priority: next })
-          }
-        />
-        <div className="hidden lg:block" />
-      </div>
-
-      <div className="glass-panel rounded-3xl border border-amber-300/40 bg-gradient-to-br from-amber-500/10 via-white/5 to-rose-500/10 p-6 backdrop-blur-lg">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-medium text-white">Top 1 Must Win</h2>
-            <p className="mt-1 text-sm text-zinc-300">
-              Keep it concrete, time-bound, and binary.
-            </p>
-          </div>
-          {selectedDay === todayKey && todaysMustWin?.done && (
-            <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100 mustwin-completed">
-              Completed
-            </span>
-          )}
+        <div className="lg:hidden">
+          <MustWinCard
+            selectedDay={selectedDay}
+            todayKey={todayKey}
+            todaysMustWin={todaysMustWin}
+            mustWinText={mustWinText}
+            mustWinTime={mustWinTime}
+            onMustWinTextChange={setMustWinText}
+            onMustWinTimeChange={setMustWinTime}
+            onSubmit={submitMustWin}
+            onToggle={() => toggleMustWin({ day: selectedDay })}
+          />
         </div>
-        {todaysMustWin ? (
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/40 bg-black/40 px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white break-words">{todaysMustWin.text}</p>
-              {todaysMustWin.timeBound && (
-                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-amber-200">
-                  By {todaysMustWin.timeBound}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => toggleMustWin({ day: selectedDay })}
-              className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] whitespace-nowrap ${
-                todaysMustWin.done
-                  ? "bg-emerald-400 text-emerald-950"
-                  : "bg-amber-300 text-amber-950"
-              }`}
-            >
-              {todaysMustWin.done ? "Won" : "Mark done"}
-            </button>
-          </div>
-        ) : (
-          <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_200px_auto]">
-            <input
-              value={mustWinText}
-              onChange={(event) => setMustWinText(event.target.value)}
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-              placeholder="What actually matters?"
-            />
-            <input
-              value={mustWinTime}
-              onChange={(event) => setMustWinTime(event.target.value)}
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-              placeholder="By when"
-            />
-            <button
-              type="button"
-              onClick={submitMustWin}
-              className="rounded-full bg-amber-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-amber-950"
-            >
-              Lock it
-            </button>
-          </div>
-        )}
-      </div>
 
       {panelState && <TaskPanel {...panelState} onClose={closePanel} />}
       {calendarOpen && (
@@ -693,11 +667,217 @@ export default function TodosPage() {
       <button
         type="button"
         onClick={openAddPanel}
-        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400 text-2xl font-semibold text-zinc-900 shadow-2xl"
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400 text-2xl font-semibold text-zinc-900 shadow-2xl lg:hidden"
       >
         <span className="sr-only">Add task</span>
         +
       </button>
+    </div>
+  );
+}
+
+type DesktopPlannerRailProps = {
+  todos: TodoItem[];
+  selectedDay: DayKey;
+  todayKey: DayKey;
+  todaysMustWin?: MustWinEntry;
+  mustWinText: string;
+  mustWinTime: string;
+  onMustWinTextChange: (value: string) => void;
+  onMustWinTimeChange: (value: string) => void;
+  onSubmitMustWin: () => void;
+  onToggleMustWin: () => void;
+  onEdit: (todo: TodoItem) => void;
+  onDelete: (id: string) => void;
+  onReorder: (orderedIds: string[]) => void;
+  highlightId?: string;
+  onToggle: (id: string) => void;
+  onCyclePriority: (id: string, next: TodoPriority) => void;
+  onAddTask: () => void;
+};
+
+function DesktopPlannerRail({
+  todos,
+  selectedDay,
+  todayKey,
+  todaysMustWin,
+  mustWinText,
+  mustWinTime,
+  onMustWinTextChange,
+  onMustWinTimeChange,
+  onSubmitMustWin,
+  onToggleMustWin,
+  onEdit,
+  onDelete,
+  onReorder,
+  highlightId,
+  onToggle,
+  onCyclePriority,
+  onAddTask,
+}: DesktopPlannerRailProps) {
+  const isToday = selectedDay === todayKey;
+  const events = useMemo(() => buildTimelineEvents(todos), [todos]);
+  const scheduleSegments = useMemo(() => buildScheduleSegments(events), [events]);
+  const nowMinutes = useNowMinutes(isToday);
+  const nowContext = useMemo(
+    () => getNowPlannerContext(scheduleSegments, nowMinutes),
+    [scheduleSegments, nowMinutes],
+  );
+  const completedCount = todos.filter((todo) => todo.done).length;
+  const scheduledCount = events.length;
+  const unscheduledCount = Math.max(todos.length - scheduledCount, 0);
+  const totalPlannedMinutes = todos.reduce((sum, todo) => sum + (todo.timeblockMins ?? 0), 0);
+  const completionLabel = todos.length ? `${Math.round((completedCount / todos.length) * 100)}%` : "0%";
+
+  return (
+    <aside className="hidden min-w-0 flex-col gap-5 lg:sticky lg:top-8 lg:flex lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:pr-1">
+      <section className="rounded-[24px] border border-white/10 bg-[#0b1224]/85 p-4 text-white shadow-[0_24px_70px_rgba(2,6,23,0.24)] backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.35em] text-cyan-200/70">Control rail</p>
+            <h3 className="mt-1 text-lg font-semibold text-white">Today at a glance</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onAddTask}
+            className="rounded-full bg-emerald-400 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-emerald-950 shadow-lg shadow-emerald-500/20"
+          >
+            New
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <PlannerMetric label="Done" value={`${completedCount}/${todos.length}`} />
+          <PlannerMetric label="Progress" value={completionLabel} />
+          <PlannerMetric label="Scheduled" value={`${scheduledCount}`} />
+          <PlannerMetric label="Open" value={`${unscheduledCount}`} />
+        </div>
+        <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 px-3 py-3">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-white/50">Planned load</p>
+          <p className="mt-1 text-xl font-semibold text-white">{formatPlannedDuration(totalPlannedMinutes)}</p>
+        </div>
+      </section>
+
+      {isToday && <NowStatusCard nowMinutes={nowMinutes} context={nowContext} compact />}
+
+      <MustWinCard
+        selectedDay={selectedDay}
+        todayKey={todayKey}
+        todaysMustWin={todaysMustWin}
+        mustWinText={mustWinText}
+        mustWinTime={mustWinTime}
+        onMustWinTextChange={onMustWinTextChange}
+        onMustWinTimeChange={onMustWinTimeChange}
+        onSubmit={onSubmitMustWin}
+        onToggle={onToggleMustWin}
+        compact
+      />
+
+      <TaskList
+        todos={todos}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onReorder={onReorder}
+        highlightId={highlightId}
+        onToggle={onToggle}
+        onCyclePriority={onCyclePriority}
+        variant="rail"
+      />
+    </aside>
+  );
+}
+
+function PlannerMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3">
+      <p className="text-[9px] uppercase tracking-[0.3em] text-white/45">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+type MustWinCardProps = {
+  selectedDay: DayKey;
+  todayKey: DayKey;
+  todaysMustWin?: MustWinEntry;
+  mustWinText: string;
+  mustWinTime: string;
+  onMustWinTextChange: (value: string) => void;
+  onMustWinTimeChange: (value: string) => void;
+  onSubmit: () => void;
+  onToggle: () => void;
+  compact?: boolean;
+};
+
+function MustWinCard({
+  selectedDay,
+  todayKey,
+  todaysMustWin,
+  mustWinText,
+  mustWinTime,
+  onMustWinTextChange,
+  onMustWinTimeChange,
+  onSubmit,
+  onToggle,
+  compact = false,
+}: MustWinCardProps) {
+  return (
+    <div className={`glass-panel border border-amber-300/40 bg-gradient-to-br from-amber-500/10 via-white/5 to-rose-500/10 backdrop-blur-lg ${compact ? "rounded-[24px] p-4" : "rounded-3xl p-6"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className={`${compact ? "text-base" : "text-lg"} font-medium text-white`}>Top 1 Must Win</h2>
+          <p className="mt-1 text-sm text-zinc-300">Keep it concrete, time-bound, and binary.</p>
+        </div>
+        {selectedDay === todayKey && todaysMustWin?.done && (
+          <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100 mustwin-completed">
+            Completed
+          </span>
+        )}
+      </div>
+      {todaysMustWin ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/40 bg-black/40 px-4 py-3">
+          <div className="min-w-0">
+            <p className="break-words text-sm font-semibold text-white">{todaysMustWin.text}</p>
+            {todaysMustWin.timeBound && (
+              <p className="mt-1 text-xs uppercase tracking-[0.2em] text-amber-200">
+                By {todaysMustWin.timeBound}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] whitespace-nowrap ${
+              todaysMustWin.done
+                ? "bg-emerald-400 text-emerald-950"
+                : "bg-amber-300 text-amber-950"
+            }`}
+          >
+            {todaysMustWin.done ? "Won" : "Mark done"}
+          </button>
+        </div>
+      ) : (
+        <div className={`mt-4 grid gap-3 ${compact ? "" : "sm:grid-cols-[1fr_200px_auto]"}`}>
+          <input
+            value={mustWinText}
+            onChange={(event) => onMustWinTextChange(event.target.value)}
+            className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+            placeholder="What actually matters?"
+          />
+          <input
+            value={mustWinTime}
+            onChange={(event) => onMustWinTimeChange(event.target.value)}
+            className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+            placeholder="By when"
+          />
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="rounded-full bg-amber-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-amber-950"
+          >
+            Lock it
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1058,6 +1238,7 @@ type DayTimelineProps = {
   onAddTask: () => void;
   onEdit: (todo: TodoItem) => void;
   onToggle: (id: string) => void;
+  onShiftDay: (delta: number) => void;
   onJumpToday: () => void;
 };
 
@@ -1071,19 +1252,41 @@ function DayTimeline({
   onAddTask,
   onEdit,
   onToggle,
+  onShiftDay,
   onJumpToday,
 }: DayTimelineProps) {
+  const [timelineMode, setTimelineMode] = useState<TimelineMode>(() => readStoredTimelineMode());
+
+  useEffect(() => {
+    writePlannerPreference(PLANNER_TIMELINE_MODE_KEY, timelineMode);
+  }, [timelineMode]);
+
   const events = useMemo(() => buildTimelineEvents(todos), [todos]);
+  const scheduledEvents = useMemo(
+    () => events.filter((event) => Boolean(event.todo.startTime)),
+    [events],
+  );
+  const unscheduledTasks = useMemo(() => todos.filter((todo) => !todo.startTime), [todos]);
+  const scheduleSegments = useMemo(() => buildScheduleSegments(scheduledEvents), [scheduledEvents]);
   const selectedDate = dayKeyToDate(selectedDay);
   const monthLabel = selectedDate.toLocaleDateString(undefined, { month: "long" });
   const weekdayLabel = selectedDate.toLocaleDateString(undefined, { weekday: "long" });
   const dayNumber = selectedDate.getDate();
   const yearLabel = selectedDate.getFullYear();
-  const hasEvents = events.length > 0;
+  const taskCount = todos.length;
+  const totalPlannedMinutes = todos.reduce((sum, todo) => sum + (todo.timeblockMins ?? 0), 0);
+  const recurringCount = todos.filter((todo) => Boolean(todo.seriesId)).length;
+  const todayKey = getDayKey();
+  const isToday = selectedDay === todayKey;
+  const nowMinutes = useNowMinutes(isToday);
+  const nowContext = useMemo(
+    () => getNowPlannerContext(scheduleSegments, nowMinutes),
+    [scheduleSegments, nowMinutes],
+  );
   return (
     <div className="-mx-4 rounded-none border border-transparent bg-[#0b1224] px-4 py-5 text-white shadow-none mobile-todos-panel sm:mx-0 sm:rounded-3xl lg:hidden">
       <div className="flex flex-col gap-5">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.5em] text-white/60">{weekdayLabel}</p>
             <button
@@ -1097,13 +1300,70 @@ function DayTimeline({
             </button>
             <p className="mt-1 text-[11px] text-white/50">Tap the date to open the calendar.</p>
           </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onShiftDay(-1)}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-xl leading-none text-white/85 transition hover:border-white/50 hover:text-white"
+              aria-label="Previous day"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={onJumpToday}
+              className="rounded-full border border-white/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/80 transition hover:border-white/50"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => onShiftDay(1)}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-xl leading-none text-white/85 transition hover:border-white/50 hover:text-white"
+              aria-label="Next day"
+            >
+              ›
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Planned today</p>
+            <div className="mt-3 flex flex-wrap gap-2 text-sm text-white/80">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{taskCount} blocks</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{totalPlannedMinutes ? `${formatPlannedDuration(totalPlannedMinutes)} planned` : "No time set"}</span>
+              {recurringCount > 0 && (
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{recurringCount} recurring</span>
+              )}
+            </div>
+          </div>
           <button
             type="button"
-            onClick={onJumpToday}
-            className="rounded-full border border-white/20 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/80 transition hover:border-white/50"
+            onClick={onAddTask}
+            className="flex items-center justify-center rounded-3xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/15"
           >
-            Today
+            New focus block
           </button>
+        </div>
+
+        {isToday && <NowStatusCard nowMinutes={nowMinutes} context={nowContext} />}
+
+        <div className="flex flex-wrap gap-2">
+          {(["list", "schedule"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setTimelineMode(mode)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-[0.25em] transition ${
+                timelineMode === mode
+                  ? "bg-cyan-300 text-zinc-950"
+                  : "border border-white/10 bg-white/5 text-white/80 hover:border-white/30 hover:text-white"
+              }`}
+            >
+              {mode === "list" ? "Task list" : "Schedule"}
+            </button>
+          ))}
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-black/30 px-2 py-3 shadow-inner">
@@ -1143,55 +1403,163 @@ function DayTimeline({
         </div>
 
         <div className="mt-2">
-          {hasEvents ? (
-            <div className="space-y-6">
+          {timelineMode === "schedule" ? (
+            <div className="space-y-4">
+              {scheduleSegments.length > 0 ? (
+                <div className="space-y-3">
+                  {scheduleSegments.map((segment) => {
+                    const isCurrentSegment = isToday && isMinuteWithinSegment(nowMinutes, segment);
+                    const segmentHeight =
+                      segment.type === "task"
+                        ? getMobileTaskHeight(segment.durationMinutes)
+                        : getMobileGapHeight(segment.durationMinutes);
+                    const segmentStyle =
+                      segment.type === "task"
+                        ? { ...getTimelineCardStyle(segment.event.color), minHeight: segmentHeight }
+                        : { minHeight: segmentHeight };
+                    return (
+                      <div
+                        key={`${segment.type}-${segment.startMinutes}-${segment.endMinutes}`}
+                        className={`relative overflow-hidden rounded-3xl border px-4 py-4 transition ${
+                          segment.type === "gap"
+                            ? "border-dashed border-white/20 bg-white/5 text-white/60"
+                            : "border border-white/10 bg-black/30 text-white"
+                        } ${isCurrentSegment ? "ring-2 ring-red-500/70" : ""}`}
+                        style={segmentStyle}
+                      >
+                        {isCurrentSegment && (
+                          <NowSegmentLine
+                            progressPercent={getSegmentProgressPercent(
+                              nowMinutes,
+                              segment.startMinutes,
+                              segment.endMinutes,
+                            )}
+                            showLabel={segment.type === "task"}
+                          />
+                        )}
+                        <div className="relative z-10 flex h-full flex-col justify-between gap-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              {segment.type === "task" && (
+                                <div
+                                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-3xl text-lg font-semibold text-white"
+                                  style={{ backgroundColor: segment.event.color }}
+                                >
+                                  {segment.event.iconSymbol}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold uppercase tracking-[0.3em] text-white/70">
+                                  {segment.type === "gap" ? "Free window" : segment.event.title}
+                                </p>
+                                <p className="mt-1 text-sm text-white/80">
+                                  {formatMinutesLabel(segment.startMinutes)} – {formatMinutesLabel(segment.endMinutes)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {segment.type === "task" && (
+                                <button
+                                  type="button"
+                                  onClick={() => onToggle(segment.event.todo.id)}
+                                  aria-pressed={segment.event.todo.done}
+                                  className={`min-h-10 rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] transition ${
+                                    segment.event.todo.done
+                                      ? "bg-emerald-300 text-emerald-950"
+                                      : "border border-emerald-300/50 bg-emerald-300/10 text-emerald-100 hover:border-emerald-300"
+                                  }`}
+                                >
+                                  {segment.event.todo.done ? "Done" : "Mark done"}
+                                </button>
+                              )}
+                              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-white/70">
+                                {formatPlannedDuration(segment.durationMinutes)}
+                              </span>
+                            </div>
+                          </div>
+                          {segment.type === "gap" ? (
+                            <p className="text-sm text-white/60">
+                              {segment.durationMinutes >= 60
+                                ? `${formatPlannedDuration(segment.durationMinutes)} open`
+                                : `Open time`}
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-white/60">
+                              <span>{priorityLabel(segment.event.todo.priority)}</span>
+                              <span>{segment.event.todo.done ? "Completed" : "Open"}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-[32px] border border-dashed border-white/20 bg-white/5 px-5 py-8 text-center text-sm text-white/60 shadow-inner">
+                  No time-bound blocks yet. Switch to list mode to review unscheduled tasks or add a focused time slot.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-5">
               {events.map((event) => (
                 <button
                   key={event.id}
                   type="button"
                   onClick={() => onEdit(event.todo)}
-                  className="grid w-full grid-cols-[64px_minmax(0,1fr)] gap-3 text-left"
+                  className="group flex w-full items-start gap-4 rounded-3xl border border-white/10 bg-black/30 px-4 py-4 text-left transition hover:border-cyan-300/40 hover:bg-white/5"
                 >
-                  <div className="pr-2 text-right text-[9px] uppercase tracking-[0.1em] text-white/60">
-                    <span className="block text-[11px] font-semibold text-white leading-tight">{event.startLabel}</span>
-                    <span className="block text-white/70 leading-tight">{event.endLabel}</span>
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-white/5 text-lg font-semibold text-white" style={{ backgroundColor: event.color }}>
+                    {event.iconSymbol}
                   </div>
-                  <div className="relative pl-10">
-                    <span className="pointer-events-none absolute left-4 top-0 bottom-0 w-0.5 bg-white/20" />
-                    <span
-                      className="pointer-events-none absolute left-4 top-1/2 z-10 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-[#0b1224] text-sm font-semibold text-zinc-900"
-                      style={{ backgroundColor: event.color }}
-                    >
-                      {event.iconSymbol}
-                    </span>
-                    <div
-                      className="ml-6 rounded-3xl border px-4 py-3 text-white shadow-lg shadow-black/30"
-                      style={getTimelineCardStyle(event.color)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          className="mt-1 h-4 w-4 cursor-pointer accent-emerald-300"
-                          checked={event.todo.done}
-                          onClick={(eventClick) => eventClick.stopPropagation()}
-                          onChange={() => onToggle(event.todo.id)}
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold leading-tight text-white">{event.title}</p>
-                          <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">
-                            {event.window}
-                            {event.durationLabel ? ` • ${event.durationLabel}` : ""}
-                          </p>
-                        </div>
-                      </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-white">{event.title}</span>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.3em] text-white/70">
+                        {priorityLabel(event.todo.priority)}
+                      </span>
                     </div>
+                    <p className="mt-2 text-[11px] leading-5 text-white/70">
+                      {event.window}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.25em] text-white/60">
+                      <span>{event.durationLabel ?? "Scheduled"}</span>
+                      <span>{event.todo.done ? "Completed" : "Open"}</span>
+                    </div>
+                  </div>
+                  <div className="ml-auto flex items-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 cursor-pointer accent-emerald-300"
+                      checked={event.todo.done}
+                      onClick={(eventClick) => eventClick.stopPropagation()}
+                      onChange={() => onToggle(event.todo.id)}
+                    />
                   </div>
                 </button>
               ))}
-            </div>
-          ) : (
-            <div className="rounded-[32px] border border-dashed border-white/20 bg-white/5 px-5 py-8 text-center text-sm text-white/60 shadow-inner">
-              No scheduled blocks yet. Tap the + button to add one.
+              {unscheduledTasks.length > 0 && (
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-white/80">
+                  <p className="text-sm font-semibold text-white">Unscheduled tasks</p>
+                  <div className="mt-3 space-y-3">
+                    {unscheduledTasks.map((todo) => (
+                      <div key={todo.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{todo.text}</p>
+                          <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">{priorityLabel(todo.priority)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onEdit(todo)}
+                          className="rounded-full border border-cyan-300/40 px-3 py-1 text-[10px] font-semibold text-cyan-200 hover:border-cyan-300"
+                        >
+                          Schedule
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1276,11 +1644,13 @@ function TimeBlockingBoard({
   onJumpToday,
 }: TimeBlockingBoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
+  const boardScrollRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const blocks = useMemo(() => buildScheduledBlocks(todos, dragState), [todos, dragState]);
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const nowLabel = formatMinutesLabel(nowMinutes);
+  const totalPlannedMinutes = blocks.reduce((sum, block) => sum + block.durationMinutes, 0);
+  const conflictCount = blocks.filter((block) => block.hasConflict).length;
+  const nowMinutes = useNowMinutes(isToday);
+  const nowLabel = formatMinutesLabel(Math.floor(nowMinutes));
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const nowLineRef = useRef<HTMLDivElement | null>(null);
   const didAutoScrollRef = useRef(false);
@@ -1300,7 +1670,13 @@ function TimeBlockingBoard({
     const node = nowLineRef.current;
     if (!node) return;
     requestAnimationFrame(() => {
-      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      const scrollParent = boardScrollRef.current;
+      if (scrollParent) {
+        const targetTop = node.offsetTop - scrollParent.clientHeight / 2;
+        scrollParent.scrollTo({ top: Math.max(targetTop, 0), behavior: "smooth" });
+      } else {
+        node.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       didAutoScrollRef.current = true;
     });
   }, [isToday, selectedDay]);
@@ -1374,15 +1750,22 @@ function TimeBlockingBoard({
   };
 
   return (
-    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg min-w-0">
+    <div className="min-w-0 rounded-[28px] border border-white/10 bg-[#08101f]/85 p-5 text-white shadow-[0_24px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
       <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Day planner</p>
             <h2 className="text-2xl font-semibold text-white">{selectedDayLabel}</h2>
-            <p className="text-sm text-zinc-400">
-              Drag focus blocks, swipe across days, or open the calendar to plan weeks ahead.
+            <p className="mt-2 text-sm text-zinc-400">
+              Drag and resize the day while your control rail stays in view.
             </p>
+            <div className="mt-4 flex flex-wrap gap-2 text-sm text-white/80">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{blocks.length} blocks</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{formatPlannedDuration(totalPlannedMinutes)}</span>
+              {conflictCount > 0 && (
+                <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-amber-100">{conflictCount} conflict{conflictCount > 1 ? "s" : ""}</span>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.3em] text-zinc-200">
             <button
@@ -1455,7 +1838,7 @@ function TimeBlockingBoard({
           </div>
         </div>
       </div>
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-white/5 bg-black/40 lg:overflow-visible">
+      <div ref={boardScrollRef} className="mt-5 max-h-[calc(100dvh-17rem)] overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40">
         <div ref={boardRef} className="relative min-w-[360px]" style={{ height: BOARD_HEIGHT }}>
           <div className="absolute inset-y-0 left-0 w-16 border-r border-white/5 bg-black/30 text-[11px] uppercase tracking-[0.3em] text-zinc-500">
             {HOUR_LABELS.map((hour) => (
@@ -1477,7 +1860,7 @@ function TimeBlockingBoard({
                 <div
                   ref={nowLineRef}
                   className="pointer-events-none absolute inset-x-0 z-40"
-                  style={{ top: (nowMinutes / SLOT_MINUTES) * SLOT_HEIGHT }}
+                  style={{ top: minutesToBoardTop(nowMinutes) }}
                 >
                   <div className="relative">
                     <div className="border-t border-red-500/80" />
@@ -1500,30 +1883,40 @@ function TimeBlockingBoard({
                         borderColor: block.color,
                       }
                     : undefined;
-                  const isCompact = block.durationMinutes <= SLOT_MINUTES;
+                  const isCurrentBlock =
+                    isToday && nowMinutes >= block.startMinutes && nowMinutes < block.startMinutes + block.durationMinutes;
+                  const isTiny = block.durationMinutes <= SLOT_MINUTES;
+                  const isCompact = block.durationMinutes <= 30;
+                  const blockHeight = getBoardDurationHeight(block.durationMinutes);
                   const blockClass = block.hasConflict
                     ? "border-amber-300 bg-amber-200/90 text-zinc-900"
                     : block.color
                       ? "border-transparent text-zinc-900"
                       : `${priorityClasses(block.priority)} border-white/10`;
-                  const minBlockHeight = isCompact ? 32 : 28;
                   return (
                     <div
                       key={block.id}
                       ref={highlight ? highlightRef : undefined}
                       onPointerDown={(event) => handleDragStart(event, block.originalTodo, "move")}
-                      className={`scheduled-block group absolute left-4 right-4 z-10 cursor-grab rounded-2xl border px-3 text-xs shadow-lg ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""} ${
+                      className={`scheduled-block group absolute left-4 right-4 z-10 cursor-grab overflow-hidden rounded-2xl border px-3 text-xs shadow-lg ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""} ${
                         isCompact ? "py-1" : "py-2"
                       }`}
                       style={{
-                        top: (block.startMinutes / SLOT_MINUTES) * SLOT_HEIGHT,
-                        height: Math.max(
-                          (block.durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT - 2,
-                          minBlockHeight,
-                        ),
+                        top: minutesToBoardTop(block.startMinutes),
+                        height: blockHeight,
                         ...customStyle,
                       }}
                     >
+                      {isCurrentBlock && (
+                        <NowSegmentLine
+                          progressPercent={getSegmentProgressPercent(
+                            nowMinutes,
+                            block.startMinutes,
+                            block.startMinutes + block.durationMinutes,
+                          )}
+                          showLabel={false}
+                        />
+                      )}
                       <div className="absolute right-3 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
                         <button
                           type="button"
@@ -1559,33 +1952,32 @@ function TimeBlockingBoard({
                           onPointerDown={(eventClick) => eventClick.stopPropagation()}
                           onChange={() => onToggle(block.id)}
                         />
-                        <div className="pointer-events-none flex flex-col justify-center gap-1">
+                        <div className="pointer-events-none flex min-w-0 flex-col justify-center gap-1">
                           <p
-                            className={`font-semibold uppercase tracking-[0.15em] ${
+                            className={`truncate font-semibold uppercase tracking-[0.15em] ${
                               isCompact ? "text-[10px] leading-[12px]" : "text-xs"
                             }`}
                           >
                             {block.label}
                           </p>
-                          <p
-                            className={`uppercase tracking-[0.25em] opacity-80 ${
-                              isCompact ? "text-[9px] leading-[12px]" : "text-[10px]"
-                            }`}
-                          >
-                            {block.window}
-                          </p>
+                          {!isTiny && (
+                            <p
+                              className={`truncate uppercase tracking-[0.25em] opacity-80 ${
+                                isCompact ? "text-[9px] leading-[12px]" : "text-[10px]"
+                              }`}
+                            >
+                              {block.window}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div
-                        className="absolute bottom-1 left-1/2 h-2 w-10 -translate-x-1/2 cursor-ns-resize rounded-full bg-white/60"
+                        className="absolute bottom-0.5 left-1/2 h-1.5 w-10 -translate-x-1/2 cursor-ns-resize rounded-full bg-white/60"
                         onPointerDown={(event) => {
                           event.stopPropagation();
                           handleDragStart(event, block.originalTodo, "resize");
                         }}
                       />
-                      <div className="pointer-events-none absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded-full bg-black/80 px-2 py-1 text-[10px] uppercase tracking-[0.25em] text-white group-hover:block">
-                        {block.window}
-                      </div>
                     </div>
                   );
                 })
@@ -1606,10 +1998,12 @@ type TaskListProps = {
   highlightId?: string;
   onToggle: (id: string) => void;
   onCyclePriority: (id: string, next: TodoPriority) => void;
+  variant?: "full" | "rail";
 };
 
-function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, onCyclePriority }: TaskListProps) {
+function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, onCyclePriority, variant = "full" }: TaskListProps) {
   const completedCount = todos.filter((todo) => todo.done).length;
+  const isRail = variant === "rail";
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
@@ -1633,8 +2027,8 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
   };
 
   return (
-    <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg min-w-0">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className={`min-w-0 ${isRail ? "rounded-[24px] border border-white/10 bg-[#0b1224]/85 p-4 text-white shadow-[0_24px_70px_rgba(2,6,23,0.22)] backdrop-blur-xl" : "glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg"}`}>
+      <div className={`flex flex-col gap-2 ${isRail ? "" : "sm:flex-row sm:items-center sm:justify-between"}`}>
         <div>
           <h3 className="text-lg font-medium text-white">Task stack</h3>
           <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">
@@ -1645,7 +2039,7 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
           {todos.length ? `${completedCount}/${todos.length} done` : "Empty"}
         </span>
       </div>
-      <div className="mt-4 space-y-3">
+      <div className={`mt-4 ${isRail ? "space-y-2" : "space-y-3"}`}>
         {todos.length === 0 ? (
           <p className="text-sm text-zinc-400">Nothing scheduled for this day.</p>
         ) : (
@@ -1662,7 +2056,7 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
                   event.preventDefault();
                   handleItemDrop(todo.id);
                 }}
-                className={`flex flex-col gap-3 rounded-2xl border border-white/5 bg-black/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                className={`flex flex-col gap-3 rounded-2xl border border-white/5 bg-black/20 ${isRail ? "px-3 py-3" : "px-4 py-3 sm:flex-row sm:items-center sm:justify-between"} ${
                   highlight ? "ring-2 ring-cyan-300/70" : ""
                 } ${draggingId === todo.id ? "opacity-60" : ""}`}
               >
@@ -1696,7 +2090,7 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
                     </p>
                   </div>
                 </label>
-                <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                <div className={`flex w-full flex-wrap gap-2 ${isRail ? "" : "sm:w-auto sm:justify-end"}`}>
                   <button
                     type="button"
                     onClick={() => onCyclePriority(todo.id, nextPriority(todo.priority))}
@@ -2088,6 +2482,103 @@ function CalendarOverlay({ selectedDay, markers, onSelect, onClose }: CalendarOv
   );
 }
 
+function NowStatusCard({
+  nowMinutes,
+  context,
+  compact = false,
+}: {
+  nowMinutes: number;
+  context: NowPlannerContext;
+  compact?: boolean;
+}) {
+  const current = context.currentSegment;
+  const progressPercent = current
+    ? getSegmentProgressPercent(nowMinutes, current.startMinutes, current.endMinutes)
+    : 0;
+  const currentLabel = formatMinutesLabel(Math.floor(nowMinutes));
+
+  if (current?.type === "task") {
+    const remaining = getWholeMinutesRemaining(current.endMinutes, nowMinutes);
+    const elapsed = getWholeMinutesElapsed(current.startMinutes, nowMinutes);
+    return (
+      <div className={`rounded-3xl border border-red-500/50 bg-red-500/10 p-4 text-white shadow-lg shadow-red-950/20 ${compact ? "lg:max-w-xl" : ""}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-red-200">Now • {currentLabel}</p>
+            <h3 className="mt-2 truncate text-base font-semibold text-white">{current.event.title}</h3>
+          </div>
+          <span className="rounded-full bg-red-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-white">
+            {Math.round(progressPercent)}%
+          </span>
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full rounded-full bg-red-500" style={{ width: `${progressPercent}%` }} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.25em] text-white/70">
+          <span>{formatPlannedDuration(elapsed)} elapsed</span>
+          <span>{formatPlannedDuration(remaining)} left</span>
+          <span>{formatMinutesLabel(current.startMinutes)} to {formatMinutesLabel(current.endMinutes)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (current?.type === "gap") {
+    const remaining = getWholeMinutesRemaining(current.endMinutes, nowMinutes);
+    return (
+      <div className={`rounded-3xl border border-white/10 bg-black/30 p-4 text-white ${compact ? "lg:max-w-xl" : ""}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-red-200">Now • {currentLabel}</p>
+            <h3 className="mt-2 text-base font-semibold text-white">Free window</h3>
+          </div>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70">
+            {formatPlannedDuration(remaining)} open
+          </span>
+        </div>
+        {context.nextTask && (
+          <p className="mt-3 text-sm text-white/70">
+            Next: {context.nextTask.event.title} at {formatMinutesLabel(context.nextTask.startMinutes)}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`rounded-3xl border border-white/10 bg-black/30 p-4 text-white ${compact ? "lg:max-w-xl" : ""}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-red-200">Now • {currentLabel}</p>
+      <p className="mt-2 text-sm text-white/70">
+        {context.nextTask
+          ? `Next: ${context.nextTask.event.title} at ${formatMinutesLabel(context.nextTask.startMinutes)}`
+          : "No upcoming blocks today"}
+      </p>
+    </div>
+  );
+}
+
+function NowSegmentLine({
+  progressPercent,
+  showLabel,
+}: {
+  progressPercent: number;
+  showLabel: boolean;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute left-0 right-0 z-20"
+      style={{ top: `${progressPercent}%` }}
+    >
+      <div className="h-0.5 bg-red-500 shadow-[0_0_14px_rgba(239,68,68,0.9)]" />
+      {showLabel && (
+        <span className="absolute -top-3 left-3 rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.25em] text-white shadow-lg">
+          Now
+        </span>
+      )}
+    </div>
+  );
+}
+
 type ScheduledBlock = {
   id: string;
   startMinutes: number;
@@ -2147,6 +2638,37 @@ type TaskPanelState = {
   onApplyToSeriesChange?: (value: boolean) => void;
   seriesCount?: number;
 };
+
+function readStoredDayKey(fallback: DayKey): DayKey {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const value = window.localStorage.getItem(PLANNER_SELECTED_DAY_KEY);
+    return normalizeDayKey(value, fallback);
+  } catch (error) {
+    console.warn("Planner day preference load failed", error);
+    return fallback;
+  }
+}
+
+function readStoredTimelineMode(): TimelineMode {
+  if (typeof window === "undefined") return "schedule";
+  try {
+    const value = window.localStorage.getItem(PLANNER_TIMELINE_MODE_KEY);
+    return value === "list" || value === "schedule" ? value : "schedule";
+  } catch (error) {
+    console.warn("Planner view preference load failed", error);
+    return "schedule";
+  }
+}
+
+function writePlannerPreference(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (error) {
+    console.warn("Planner preference save failed", error);
+  }
+}
 
 function buildStartTimeOptions(stepMinutes = 15): StartTimeOption[] {
   const totalSteps = (24 * 60) / stepMinutes;
@@ -2234,6 +2756,14 @@ function formatDurationPreset(duration: Timeblock) {
   if (duration < 60) return `${duration}m`;
   const hours = duration / 60;
   return Number.isInteger(hours) ? `${hours}h` : `${duration}m`;
+}
+
+function formatPlannedDuration(totalMinutes: number) {
+  const normalizedMinutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(normalizedMinutes / 60);
+  const minutes = normalizedMinutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }
 
 function buildEndTime(start: string, duration?: Timeblock) {
@@ -2435,7 +2965,7 @@ function buildScheduledBlocks(todos: TodoItem[], drag?: DragState | null): Sched
     if (!todo.startTime || !todo.timeblockMins) return;
     const startMinutes = parseTimeToMinutes(todo.startTime);
     if (startMinutes === null) return;
-    const durationMinutes = Math.max(todo.timeblockMins, SLOT_MINUTES);
+    const durationMinutes = getTodoDurationMinutes(todo, startMinutes);
     blocks.push({
       id: todo.id,
       startMinutes,
@@ -2568,7 +3098,7 @@ function buildTimelineEvents(todos: TodoItem[]): TimelineEvent[] {
     .map((todo) => {
       const startMinutes = parseTimeToMinutes(todo.startTime || "");
       if (startMinutes === null) return null;
-      const duration = todo.timeblockMins ?? 0;
+      const duration = getTodoDurationMinutes(todo, startMinutes);
       const endMinutes = startMinutes + duration;
       const iconSymbol = getTaskIconSymbol(todo.icon, todo.text);
       const event: TimelineEvent = {
@@ -2576,8 +3106,8 @@ function buildTimelineEvents(todos: TodoItem[]): TimelineEvent[] {
         title: todo.text,
         startLabel: formatMinutesLabel(startMinutes),
         endLabel: formatMinutesLabel(endMinutes),
-        window: duration ? `${formatMinutesLabel(startMinutes)} – ${formatMinutesLabel(endMinutes)}` : "Scheduled",
-        durationLabel: duration ? `${duration}m` : undefined,
+        window: `${formatMinutesLabel(startMinutes)} – ${formatMinutesLabel(endMinutes)}`,
+        durationLabel: `${duration}m`,
         color: todo.color ?? "#94a3b8",
         iconSymbol,
         todo,
@@ -2586,6 +3116,138 @@ function buildTimelineEvents(todos: TodoItem[]): TimelineEvent[] {
     })
     .filter((value): value is { event: TimelineEvent; order: number } => Boolean(value));
   return enriched.sort((a, b) => a.order - b.order).map((item) => item.event);
+}
+
+type ScheduleSegment =
+  | {
+      type: "task";
+      event: TimelineEvent;
+      startMinutes: number;
+      endMinutes: number;
+      durationMinutes: number;
+    }
+  | {
+      type: "gap";
+      startMinutes: number;
+      endMinutes: number;
+      durationMinutes: number;
+    };
+
+type TaskScheduleSegment = Extract<ScheduleSegment, { type: "task" }>;
+
+type NowPlannerContext = {
+  currentSegment: ScheduleSegment | null;
+  nextTask: TaskScheduleSegment | null;
+};
+
+function buildScheduleSegments(events: TimelineEvent[]): ScheduleSegment[] {
+  const segments: ScheduleSegment[] = [];
+  let cursor = 0;
+
+  events.forEach((event) => {
+    const startMinutes = parseTimeToMinutes(event.todo.startTime ?? "") ?? 0;
+    const duration = getTodoDurationMinutes(event.todo, startMinutes);
+    const endMinutes = startMinutes + duration;
+
+    if (startMinutes > cursor) {
+      segments.push({
+        type: "gap",
+        startMinutes: cursor,
+        endMinutes: startMinutes,
+        durationMinutes: startMinutes - cursor,
+      });
+    }
+
+    segments.push({
+      type: "task",
+      event,
+      startMinutes,
+      endMinutes,
+      durationMinutes: duration,
+    });
+    cursor = endMinutes;
+  });
+
+  if (cursor < DAY_MINUTES) {
+    segments.push({
+      type: "gap",
+      startMinutes: cursor,
+      endMinutes: DAY_MINUTES,
+      durationMinutes: DAY_MINUTES - cursor,
+    });
+  }
+
+  return segments;
+}
+
+function getNowPlannerContext(segments: ScheduleSegment[], nowMinutes: number): NowPlannerContext {
+  const currentSegment = segments.find((segment) => isMinuteWithinSegment(nowMinutes, segment)) ?? null;
+  const nextTask =
+    segments.find(
+      (segment): segment is TaskScheduleSegment =>
+        segment.type === "task" && segment.startMinutes > nowMinutes,
+    ) ?? null;
+  return { currentSegment, nextTask };
+}
+
+function useNowMinutes(enabled: boolean) {
+  const [nowMinutes, setNowMinutes] = useState(() => getCurrentMinuteOfDay());
+
+  useEffect(() => {
+    if (!enabled) return;
+    const update = () => setNowMinutes(getCurrentMinuteOfDay());
+    update();
+    const interval = window.setInterval(update, NOW_UPDATE_MS);
+    return () => window.clearInterval(interval);
+  }, [enabled]);
+
+  return nowMinutes;
+}
+
+function getCurrentMinuteOfDay(date = new Date()) {
+  return date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
+}
+
+function isMinuteWithinSegment(minute: number, segment: ScheduleSegment) {
+  return minute >= segment.startMinutes && minute < segment.endMinutes;
+}
+
+function getSegmentProgressPercent(minute: number, startMinutes: number, endMinutes: number) {
+  if (endMinutes <= startMinutes) return 0;
+  return Math.min(Math.max(((minute - startMinutes) / (endMinutes - startMinutes)) * 100, 0), 100);
+}
+
+function getWholeMinutesRemaining(endMinutes: number, nowMinutes: number) {
+  return Math.max(0, Math.ceil(endMinutes - nowMinutes));
+}
+
+function getWholeMinutesElapsed(startMinutes: number, nowMinutes: number) {
+  return Math.max(0, Math.floor(nowMinutes - startMinutes));
+}
+
+function getTodoDurationMinutes(todo: TodoItem, startMinutes: number) {
+  const requestedDuration = Math.max(todo.timeblockMins ?? SLOT_MINUTES, SLOT_MINUTES);
+  const maxDuration = Math.max(1, DAY_MINUTES - startMinutes);
+  return Math.min(requestedDuration, maxDuration);
+}
+
+function minutesToBoardTop(minutes: number) {
+  return (minutes / SLOT_MINUTES) * SLOT_HEIGHT;
+}
+
+function getBoardDurationHeight(durationMinutes: number) {
+  return Math.max((durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT - 2, SLOT_HEIGHT - 2);
+}
+
+function getMobileTaskHeight(durationMinutes: number) {
+  return Math.max(MOBILE_TASK_MIN_HEIGHT, Math.round(durationMinutes * MOBILE_TASK_MINUTE_HEIGHT));
+}
+
+function getMobileGapHeight(durationMinutes: number) {
+  return Math.min(
+    MOBILE_GAP_MAX_HEIGHT,
+    Math.max(MOBILE_GAP_MIN_HEIGHT, Math.round(durationMinutes * MOBILE_GAP_MINUTE_HEIGHT)),
+  );
 }
 
 function pointerToMinutes(event: PointerEvent, element: HTMLDivElement | null) {

@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { signOut, useSession } from "next-auth/react";
 
 import { applyTheme, getStoredTheme, onThemeChange, type ThemeMode } from "@/lib/theme";
+import { useJarvisState, type StateSyncStatus } from "@/lib/jarvisStore";
 
 type NavLink = {
   href: string;
@@ -57,6 +58,7 @@ type SidebarProps = {
 export function Sidebar({ basePath = "/" }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { syncStatus } = useJarvisState();
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(true);
@@ -148,7 +150,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
             <NavGroup title="Tools">{navItems(utilityLinks)}</NavGroup>
           </nav>
 
-          <ShellControls sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme} />
+          <ShellControls sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme} syncStatus={syncStatus} />
         </div>
       </aside>
 
@@ -209,7 +211,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
               <NavGroup title="Growth">{navItems(growthLinks, true, () => setMobileOpen(false))}</NavGroup>
               <NavGroup title="Tools">{navItems(utilityLinks, true, () => setMobileOpen(false))}</NavGroup>
             </nav>
-            <ShellControls sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme} />
+            <ShellControls sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme} syncStatus={syncStatus} />
           </div>
           <button type="button" className="h-full flex-1 bg-black/60" onClick={() => setMobileOpen(false)}>
             <span className="sr-only">Close menu</span>
@@ -229,17 +231,67 @@ function NavGroup({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function StateSaveStatus({ syncStatus }: { syncStatus: StateSyncStatus }) {
+  const { label, detail, toneClass } = getSaveStatusDisplay(syncStatus);
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Save status</p>
+      <div className="mt-2 flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${toneClass}`} />
+        <p className="text-xs font-semibold text-white/85">{label}</p>
+      </div>
+      {detail && <p className="mt-1 text-[11px] text-zinc-500">{detail}</p>}
+    </div>
+  );
+}
+
+function getSaveStatusDisplay(syncStatus: StateSyncStatus) {
+  const savedAt = syncStatus.lastRemoteSavedAt ?? syncStatus.lastLocalSavedAt;
+  const lastSaved = savedAt ? `Last saved ${formatShellTime(savedAt)}` : undefined;
+
+  if (syncStatus.local === "loading") {
+    return { label: "Loading", detail: "Preparing storage", toneClass: "bg-zinc-400" };
+  }
+  if (syncStatus.local === "error") {
+    return { label: "Save issue", detail: syncStatus.error, toneClass: "bg-red-400" };
+  }
+  if (syncStatus.remote === "saving") {
+    return { label: "Saving", detail: lastSaved, toneClass: "bg-cyan-300 animate-pulse" };
+  }
+  if (syncStatus.remote === "pending") {
+    return { label: "Saving soon", detail: lastSaved, toneClass: "bg-amber-300" };
+  }
+  if (syncStatus.remote === "offline" || syncStatus.remote === "error") {
+    return {
+      label: "Saved locally",
+      detail: syncStatus.remote === "error" ? "Server sync will retry" : lastSaved,
+      toneClass: "bg-amber-300",
+    };
+  }
+  if (syncStatus.remote === "saved") {
+    return { label: "Synced", detail: lastSaved, toneClass: "bg-emerald-300" };
+  }
+  return { label: "Saved locally", detail: lastSaved, toneClass: "bg-emerald-300" };
+}
+
+function formatShellTime(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 function ShellControls({
   sessionEmail,
   theme,
   setTheme,
+  syncStatus,
 }: {
   sessionEmail?: string | null;
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
+  syncStatus: StateSyncStatus;
 }) {
   return (
     <div className="mt-auto space-y-3 rounded-[24px] border border-white/10 bg-white/5 p-4 text-xs text-zinc-300">
+      <StateSaveStatus syncStatus={syncStatus} />
       {sessionEmail && (
         <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
           <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Signed in</p>

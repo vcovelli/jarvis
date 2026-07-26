@@ -132,7 +132,6 @@ export default function Home() {
   const [mustWinText, setMustWinText] = useState("");
   const [mustWinTime, setMustWinTime] = useState("");
   const [reviewManuallyOpenedDay, setReviewManuallyOpenedDay] = useState<DayKey | null>(null);
-  const [reviewDismissedDay, setReviewDismissedDay] = useState<DayKey | null>(null);
   const [reviewExpected, setReviewExpected] = useState<boolean | null>(null);
   const [reviewReason, setReviewReason] = useState<DailyReviewReason | "">("");
   const [reviewTomorrow, setReviewTomorrow] = useState("");
@@ -167,7 +166,6 @@ export default function Home() {
   const streak = useMemo(() => calculateStreak(state, todayStreakComplete), [state, todayStreakComplete]);
   const hasMoodToday = todaysMood.length > 0;
   const hasTodoDoneToday = todaysTodos.some((todo) => todo.done);
-  const allTodosDone = todaysTodos.length > 0 && todaysTodos.every((todo) => todo.done);
   const suggestedMode = useMemo(
     () => getOperatingModeSuggestion({ mood: todaysMood, todos: todaysTodos, sleep: todaysSleep }),
     [todaysMood, todaysTodos, todaysSleep],
@@ -243,16 +241,7 @@ export default function Home() {
     };
   }, [suggestedMode]);
   const manualReviewOpen = reviewManuallyOpenedDay === todayKey;
-  const reviewDismissed = reviewDismissedDay === todayKey;
-  const shouldAutoOpenReview = useMemo(() => {
-    if (todaysReview) return false;
-    if (allTodosDone) return true;
-    const now = new Date();
-    const cutoff = new Date();
-    cutoff.setHours(21, 30, 0, 0);
-    return now >= cutoff;
-  }, [todaysReview, allTodosDone]);
-  const reviewOpen = !reviewDismissed && (manualReviewOpen || shouldAutoOpenReview);
+  const reviewOpen = manualReviewOpen && !todaysReview;
   const moodPanelCollapsed = Boolean(collapsedPanels.mood);
   const timelinePanelCollapsed = Boolean(collapsedPanels.timeline);
   const todosPanelCollapsed = Boolean(collapsedPanels.todos);
@@ -475,7 +464,6 @@ export default function Home() {
     setReviewReason("");
     setReviewTomorrow("");
     setReviewManuallyOpenedDay(null);
-    setReviewDismissedDay(todayKey);
     showToast("Review saved");
   }
 
@@ -1235,7 +1223,6 @@ export default function Home() {
               type="button"
               onClick={() => {
                 setReviewManuallyOpenedDay(todayKey);
-                setReviewDismissedDay(null);
               }}
               className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white"
             >
@@ -1261,7 +1248,7 @@ export default function Home() {
           </div>
         ) : (
           <p className="mt-4 text-sm text-zinc-400">
-            You will be prompted after the last task or at 9:30pm.
+            Start it when you actually want to close the day.
           </p>
         )}
       </section>
@@ -1280,7 +1267,6 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setReviewManuallyOpenedDay(null);
-                  setReviewDismissedDay(todayKey);
                 }}
                 className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70"
               >
