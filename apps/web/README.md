@@ -35,6 +35,15 @@ Required variables:
 - review and reflections
 - account and auth flows
 
+
+## Progressive web app install
+
+Jarvis is configured as an installable web app with a manifest, standalone display mode, mobile theme colors, and Home Screen icons. The installed app starts at `/v2` and removes the normal browser URL and navigation chrome when launched from the Home Screen.
+
+- Android Chrome: open Jarvis in Chrome, tap the three-dot menu, then tap **Add to Home screen** or **Install app**. Launch Jarvis from the new Home Screen icon.
+- iPhone or iPad: Safari is the most reliable path. Open Jarvis in Safari, tap Share, tap **Add to Home Screen**, keep **Open as Web App** enabled if shown, then tap **Add**.
+- Chrome on iPhone may expose Add to Home Screen through the iOS share sheet on newer iOS versions, but Safari is still the cleanest install path to verify first.
+
 ## State persistence
 
 Jarvis state is managed in `src/lib/jarvisStore.ts` and persisted in two layers:

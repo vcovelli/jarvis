@@ -1,12 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
 import { Providers } from "@/app/providers";
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#08101f",
 };
 
 const geistSans = Geist({
@@ -20,9 +22,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Productivity Tracker",
-  description:
-    "Minimal Jarvis-inspired dashboard for logging moods and testing the UI shell.",
+  title: "Jarvis OS",
+  applicationName: "Jarvis OS",
+  description: "A personal operating console for planning, reflection, and systems tracking.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Jarvis",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/jarvis-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/jarvis-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
