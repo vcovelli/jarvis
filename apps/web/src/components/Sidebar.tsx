@@ -47,8 +47,7 @@ const utilityLinks: NavLink[] = [
 const mobileLinks: NavLink[] = [
   { href: "/", label: "Home", description: "State" },
   { href: "/daily", label: "Daily", description: "Planner", activeFor: ["/daily", "/todos"] },
-  { href: "/daily", label: "Add", description: "Task", activeFor: ["/daily", "/todos"] },
-  { href: "/?focus=timeline", label: "Timeline", description: "Recent" },
+  { href: "/finance", label: "Finances", description: "Goals" },
 ];
 
 type SidebarProps = {
@@ -155,33 +154,33 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       </aside>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/80 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.35rem)] pt-2 backdrop-blur-2xl lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/88 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.45rem)] pt-2 shadow-[0_-18px_50px_rgba(2,6,23,0.4)] backdrop-blur-2xl lg:hidden"
         aria-label="Primary mobile navigation"
       >
-        <div className="grid grid-cols-5 gap-1">
-          {mobileLinks.map((item) => {
-            const active = isActive(item);
-            return (
-              <Link
-                key={item.href + "-" + item.label}
-                href={buildHref(item.href)}
-                className={
-                  "rounded-2xl px-2 py-2 text-center text-[11px] font-semibold transition " +
-                  (active ? "bg-cyan-300 text-zinc-950 shadow-lg" : "text-zinc-300")
-                }
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <div className="mx-auto grid max-w-xl grid-cols-5 items-end gap-1">
+          <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
+          <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
+          <button
+            type="button"
+            aria-label="Voice action placeholder"
+            aria-disabled="true"
+            className="flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold text-cyan-100"
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-full border border-cyan-200/60 bg-cyan-300 text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.32)]">
+              <MicrophoneIcon className="h-6 w-6" />
+            </span>
+            <span className="truncate">Voice</span>
+          </button>
+          <MobileBarLink item={mobileLinks[2]} active={isActive(mobileLinks[2])} href={buildHref(mobileLinks[2].href)} />
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="rounded-2xl px-2 py-2 text-center text-[11px] font-semibold text-zinc-300"
+            className="flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center text-[10px] font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
             aria-label="Open more navigation"
             aria-expanded={mobileOpen}
           >
-            More
+            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-base leading-none">...</span>
+            <span className="truncate">More</span>
           </button>
         </div>
       </nav>
@@ -219,6 +218,44 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
         </div>
       )}
     </>
+  );
+}
+
+function MobileBarLink({ item, active, href }: { item: NavLink; active: boolean; href: string }) {
+  return (
+    <Link
+      href={href}
+      className={
+        "flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center text-[10px] font-semibold transition " +
+        (active ? "bg-cyan-300 text-zinc-950 shadow-lg" : "text-zinc-300 hover:bg-white/5 hover:text-white")
+      }
+    >
+      <span className={"flex h-7 w-7 items-center justify-center rounded-full border text-[12px] font-bold " + (active ? "border-zinc-950/10 bg-zinc-950/10" : "border-white/10 bg-white/5")}>
+        {item.label.charAt(0)}
+      </span>
+      <span className="w-full truncate">{item.label}</span>
+    </Link>
+  );
+}
+
+function MicrophoneIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <path d="M12 19v3" />
+      <path d="M8 22h8" />
+    </svg>
   );
 }
 
