@@ -71,6 +71,49 @@ type PendingAction =
       missing: Array<"duration" | "quality">;
     };
 
+type VoiceStatus = "idle" | "listening" | "processing" | "error";
+
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  0?: { transcript?: string };
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives?: number;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
+
 const TOTAL_MINUTES = 24 * 60;
 const DIAL_MINUTES = 12 * 60;
 const DEFAULT_DURATION = 8 * 60;
@@ -146,6 +189,17 @@ export default function AssistantPage() {
   const sleepDefaultDay = useMemo(() => getDefaultSleepDay(), []);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [newTagValue, setNewTagValue] = useState("");
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceAutoPrompted, setVoiceAutoPrompted] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const speechErrorRef = useRef(false);
+  const voiceTranscriptRef = useRef("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const voiceStopTimerRef = useRef<number | null>(null);
 
   const moodTagLibrary = useMemo(() => state.moodTags ?? [], [state.moodTags]);
   const moodTagOptions: MoodTag[] = useMemo(() => {
@@ -180,49 +234,246 @@ export default function AssistantPage() {
     ]);
   }, []);
 
-  const handleSubmit = useCallback(() => {
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    setInput("");
-    appendMessage("user", trimmed);
+  const submitCommand = useCallback(
+    (rawInput: string) => {
+      const trimmed = rawInput.trim();
+      if (!trimmed) return;
+      setInput("");
+      appendMessage("user", trimmed);
 
-    if (pending) {
-      const resolved = applyAnswer(pending, trimmed);
-      if (resolved.missing.length) {
-        setPending(resolved);
-        appendMessage("assistant", buildClarifier(resolved));
+      if (pending) {
+        const resolved = applyAnswer(pending, trimmed);
+        if (resolved.missing.length) {
+          setPending(resolved);
+          appendMessage("assistant", buildClarifier(resolved));
+          return;
+        }
+        setPending(null);
+        setDraft(resolved);
+        appendMessage("assistant", "Review the details below and confirm.");
         return;
       }
-      setPending(null);
-      setDraft(resolved);
+
+      if (isHelpRequest(trimmed)) {
+        appendMessage("assistant", buildHelpText());
+        return;
+      }
+
+      const parsed = parseCommand(trimmed, knownMoodTags);
+      if (!parsed) {
+        appendMessage(
+          "assistant",
+          "I can help log mood, journal, sleep, or todos. Try 'help' for examples.",
+        );
+        return;
+      }
+
+      if (parsed.missing.length) {
+        setPending(parsed);
+        setDraft(null);
+        appendMessage("assistant", buildClarifier(parsed));
+        return;
+      }
+
+      setDraft(parsed);
       appendMessage("assistant", "Review the details below and confirm.");
+    },
+    [appendMessage, knownMoodTags, pending],
+  );
+
+  const handleSubmit = useCallback(() => {
+    submitCommand(input);
+  }, [input, submitCommand]);
+
+  const stopMediaCapture = useCallback(() => {
+    if (voiceStopTimerRef.current !== null) {
+      window.clearTimeout(voiceStopTimerRef.current);
+      voiceStopTimerRef.current = null;
+    }
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  }, []);
+
+  const submitVoiceTranscript = useCallback(
+    (transcript: string) => {
+      const trimmed = transcript.trim();
+      if (!trimmed) {
+        setVoiceStatus("error");
+        setVoiceError("I didn't catch anything. Try a shorter command.");
+        return;
+      }
+      setVoiceTranscript(trimmed);
+      setVoiceStatus("idle");
+      submitCommand(trimmed);
+    },
+    [submitCommand],
+  );
+
+  const transcribeRecordedAudio = useCallback(
+    async (audioBlob: Blob) => {
+      setVoiceStatus("processing");
+      setVoiceError(null);
+      try {
+        const body = new FormData();
+        body.append("audio", audioBlob, `jarvis-voice.${getAudioExtension(audioBlob.type)}`);
+        const response = await fetch("/api/assistant/transcribe", {
+          method: "POST",
+          body,
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.error ?? `Transcription failed with ${response.status}`);
+        }
+        submitVoiceTranscript(typeof data?.text === "string" ? data.text : "");
+      } catch (error) {
+        setVoiceStatus("error");
+        setVoiceError(getVoiceCaptureError(error));
+      }
+    },
+    [submitVoiceTranscript],
+  );
+
+  const startRecordedVoiceCapture = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setVoiceStatus("error");
+      setVoiceError("Voice capture is not available in this browser.");
       return;
     }
 
-    if (isHelpRequest(trimmed)) {
-      appendMessage("assistant", buildHelpText());
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      const mimeType = getPreferredAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onerror = () => {
+        setVoiceStatus("error");
+        setVoiceError("The microphone recording stopped unexpectedly.");
+        stopMediaCapture();
+      };
+      recorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        mediaRecorderRef.current = null;
+        stopMediaCapture();
+        if (audioBlob.size === 0) {
+          setVoiceStatus("error");
+          setVoiceError("No audio was captured. Try again closer to the microphone.");
+          return;
+        }
+        void transcribeRecordedAudio(audioBlob);
+      };
+
+      recorder.start();
+      setVoiceStatus("listening");
+      voiceStopTimerRef.current = window.setTimeout(() => {
+        if (recorder.state === "recording") {
+          recorder.stop();
+        }
+      }, 30000);
+    } catch (error) {
+      setVoiceStatus("error");
+      setVoiceError(getVoiceCaptureError(error));
+      stopMediaCapture();
+    }
+  }, [stopMediaCapture, transcribeRecordedAudio]);
+
+  const startVoiceCapture = useCallback(async () => {
+    if (voiceStatus === "listening" || voiceStatus === "processing") return;
+    setVoiceError(null);
+    setVoiceTranscript("");
+    voiceTranscriptRef.current = "";
+
+    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!Recognition) {
+      await startRecordedVoiceCapture();
       return;
     }
 
-    const parsed = parseCommand(trimmed, knownMoodTags);
-    if (!parsed) {
-      appendMessage(
-        "assistant",
-        "I can help log mood, journal, sleep, or todos. Try 'help' for examples.",
-      );
+    try {
+      const recognition = new Recognition();
+      let finalTranscript = "";
+      speechErrorRef.current = false;
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || "en-US";
+      recognition.maxAlternatives = 1;
+      recognition.onstart = () => setVoiceStatus("listening");
+      recognition.onresult = (event) => {
+        let interimTranscript = "";
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          const result = event.results[index];
+          const transcript = result[0]?.transcript ?? "";
+          if (result.isFinal) {
+            finalTranscript = `${finalTranscript} ${transcript}`.trim();
+          } else {
+            interimTranscript = `${interimTranscript} ${transcript}`.trim();
+          }
+        }
+        const nextTranscript = `${finalTranscript} ${interimTranscript}`.trim();
+        voiceTranscriptRef.current = nextTranscript;
+        setVoiceTranscript(nextTranscript);
+      };
+      recognition.onerror = (event) => {
+        speechErrorRef.current = true;
+        recognitionRef.current = null;
+        setVoiceStatus("error");
+        setVoiceError(getSpeechRecognitionError(event.error));
+      };
+      recognition.onend = () => {
+        recognitionRef.current = null;
+        if (speechErrorRef.current) return;
+        setVoiceStatus("processing");
+        submitVoiceTranscript(voiceTranscriptRef.current);
+      };
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (error) {
+      recognitionRef.current = null;
+      await startRecordedVoiceCapture();
+      if (error instanceof Error && error.name !== "InvalidStateError") {
+        console.warn("Speech recognition failed; falling back to recorded transcription", error);
+      }
+    }
+  }, [startRecordedVoiceCapture, submitVoiceTranscript, voiceStatus]);
+
+  const stopVoiceCapture = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
       return;
     }
-
-    if (parsed.missing.length) {
-      setPending(parsed);
-      setDraft(null);
-      appendMessage("assistant", buildClarifier(parsed));
-      return;
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
     }
+  }, []);
 
-    setDraft(parsed);
-    appendMessage("assistant", "Review the details below and confirm.");
-  }, [appendMessage, input, knownMoodTags, pending]);
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort();
+      stopMediaCapture();
+    };
+  }, [stopMediaCapture]);
+
+  useEffect(() => {
+    if (voiceAutoPrompted) return;
+    const search = new URLSearchParams(window.location.search);
+    if (search.get("voice") !== "1") return;
+    setVoiceAutoPrompted(true);
+    window.history.replaceState(null, "", window.location.pathname);
+    window.setTimeout(() => {
+      void startVoiceCapture();
+    }, 250);
+  }, [startVoiceCapture, voiceAutoPrompted]);
 
   const runAction = useCallback(
     (action: PendingAction) => {
@@ -398,6 +649,14 @@ export default function AssistantPage() {
             Examples
           </button>
         </div>
+
+        <VoiceActionPanel
+          status={voiceStatus}
+          transcript={voiceTranscript}
+          error={voiceError}
+          onStart={() => void startVoiceCapture()}
+          onStop={stopVoiceCapture}
+        />
 
         <div className="mt-4 flex flex-wrap gap-2">
           {[
@@ -1248,6 +1507,155 @@ export default function AssistantPage() {
   );
 }
 
+function VoiceActionPanel({
+  status,
+  transcript,
+  error,
+  onStart,
+  onStop,
+}: {
+  status: VoiceStatus;
+  transcript: string;
+  error: string | null;
+  onStart: () => void;
+  onStop: () => void;
+}) {
+  const isListening = status === "listening";
+  const isProcessing = status === "processing";
+  const statusLabel =
+    status === "listening"
+      ? "Listening"
+      : status === "processing"
+        ? "Processing"
+        : status === "error"
+          ? "Needs attention"
+          : "Ready";
+
+  return (
+    <div className="mt-5 grid gap-4 rounded-2xl border border-cyan-300/20 bg-cyan-300/8 p-4 md:grid-cols-[auto,1fr] md:items-center">
+      <button
+        type="button"
+        onClick={isListening ? onStop : onStart}
+        disabled={isProcessing}
+        className={
+          "flex h-16 w-16 items-center justify-center rounded-full border text-slate-950 shadow-[0_14px_32px_rgba(34,211,238,0.25)] transition focus:outline-none focus:ring-2 focus:ring-cyan-200/70 " +
+          (isListening
+            ? "border-rose-200/70 bg-rose-300 hover:bg-rose-200"
+            : "border-cyan-200/70 bg-cyan-300 hover:bg-cyan-200") +
+          (isProcessing ? " opacity-70" : "")
+        }
+        aria-label={isListening ? "Stop voice capture" : "Start voice capture"}
+      >
+        {isListening ? <StopIcon className="h-6 w-6" /> : <VoiceIcon className="h-7 w-7" />}
+      </button>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-100/70">Voice</p>
+          <span
+            className={
+              "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] " +
+              (status === "error"
+                ? "border-rose-300/40 bg-rose-300/10 text-rose-100"
+                : isListening
+                  ? "border-cyan-200/40 bg-cyan-200/10 text-cyan-100"
+                  : "border-white/10 bg-white/5 text-white/70")
+            }
+          >
+            {statusLabel}
+          </span>
+        </div>
+        <p className="mt-2 min-h-6 truncate text-sm text-white/90">
+          {transcript || (isProcessing ? "Turning audio into an action..." : "Tap the mic and say a quick command.")}
+        </p>
+        {error && <p className="mt-2 text-xs text-rose-200">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+function VoiceIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <path d="M12 19v3" />
+      <path d="M8 22h8" />
+    </svg>
+  );
+}
+
+function StopIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="7" y="7" width="10" height="10" rx="2" />
+    </svg>
+  );
+}
+
+function getPreferredAudioMimeType() {
+  if (typeof MediaRecorder === "undefined") return undefined;
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/mpeg",
+  ];
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type));
+}
+
+function getAudioExtension(mimeType: string) {
+  if (mimeType.includes("mp4")) return "m4a";
+  if (mimeType.includes("mpeg")) return "mp3";
+  if (mimeType.includes("wav")) return "wav";
+  return "webm";
+}
+
+function getSpeechRecognitionError(error?: string) {
+  if (error === "not-allowed" || error === "service-not-allowed") {
+    return "Microphone permission is blocked for Jarvis.";
+  }
+  if (error === "no-speech") {
+    return "I didn't hear a command. Try again a little closer to the microphone.";
+  }
+  if (error === "network") {
+    return "Speech recognition could not reach the browser service.";
+  }
+  return "Voice capture could not finish. Try again.";
+}
+
+function getVoiceCaptureError(error: unknown) {
+  if (error instanceof DOMException && error.name === "NotAllowedError") {
+    return "Microphone permission is blocked for Jarvis.";
+  }
+  if (error instanceof DOMException && error.name === "NotFoundError") {
+    return "No microphone was found on this device.";
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Voice capture failed.";
+}
+
 function isHelpRequest(text: string) {
   const normalized = text.trim().toLowerCase();
   return ["help", "examples", "commands", "?"].includes(normalized);
@@ -1259,6 +1667,7 @@ function buildHelpText() {
     "- log mood 7 stressed note: long day",
     "- journal morning: shipped new feature, feeling focused",
     "- add todo review deck tomorrow at 9am for 45m",
+    "- task call plumber tomorrow at 2pm for 30m",
     "- sleep 7.5h quality 4 recovery 3 yesterday",
   ].join("\n");
 }

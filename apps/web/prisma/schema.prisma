@@ -16,9 +16,13 @@ model User {
   passwordHash String?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
-  accounts     Account[]
-  sessions     Session[]
-  userState    UserState?
+  accounts              Account[]
+  sessions              Session[]
+  userState             UserState?
+  financialConnections  FinancialConnection[]
+  financialAccounts     FinancialAccount[]
+  financialTransactions FinancialTransaction[]
+  investmentHoldings    InvestmentHolding[]
 }
 
 model UserState {
@@ -28,6 +32,111 @@ model UserState {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FinancialConnection {
+  id                   String                 @id @default(cuid())
+  userId               String
+  provider             String                 @default("plaid")
+  itemId               String
+  accessTokenEncrypted String
+  institutionId        String?
+  institutionName      String?
+  products             String[]
+  cursor               String?
+  status               String                 @default("active")
+  lastSyncedAt         DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts             FinancialAccount[]
+  transactions         FinancialTransaction[]
+  holdings             InvestmentHolding[]
+
+  @@unique([userId, provider, itemId])
+  @@index([userId])
+}
+
+model FinancialAccount {
+  id                     String                 @id @default(cuid())
+  userId                 String
+  connectionId           String
+  providerAccountId      String
+  name                   String
+  officialName           String?
+  type                   String
+  subtype                String?
+  mask                   String?
+  currentBalance         Float?
+  availableBalance       Float?
+  isoCurrencyCode        String?
+  unofficialCurrencyCode String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection             FinancialConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  transactions           FinancialTransaction[]
+  holdings               InvestmentHolding[]
+
+  @@unique([connectionId, providerAccountId])
+  @@index([userId, type])
+}
+
+model FinancialTransaction {
+  id                     String              @id @default(cuid())
+  userId                 String
+  connectionId           String
+  accountId              String?
+  providerTransactionId  String
+  providerAccountId      String
+  date                   DateTime
+  authorizedDate         DateTime?
+  name                   String
+  merchantName           String?
+  amount                 Float
+  isoCurrencyCode        String?
+  unofficialCurrencyCode String?
+  category               String[]
+  pending                Boolean             @default(false)
+  paymentChannel         String?
+  raw                    Json?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection             FinancialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  account                FinancialAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@unique([connectionId, providerTransactionId])
+  @@index([userId, date])
+  @@index([accountId])
+}
+
+model InvestmentHolding {
+  id                     String              @id @default(cuid())
+  userId                 String
+  connectionId           String
+  accountId              String?
+  holdingKey             String
+  providerAccountId      String
+  providerSecurityId     String?
+  securityName           String?
+  tickerSymbol           String?
+  quantity               Float
+  institutionPrice       Float?
+  institutionValue       Float?
+  costBasis              Float?
+  isoCurrencyCode        String?
+  unofficialCurrencyCode String?
+  raw                    Json?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection             FinancialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  account                FinancialAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@unique([connectionId, holdingKey])
+  @@index([userId])
+  @@index([accountId])
 }
 
 model Account {
