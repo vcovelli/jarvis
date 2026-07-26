@@ -190,7 +190,6 @@ export type JarvisState = {
 
 const STORAGE_KEY = "jarvis-state-v1";
 const STORAGE_META_KEY = "jarvis-state-meta-v1";
-const DEFAULT_SAVE_DELAY_MS = 700;
 const MAX_HOMELAB_ACTIONS = 100;
 
 export type LocalSaveStatus = "loading" | "saved" | "error";
@@ -210,11 +209,6 @@ type StoredMeta = {
   pendingRemoteSave?: boolean;
   remoteSyncedAt?: number;
   remoteUpdatedAt?: number;
-};
-
-type NetworkInformation = {
-  effectiveType?: "slow-2g" | "2g" | "3g" | "4g";
-  saveData?: boolean;
 };
 
 function buildStorageKey(userId?: string) {
@@ -281,26 +275,6 @@ function writeStoredMeta(key: string, meta: StoredMeta) {
   } catch (error) {
     console.warn("Jarvis state meta save failed", error);
     return false;
-  }
-}
-
-function getNetworkInfo(): NetworkInformation | null {
-  if (typeof navigator === "undefined") return null;
-  return (navigator as Navigator & { connection?: NetworkInformation }).connection ?? null;
-}
-
-function getSaveDelayMs() {
-  const info = getNetworkInfo();
-  if (!info) return DEFAULT_SAVE_DELAY_MS;
-  if (info.saveData) return 2000;
-  switch (info.effectiveType) {
-    case "slow-2g":
-    case "2g":
-      return 2500;
-    case "3g":
-      return 1200;
-    default:
-      return DEFAULT_SAVE_DELAY_MS;
   }
 }
 
@@ -1003,7 +977,16 @@ function useJarvisStoreInternal() {
   const [networkRetryTick, setNetworkRetryTick] = useState(0);
   const stateRef = useRef(state);
   const lastRemoteSaveRef = useRef<string | null>(null);
-  stateRef.current = state;
+  const scheduleSyncStatus = useCallback(
+    (updater: (current: StateSyncStatus) => StateSyncStatus) => {
+      Promise.resolve().then(() => setSyncStatus(updater));
+    },
+    [],
+  );
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const persistLocalSnapshot = useCallback(
     (
@@ -1035,7 +1018,7 @@ function useJarvisStoreInternal() {
 
       if (stateSaved && metaSaved) {
         lastLocalSaveRef.current = `${context.storageKey}:${stateJson}`;
-        setSyncStatus((current) => ({
+        scheduleSyncStatus((current) => ({
           ...current,
           local: "saved",
           remote: context.isAuthenticated
@@ -1049,7 +1032,7 @@ function useJarvisStoreInternal() {
           error: undefined,
         }));
       } else {
-        setSyncStatus((current) => ({
+        scheduleSyncStatus((current) => ({
           ...current,
           local: "error",
           error: "Local browser storage rejected the latest state.",
@@ -1058,7 +1041,7 @@ function useJarvisStoreInternal() {
 
       return { context, stateJson, savedAt, pendingRemoteSave };
     },
-    [session?.user?.id, status],
+    [scheduleSyncStatus, session?.user?.id, status],
   );
 
   useEffect(() => {
@@ -1090,7 +1073,7 @@ function useJarvisStoreInternal() {
   useEffect(() => {
     if (status === "loading") return;
     readyRef.current = false;
-    setSyncStatus((current) => ({ ...current, local: "loading", remote: "idle" }));
+    scheduleSyncStatus((current) => ({ ...current, local: "loading", remote: "idle" }));
     let isMounted = true;
     const markHydrated = (value: boolean) => {
       Promise.resolve().then(() => {
@@ -1108,7 +1091,7 @@ function useJarvisStoreInternal() {
     const cachedMeta = readStoredMeta(context.metaKey);
     if (cachedState) {
       dispatch({ type: "HYDRATE", payload: cachedState });
-      setSyncStatus({
+      scheduleSyncStatus(() => ({
         local: "saved",
         remote: context.isAuthenticated
           ? cachedMeta?.pendingRemoteSave
@@ -1119,7 +1102,7 @@ function useJarvisStoreInternal() {
           : "idle",
         lastLocalSavedAt: cachedMeta?.savedAt,
         lastRemoteSavedAt: cachedMeta?.remoteSyncedAt,
-      });
+      }));
     } else if (shouldReset) {
       dispatch({ type: "HYDRATE", payload: initialState });
     }
@@ -1128,7 +1111,7 @@ function useJarvisStoreInternal() {
       readyRef.current = true;
       markHydrated(true);
       if (context.isAuthenticated) {
-        setSyncStatus((current) => ({ ...current, remote: "offline" }));
+        scheduleSyncStatus((current) => ({ ...current, remote: "offline" }));
       }
       return () => {
         isMounted = false;
@@ -1184,8 +1167,17 @@ function useJarvisStoreInternal() {
           const serverMatchesCache = Boolean(
             result.etag && cachedMeta?.etag && result.etag === cachedMeta.etag,
           );
+          const pendingCacheIsNewerThanServer = Boolean(
+            cachedState &&
+              cachedMeta?.pendingRemoteSave &&
+              cachedMeta.savedAt &&
+              (!result.updatedAt || cachedMeta.savedAt > result.updatedAt),
+          );
           const keepPendingCache = Boolean(
-            cachedState && cachedMeta?.pendingRemoteSave && !serverMatchesCache,
+            cachedState &&
+              cachedMeta?.pendingRemoteSave &&
+              !serverMatchesCache &&
+              pendingCacheIsNewerThanServer,
           );
 
           if (!serverMatchesCache && !keepPendingCache) {
@@ -1256,7 +1248,7 @@ function useJarvisStoreInternal() {
     return () => {
       isMounted = false;
     };
-  }, [status, session?.user?.id]);
+  }, [scheduleSyncStatus, status, session?.user?.id]);
 
   useEffect(() => {
     if (!hydrated || !readyRef.current) return;
@@ -1265,7 +1257,8 @@ function useJarvisStoreInternal() {
     const stateJson = JSON.stringify(state);
     const saveSignature = `${context.storageKey}:${stateJson}`;
     if (lastLocalSaveRef.current === saveSignature) return;
-    persistLocalSnapshot(state, { pendingRemoteSave: context.isAuthenticated });
+    const needsRemoteSave = context.isAuthenticated && lastRemoteSaveRef.current !== saveSignature;
+    persistLocalSnapshot(state, { pendingRemoteSave: needsRemoteSave });
   }, [state, hydrated, status, session?.user?.id, persistLocalSnapshot]);
 
   useEffect(() => {
@@ -1279,15 +1272,14 @@ function useJarvisStoreInternal() {
     if (lastRemoteSaveRef.current === saveSignature) return;
 
     if (!canUseNetwork()) {
-      setSyncStatus((current) => ({ ...current, remote: "offline" }));
+      scheduleSyncStatus((current) => ({ ...current, remote: "offline" }));
       return;
     }
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(async () => {
-      setSyncStatus((current) => ({ ...current, remote: "saving", error: undefined }));
-      try {
-        const result = await saveStateToServer(state, { signal: controller.signal });
+    scheduleSyncStatus((current) => ({ ...current, remote: "saving", error: undefined }));
+    void saveStateToServer(state, { signal: controller.signal })
+      .then((result) => {
         if (controller.signal.aborted) return;
         const syncedAt = Date.now();
         const meta = readStoredMeta(context.metaKey);
@@ -1306,7 +1298,8 @@ function useJarvisStoreInternal() {
           lastRemoteSavedAt: syncedAt,
           error: undefined,
         }));
-      } catch (error) {
+      })
+      .catch((error) => {
         if (controller.signal.aborted) return;
         console.warn("Jarvis state save failed", error);
         const meta = readStoredMeta(context.metaKey);
@@ -1323,13 +1316,11 @@ function useJarvisStoreInternal() {
           remote: canUseNetwork() ? "error" : "offline",
           error: getErrorMessage(error),
         }));
-      }
-    }, getSaveDelayMs());
+      });
     return () => {
       controller.abort();
-      window.clearTimeout(timeout);
     };
-  }, [state, hydrated, status, session?.user?.id, networkRetryTick]);
+  }, [state, hydrated, scheduleSyncStatus, status, session?.user?.id, networkRetryTick]);
 
   useEffect(() => {
     if (!hydrated || !readyRef.current) return;
@@ -1337,12 +1328,17 @@ function useJarvisStoreInternal() {
     function flushPendingRemoteSave() {
       const context = buildStorageContext(status, session?.user?.id);
       if (lastUserRef.current !== context.userKey) return;
-      persistLocalSnapshot(stateRef.current, { pendingRemoteSave: context.isAuthenticated });
-      if (!context.isAuthenticated || !canUseNetwork()) return;
 
       const stateJson = JSON.stringify(stateRef.current);
       const saveSignature = `${context.storageKey}:${stateJson}`;
-      if (lastRemoteSaveRef.current === saveSignature) return;
+      const meta = readStoredMeta(context.metaKey);
+      const needsRemoteSave = Boolean(
+        context.isAuthenticated &&
+          (meta?.pendingRemoteSave || lastRemoteSaveRef.current !== saveSignature),
+      );
+      persistLocalSnapshot(stateRef.current, { pendingRemoteSave: needsRemoteSave });
+      if (!needsRemoteSave || !canUseNetwork()) return;
+
       if (queueStateSaveBeacon(stateRef.current)) {
         setSyncStatus((current) => ({ ...current, remote: "saving", error: undefined }));
       }
