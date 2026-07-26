@@ -21,13 +21,13 @@ export default async function V2Layout({
     redirect("/login");
   }
   return (
-    <div className="app-shell flex min-h-dvh flex-col bg-[radial-gradient(circle_at_top,#1b2235,#060912)] text-zinc-50 lg:flex-row">
-      <Sidebar basePath="/v2" />
-      <JarvisStateProvider>
+    <JarvisStateProvider>
+      <div className="app-shell flex min-h-dvh flex-col bg-[radial-gradient(circle_at_top,#1b2235,#060912)] text-zinc-50 lg:flex-row">
+        <Sidebar basePath="/v2" />
         <main className="mx-auto flex-1 min-w-0 w-full max-w-7xl px-4 pb-24 pt-20 sm:px-6 sm:pb-20 sm:pt-16 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
           {children}
         </main>
-      </JarvisStateProvider>
-    </div>
+      </div>
+    </JarvisStateProvider>
   );
 }
