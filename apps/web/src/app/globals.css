@@ -10,6 +10,14 @@
   --accent: #67e8f9;
   --accent-strong: #818cf8;
   --shadow: 0 24px 80px rgba(2, 6, 23, 0.35);
+  --jarvis-mobile-nav-height: calc(env(safe-area-inset-bottom, 0px) + 6rem);
+}
+
+
+@media (min-width: 1024px) {
+  :root {
+    --jarvis-mobile-nav-height: 0px;
+  }
 }
 
 @theme inline {
@@ -109,8 +117,30 @@ html[data-theme="light"] .surface-card {
   border-color: rgba(15, 23, 42, 0.1);
 }
 
+.jarvis-mobile-nav {
+  bottom: calc(env(safe-area-inset-bottom, 0px) * -1);
+  background-color: rgba(2, 6, 23, 0.96);
+}
+
 .scheduled-block {
   color: #f8fafc;
+}
+
+.planner-board-scroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.planner-board-dragging {
+  cursor: grabbing;
+  overscroll-behavior: contain;
+}
+
+.planner-drag-handle,
+.planner-resize-handle {
+  -webkit-user-select: none;
+  touch-action: none;
+  user-select: none;
 }
 
 html[data-theme="light"] .scheduled-block {

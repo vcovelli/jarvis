@@ -30,6 +30,7 @@ Optional integration variables:
 
 - OPENAI_API_KEY enables server transcription when the browser cannot do speech recognition directly.
 - OPENAI_TRANSCRIPTION_MODEL defaults to `gpt-4o-mini-transcribe`.
+- OPENAI_INTENT_MODEL controls fuzzy assistant intent parsing and defaults to `gpt-5`.
 - PLAID_ENV, PLAID_CLIENT_ID, and PLAID_SECRET enable Plaid Link in the finance dashboard.
 - PLAID_PRODUCTS defaults to `transactions,investments`; add `liabilities` later if Plaid access is approved and the UI is extended for debts.
 - PLAID_COUNTRY_CODES defaults to `US`.
@@ -56,6 +57,8 @@ Jarvis is configured as an installable web app with a manifest, standalone displ
 ## Voice and finance integrations
 
 Voice action starts from the center mic in the mobile bottom bar or the Assistant page. The browser Speech Recognition API is used first for fast command capture. If the browser does not support it, Jarvis records a short audio clip and posts it to `/api/assistant/transcribe`, which uses OpenAI when `OPENAI_API_KEY` is configured. The transcript is routed through the existing assistant command flow, so voice-created items still show the normal confirmation card before they are saved.
+
+The assistant now has a shared intent layer in `src/lib/assistantIntent.ts`. Typed or spoken commands first try the fast local parser, then fall through to `/api/assistant/intent` for fuzzy parsing. That route can use OpenAI when configured and falls back to deterministic local parsing when it is not. Supported fuzzy intents include adding tasks, moving tasks across dates, changing task priority or schedule, completing tasks, logging mood, logging sleep, adding journal notes, and asking for basic insights from current Jarvis and finance data. Task commands strip date, time, duration, and priority metadata from the saved title, so a phrase like `add a task for 5:30pm today for dinner high priority` becomes `Dinner` at `17:30` with high priority. Ambiguous meal or evening times infer PM; breakfast and morning infer AM.
 
 Finance data is intentionally separate from the local-first Jarvis state blob. Plaid access tokens are stored only on the server in `FinancialConnection.accessTokenEncrypted`, protected by `FINANCIAL_DATA_KEY` or `NEXTAUTH_SECRET`. Accounts, transactions, and investment holdings sync into dedicated Prisma tables and are exposed through `/api/finance/summary`. The first version is read-only: Jarvis can connect, sync, display, and analyze data, but it cannot move money.
 

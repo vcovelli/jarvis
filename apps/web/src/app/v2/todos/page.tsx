@@ -116,6 +116,7 @@ export default function TodosPage() {
     toggleTodo,
     updateTodoPriority,
     updateTodo,
+    moveTodo,
     deleteTodo,
     reorderTodos,
     updateTodoSchedule,
@@ -123,10 +124,11 @@ export default function TodosPage() {
     toggleMustWin,
   } = useJarvisState();
   const search = useSearchParams();
-  const focusTodoId = search?.get("focus") ?? undefined;
+  const initialFocusTodoId = search?.get("focus") ?? undefined;
   const focusDay = search?.get("day");
   const todayKey = getDayKey();
   const [selectedDay, setSelectedDay] = useState<DayKey>(() => readStoredDayKey(todayKey));
+  const [focusedTodoId, setFocusedTodoId] = useState<string | undefined>(() => initialFocusTodoId);
   const todaysMustWin = state.mustWin[selectedDay];
   const [text, setText] = useState("");
   const [priority, setPriority] = useState<TodoPriority>(1);
@@ -141,6 +143,7 @@ export default function TodosPage() {
   const [editText, setEditText] = useState("");
   const [editPriority, setEditPriority] = useState<TodoPriority>(1);
   const [editTimeblock, setEditTimeblock] = useState<Timeblock | undefined>();
+  const [editDay, setEditDay] = useState<DayKey>(() => selectedDay);
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
   const [editColor, setEditColor] = useState<string>(defaultBlockColor);
@@ -211,6 +214,12 @@ export default function TodosPage() {
   const jumpToToday = useCallback(() => {
     setSelectedDay(todayKey);
   }, [todayKey]);
+
+  const focusTodoOnPage = useCallback((id: string) => {
+    setFocusedTodoId(undefined);
+    requestAnimationFrame(() => setFocusedTodoId(id));
+  }, []);
+
 
   const submitTask = useCallback(() => {
     const trimmed = text.trim();
@@ -286,6 +295,7 @@ export default function TodosPage() {
       setEditText(todo.text);
       setEditPriority(todo.priority);
       setEditTimeblock(todo.timeblockMins);
+      setEditDay(selectedDay);
       setEditStartTime(todo.startTime ?? "");
       setEditEndTime(buildEndTime(todo.startTime ?? "", todo.timeblockMins));
       setEditColor(todo.color ?? defaultBlockColor);
@@ -293,19 +303,20 @@ export default function TodosPage() {
       setApplyToSeries(false);
       setPanelMode("edit");
     },
-    [],
+    [selectedDay],
   );
 
   const cancelEdit = useCallback(() => {
     setEditingId(null);
     setEditText("");
+    setEditDay(selectedDay);
     setEditStartTime("");
     setEditEndTime("");
     setEditTimeblock(undefined);
     setEditColor(defaultBlockColor);
     setEditIcon(defaultTaskIcon);
     setApplyToSeries(false);
-  }, []);
+  }, [selectedDay]);
 
   const closePanel = useCallback(() => {
     setPanelMode(null);
@@ -389,6 +400,7 @@ export default function TodosPage() {
     const trimmed = editText.trim();
     if (!trimmed) return;
     const computedTimeblock = computeTimeblockFromTimes(editStartTime, editEndTime);
+    const targetDay = normalizeDayKey(editDay, selectedDay);
     const updates = {
       text: trimmed,
       priority: editPriority,
@@ -397,6 +409,20 @@ export default function TodosPage() {
       color: editColor,
       icon: editIcon,
     };
+
+    if (targetDay !== selectedDay) {
+      moveTodo({
+        fromDay: selectedDay,
+        id: editingId,
+        toDay: targetDay,
+        updates,
+      });
+      setSelectedDay(targetDay);
+      showToast(`Todo moved to ${formatTaskPanelDate(targetDay)}`);
+      closePanel();
+      return;
+    }
+
     const targets =
       applyToSeries && seriesTargets.length
         ? seriesTargets
@@ -426,7 +452,9 @@ export default function TodosPage() {
     editEndTime,
     editColor,
     editIcon,
+    editDay,
     selectedDay,
+    moveTodo,
     updateTodo,
     showToast,
     closePanel,
@@ -481,6 +509,10 @@ export default function TodosPage() {
     const frame = requestAnimationFrame(() => setSelectedDay(normalizeDayKey(focusDay)));
     return () => cancelAnimationFrame(frame);
   }, [focusDay]);
+
+  useEffect(() => {
+    setFocusedTodoId(initialFocusTodoId);
+  }, [initialFocusTodoId]);
 
   useEffect(() => {
     writePlannerPreference(PLANNER_SELECTED_DAY_KEY, selectedDay);
@@ -562,6 +594,13 @@ export default function TodosPage() {
       onTextChange: setEditText,
       priority: editPriority,
       onPriorityChange: setEditPriority,
+      day: editDay,
+      onDayChange: (day) => {
+        setEditDay(day);
+        if (day !== selectedDay) {
+          setApplyToSeries(false);
+        }
+      },
       timeblock: editTimeblock,
       startTime: editStartTime,
       onStartTimeChange: handleEditStartTimeChange,
@@ -578,9 +617,9 @@ export default function TodosPage() {
       onSubmit: submitEdit,
       submitLabel: "Save changes",
       onDelete: () => handleDelete(editingId),
-      applyToSeries: hasSeriesTargets ? applyToSeries : undefined,
-      onApplyToSeriesChange: hasSeriesTargets ? setApplyToSeries : undefined,
-      seriesCount: hasSeriesTargets ? seriesTargets.length : undefined,
+      applyToSeries: hasSeriesTargets && editDay === selectedDay ? applyToSeries : undefined,
+      onApplyToSeriesChange: hasSeriesTargets && editDay === selectedDay ? setApplyToSeries : undefined,
+      seriesCount: hasSeriesTargets && editDay === selectedDay ? seriesTargets.length : undefined,
     };
   }
 
@@ -595,6 +634,8 @@ export default function TodosPage() {
           onOpenCalendar={() => setCalendarOpen(true)}
           onAddTask={openAddPanel}
           onEdit={beginEdit}
+          highlightId={focusedTodoId}
+          onFocusTodo={focusTodoOnPage}
           onToggle={(id) => toggleTodo({ day: selectedDay, id })}
           onShiftDay={handleShiftDay}
           onJumpToday={jumpToToday}
@@ -604,7 +645,7 @@ export default function TodosPage() {
             todos={todosForDay}
             selectedDay={selectedDay}
             isToday={selectedDay === todayKey}
-            highlightId={focusTodoId}
+            highlightId={focusedTodoId}
             weekDays={weekDays}
             onScheduleChange={(id, updates) =>
               updateTodoSchedule({ day: selectedDay, id, ...updates })
@@ -632,12 +673,13 @@ export default function TodosPage() {
             onEdit={(todo) => beginEdit(todo)}
             onDelete={(id) => handleDelete(id)}
             onReorder={handleReorder}
-            highlightId={focusTodoId}
+            highlightId={focusedTodoId}
             onToggle={(id) => toggleTodo({ day: selectedDay, id })}
             onCyclePriority={(id, next) =>
               updateTodoPriority({ day: selectedDay, id, priority: next })
             }
             onAddTask={openAddPanel}
+            onFocusTodo={focusTodoOnPage}
           />
         </div>
 
@@ -694,6 +736,7 @@ type DesktopPlannerRailProps = {
   onToggle: (id: string) => void;
   onCyclePriority: (id: string, next: TodoPriority) => void;
   onAddTask: () => void;
+  onFocusTodo: (id: string) => void;
 };
 
 function DesktopPlannerRail({
@@ -714,6 +757,7 @@ function DesktopPlannerRail({
   onToggle,
   onCyclePriority,
   onAddTask,
+  onFocusTodo,
 }: DesktopPlannerRailProps) {
   const isToday = selectedDay === todayKey;
   const events = useMemo(() => buildTimelineEvents(todos), [todos]);
@@ -757,7 +801,14 @@ function DesktopPlannerRail({
         </div>
       </section>
 
-      {isToday && <NowStatusCard nowMinutes={nowMinutes} context={nowContext} compact />}
+      {isToday && (
+        <NowStatusCard
+          nowMinutes={nowMinutes}
+          context={nowContext}
+          compact
+          onCurrentTaskClick={(todo) => onFocusTodo(todo.id)}
+        />
+      )}
 
       <MustWinCard
         selectedDay={selectedDay}
@@ -1237,6 +1288,8 @@ type DayTimelineProps = {
   onOpenCalendar: () => void;
   onAddTask: () => void;
   onEdit: (todo: TodoItem) => void;
+  highlightId?: string;
+  onFocusTodo: (id: string) => void;
   onToggle: (id: string) => void;
   onShiftDay: (delta: number) => void;
   onJumpToday: () => void;
@@ -1251,15 +1304,23 @@ function DayTimeline({
   onOpenCalendar,
   onAddTask,
   onEdit,
+  highlightId,
+  onFocusTodo,
   onToggle,
   onShiftDay,
   onJumpToday,
 }: DayTimelineProps) {
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(() => readStoredTimelineMode());
+  const highlightRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     writePlannerPreference(PLANNER_TIMELINE_MODE_KEY, timelineMode);
   }, [timelineMode]);
+
+  useEffect(() => {
+    if (!highlightId || !highlightRef.current) return;
+    highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightId, timelineMode]);
 
   const events = useMemo(() => buildTimelineEvents(todos), [todos]);
   const scheduledEvents = useMemo(
@@ -1347,7 +1408,16 @@ function DayTimeline({
           </button>
         </div>
 
-        {isToday && <NowStatusCard nowMinutes={nowMinutes} context={nowContext} />}
+        {isToday && (
+          <NowStatusCard
+            nowMinutes={nowMinutes}
+            context={nowContext}
+            onCurrentTaskClick={(todo) => {
+              setTimelineMode("schedule");
+              onFocusTodo(todo.id);
+            }}
+          />
+        )}
 
         <div className="flex flex-wrap gap-2">
           {(["list", "schedule"] as const).map((mode) => (
@@ -1408,6 +1478,9 @@ function DayTimeline({
               {scheduleSegments.length > 0 ? (
                 <div className="space-y-3">
                   {scheduleSegments.map((segment) => {
+                    const isTaskSegment = segment.type === "task";
+                    const isHighlighted =
+                      isTaskSegment && segment.event.todo.id === highlightId;
                     const isCurrentSegment = isToday && isMinuteWithinSegment(nowMinutes, segment);
                     const segmentHeight =
                       segment.type === "task"
@@ -1420,11 +1493,28 @@ function DayTimeline({
                     return (
                       <div
                         key={`${segment.type}-${segment.startMinutes}-${segment.endMinutes}`}
+                        ref={isHighlighted ? highlightRef : undefined}
+                        role={isTaskSegment ? "button" : undefined}
+                        tabIndex={isTaskSegment ? 0 : undefined}
+                        onClick={isTaskSegment ? () => onEdit(segment.event.todo) : undefined}
+                        onKeyDown={
+                          isTaskSegment
+                            ? (keyEvent) => {
+                                if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
+                                keyEvent.preventDefault();
+                                onEdit(segment.event.todo);
+                              }
+                            : undefined
+                        }
                         className={`relative overflow-hidden rounded-3xl border px-4 py-4 transition ${
                           segment.type === "gap"
                             ? "border-dashed border-white/20 bg-white/5 text-white/60"
                             : "border border-white/10 bg-black/30 text-white"
-                        } ${isCurrentSegment ? "ring-2 ring-red-500/70" : ""}`}
+                        } ${isCurrentSegment ? "ring-2 ring-red-500/70" : isHighlighted ? "ring-2 ring-cyan-300/70" : ""} ${
+                          isTaskSegment
+                            ? "cursor-pointer hover:border-cyan-300/50 hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-cyan-300/50"
+                            : ""
+                        }`}
                         style={segmentStyle}
                       >
                         {isCurrentSegment && (
@@ -1461,7 +1551,10 @@ function DayTimeline({
                               {segment.type === "task" && (
                                 <button
                                   type="button"
-                                  onClick={() => onToggle(segment.event.todo.id)}
+                                  onClick={(eventClick) => {
+                                    eventClick.stopPropagation();
+                                    onToggle(segment.event.todo.id);
+                                  }}
                                   aria-pressed={segment.event.todo.done}
                                   className={`min-h-10 rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] transition ${
                                     segment.event.todo.done
@@ -1502,61 +1595,116 @@ function DayTimeline({
             </div>
           ) : (
             <div className="space-y-5">
-              {events.map((event) => (
-                <button
-                  key={event.id}
-                  type="button"
-                  onClick={() => onEdit(event.todo)}
-                  className="group flex w-full items-start gap-4 rounded-3xl border border-white/10 bg-black/30 px-4 py-4 text-left transition hover:border-cyan-300/40 hover:bg-white/5"
-                >
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-white/5 text-lg font-semibold text-white" style={{ backgroundColor: event.color }}>
-                    {event.iconSymbol}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-white">{event.title}</span>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.3em] text-white/70">
-                        {priorityLabel(event.todo.priority)}
-                      </span>
+              {events.map((event) => {
+                const isHighlighted = event.todo.id === highlightId;
+                return (
+                  <div
+                    key={event.id}
+                    ref={isHighlighted ? highlightRef : undefined}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onEdit(event.todo)}
+                    onKeyDown={(keyEvent) => {
+                      if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
+                      keyEvent.preventDefault();
+                      onEdit(event.todo);
+                    }}
+                    className={`group flex w-full items-start gap-4 rounded-3xl border border-white/10 bg-black/30 px-4 py-4 text-left transition hover:border-cyan-300/40 hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-cyan-300/50 ${
+                      isHighlighted ? "ring-2 ring-cyan-300/70" : ""
+                    }`}
+                  >
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-white/5 text-lg font-semibold text-white" style={{ backgroundColor: event.color }}>
+                      {event.iconSymbol}
                     </div>
-                    <p className="mt-2 text-[11px] leading-5 text-white/70">
-                      {event.window}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.25em] text-white/60">
-                      <span>{event.durationLabel ?? "Scheduled"}</span>
-                      <span>{event.todo.done ? "Completed" : "Open"}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-white">{event.title}</span>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.3em] text-white/70">
+                          {priorityLabel(event.todo.priority)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[11px] leading-5 text-white/70">
+                        {event.window}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.25em] text-white/60">
+                        <span>{event.durationLabel ?? "Scheduled"}</span>
+                        <span>{event.todo.done ? "Completed" : "Open"}</span>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(eventClick) => {
+                        eventClick.stopPropagation();
+                        onToggle(event.todo.id);
+                      }}
+                      aria-pressed={event.todo.done}
+                      className={`ml-auto min-h-10 shrink-0 rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] transition ${
+                        event.todo.done
+                          ? "bg-emerald-300 text-emerald-950"
+                          : "border border-emerald-300/50 bg-emerald-300/10 text-emerald-100 hover:border-emerald-300"
+                      }`}
+                    >
+                      {event.todo.done ? "Done" : "Mark done"}
+                    </button>
                   </div>
-                  <div className="ml-auto flex items-center">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 cursor-pointer accent-emerald-300"
-                      checked={event.todo.done}
-                      onClick={(eventClick) => eventClick.stopPropagation()}
-                      onChange={() => onToggle(event.todo.id)}
-                    />
-                  </div>
-                </button>
-              ))}
+                );
+              })}
               {unscheduledTasks.length > 0 && (
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-white/80">
                   <p className="text-sm font-semibold text-white">Unscheduled tasks</p>
                   <div className="mt-3 space-y-3">
-                    {unscheduledTasks.map((todo) => (
-                      <div key={todo.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                        <div>
-                          <p className="text-sm font-semibold text-white">{todo.text}</p>
-                          <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">{priorityLabel(todo.priority)}</p>
-                        </div>
-                        <button
-                          type="button"
+                    {unscheduledTasks.map((todo) => {
+                      const isHighlighted = todo.id === highlightId;
+                      return (
+                        <div
+                          key={todo.id}
+                          ref={isHighlighted ? highlightRef : undefined}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => onEdit(todo)}
-                          className="rounded-full border border-cyan-300/40 px-3 py-1 text-[10px] font-semibold text-cyan-200 hover:border-cyan-300"
+                          onKeyDown={(keyEvent) => {
+                            if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
+                            keyEvent.preventDefault();
+                            onEdit(todo);
+                          }}
+                          className={`flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:border-cyan-300/40 hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-cyan-300/50 ${
+                            isHighlighted ? "ring-2 ring-cyan-300/70" : ""
+                          }`}
                         >
-                          Schedule
-                        </button>
-                      </div>
-                    ))}
+                          <div className="min-w-0 flex-1">
+                            <p className="break-words text-sm font-semibold text-white">{todo.text}</p>
+                            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">{priorityLabel(todo.priority)}</p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={(eventClick) => {
+                                eventClick.stopPropagation();
+                                onToggle(todo.id);
+                              }}
+                              aria-pressed={todo.done}
+                              className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] transition ${
+                                todo.done
+                                  ? "bg-emerald-300 text-emerald-950"
+                                  : "border border-emerald-300/50 bg-emerald-300/10 text-emerald-100 hover:border-emerald-300"
+                              }`}
+                            >
+                              {todo.done ? "Done" : "Mark done"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(eventClick) => {
+                                eventClick.stopPropagation();
+                                onEdit(todo);
+                              }}
+                              className="rounded-full border border-cyan-300/40 px-3 py-1 text-[10px] font-semibold text-cyan-200 hover:border-cyan-300"
+                            >
+                              Schedule
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1624,6 +1772,8 @@ type DragState = {
   type: "move" | "resize";
   startMinutes: number;
   durationMinutes: number;
+  pointerId: number;
+  clientY: number;
   pointerOffset?: number;
 };
 
@@ -1645,6 +1795,8 @@ function TimeBlockingBoard({
 }: TimeBlockingBoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
   const boardScrollRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const blocks = useMemo(() => buildScheduledBlocks(todos, dragState), [todos, dragState]);
   const totalPlannedMinutes = blocks.reduce((sum, block) => sum + block.durationMinutes, 0);
@@ -1660,6 +1812,11 @@ function TimeBlockingBoard({
     month: "long",
     day: "numeric",
   });
+  const activeDragPointerId = dragState?.pointerId;
+
+  useEffect(() => {
+    dragStateRef.current = dragState;
+  }, [dragState]);
 
   useEffect(() => {
     if (!isToday) {
@@ -1682,54 +1839,97 @@ function TimeBlockingBoard({
   }, [isToday, selectedDay]);
 
   useEffect(() => {
-    function handleMove(event: PointerEvent) {
-      if (!dragState) return;
-      const minutes = pointerToMinutes(event, boardRef.current);
-      if (minutes === null) return;
-      if (dragState.type === "move" && dragState.pointerOffset !== undefined) {
-        const proposed = minutes - dragState.pointerOffset;
-        const start = clampMinutes(proposed, dragState.durationMinutes);
-        setDragState((current) => (current ? { ...current, startMinutes: start } : current));
-      }
-      if (dragState.type === "resize") {
-        const duration = Math.max(SLOT_MINUTES, minutes - dragState.startMinutes);
-        const snapped = snapToSlot(duration);
-        const clamped = Math.min(snapped, DAY_MINUTES - dragState.startMinutes);
-        setDragState((current) => (current ? { ...current, durationMinutes: clamped } : current));
-      }
-    }
+    if (activeDragPointerId === undefined) return undefined;
 
-    function handleUp() {
-      if (!dragState) return;
-      onScheduleChange(dragState.id, {
-        startTime: minutesToTimeString(snapToSlot(dragState.startMinutes)),
-        timeblockMins: snapToSlot(dragState.durationMinutes),
+    const updateFromClientY = (clientY: number) => {
+      setDragState((current) => {
+        if (!current || current.pointerId !== activeDragPointerId) return current;
+        return updateDragStateFromClientY(current, clientY, boardRef.current);
       });
-      setDragState(null);
-    }
+    };
 
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
+    const finishDrag = (event?: PointerEvent) => {
+      if (event && event.pointerId !== activeDragPointerId) return;
+      event?.preventDefault();
+      const current = dragStateRef.current;
+      if (current && current.pointerId === activeDragPointerId) {
+        onScheduleChange(current.id, {
+          startTime: minutesToTimeString(snapToSlot(current.startMinutes)),
+          timeblockMins: snapToSlot(current.durationMinutes),
+        });
+      }
+      setDragState(null);
+    };
+
+    const handleMove = (event: PointerEvent) => {
+      if (event.pointerId !== activeDragPointerId) return;
+      event.preventDefault();
+      updateFromClientY(event.clientY);
+    };
+
+    const handleScroll = () => {
+      const current = dragStateRef.current;
+      if (!current || current.pointerId !== activeDragPointerId) return;
+      updateFromClientY(current.clientY);
+    };
+
+    const runAutoScroll = () => {
+      const current = dragStateRef.current;
+      const scrollParent = boardScrollRef.current;
+      if (!current || current.pointerId !== activeDragPointerId || !scrollParent) {
+        autoScrollFrameRef.current = null;
+        return;
+      }
+
+      const rect = scrollParent.getBoundingClientRect();
+      const edgeSize = 80;
+      let delta = 0;
+      if (current.clientY < rect.top + edgeSize) {
+        const proximity = (rect.top + edgeSize - current.clientY) / edgeSize;
+        delta = -Math.ceil(6 + proximity * 18);
+      } else if (current.clientY > rect.bottom - edgeSize) {
+        const proximity = (current.clientY - (rect.bottom - edgeSize)) / edgeSize;
+        delta = Math.ceil(6 + proximity * 18);
+      }
+
+      if (delta !== 0) {
+        const previousScrollTop = scrollParent.scrollTop;
+        const maxScrollTop = scrollParent.scrollHeight - scrollParent.clientHeight;
+        scrollParent.scrollTop = Math.min(Math.max(previousScrollTop + delta, 0), maxScrollTop);
+        if (scrollParent.scrollTop !== previousScrollTop) {
+          updateFromClientY(current.clientY);
+        }
+      }
+
+      autoScrollFrameRef.current = requestAnimationFrame(runAutoScroll);
+    };
+
+    const scrollParent = boardScrollRef.current;
+    window.addEventListener("pointermove", handleMove, { passive: false });
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", finishDrag);
+    scrollParent?.addEventListener("scroll", handleScroll, { passive: true });
+    autoScrollFrameRef.current = requestAnimationFrame(runAutoScroll);
+
     return () => {
       window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+      scrollParent?.removeEventListener("scroll", handleScroll);
+      if (autoScrollFrameRef.current !== null) {
+        cancelAnimationFrame(autoScrollFrameRef.current);
+        autoScrollFrameRef.current = null;
+      }
     };
-  }, [dragState, onScheduleChange]);
+  }, [activeDragPointerId, onScheduleChange]);
 
   useEffect(() => {
     if (!highlightId || !highlightRef.current) return;
     highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [highlightId]);
 
-  useEffect(() => {
-    if (!dragState) return undefined;
-    document.body.classList.add("scroll-locked");
-    return () => {
-      document.body.classList.remove("scroll-locked");
-    };
-  }, [dragState]);
-
   const handleDragStart = (event: React.PointerEvent, todo: TodoItem, type: "move" | "resize") => {
+    if (event.pointerType === "touch" && !event.isPrimary) return;
     if (!todo.startTime || !todo.timeblockMins) return;
     const startMinutes = parseTimeToMinutes(todo.startTime);
     if (startMinutes === null) return;
@@ -1739,12 +1939,14 @@ function TimeBlockingBoard({
       event.currentTarget.setPointerCapture(event.pointerId);
     }
     const pointer = pointerToMinutes(event.nativeEvent, boardRef.current);
-    const pointerOffset = pointer ? pointer - startMinutes : 0;
+    const pointerOffset = pointer !== null ? pointer - startMinutes : 0;
     setDragState({
       id: todo.id,
       type,
       startMinutes,
       durationMinutes: todo.timeblockMins,
+      pointerId: event.pointerId,
+      clientY: event.clientY,
       pointerOffset,
     });
   };
@@ -1838,7 +2040,12 @@ function TimeBlockingBoard({
           </div>
         </div>
       </div>
-      <div ref={boardScrollRef} className="mt-5 max-h-[calc(100dvh-17rem)] overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40">
+      <div
+        ref={boardScrollRef}
+        className={`planner-board-scroll mt-5 max-h-[calc(100dvh-17rem)] overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40 ${
+          dragState ? "planner-board-dragging" : ""
+        }`}
+      >
         <div ref={boardRef} className="relative min-w-[360px]" style={{ height: BOARD_HEIGHT }}>
           <div className="absolute inset-y-0 left-0 w-16 border-r border-white/5 bg-black/30 text-[11px] uppercase tracking-[0.3em] text-zinc-500">
             {HOUR_LABELS.map((hour) => (
@@ -1897,8 +2104,16 @@ function TimeBlockingBoard({
                     <div
                       key={block.id}
                       ref={highlight ? highlightRef : undefined}
-                      onPointerDown={(event) => handleDragStart(event, block.originalTodo, "move")}
-                      className={`scheduled-block group absolute left-4 right-4 z-10 cursor-grab overflow-hidden rounded-2xl border px-3 text-xs shadow-lg ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""} ${
+                      role={onEditRequest ? "button" : undefined}
+                      tabIndex={onEditRequest ? 0 : undefined}
+                      onClick={() => onEditRequest?.(block.originalTodo)}
+                      onKeyDown={(keyEvent) => {
+                        if (!onEditRequest) return;
+                        if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
+                        keyEvent.preventDefault();
+                        onEditRequest(block.originalTodo);
+                      }}
+                      className={`scheduled-block group absolute left-4 right-4 z-10 cursor-pointer overflow-hidden rounded-2xl border px-3 text-xs shadow-lg focus:outline-none focus:ring-2 focus:ring-cyan-300/50 ${blockClass} ${highlight ? "ring-2 ring-cyan-300/70" : ""} ${
                         isCompact ? "py-1" : "py-2"
                       }`}
                       style={{
@@ -1917,7 +2132,18 @@ function TimeBlockingBoard({
                           showLabel={false}
                         />
                       )}
-                      <div className="absolute right-3 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                      <button
+                        type="button"
+                        aria-label={`Move ${block.label}`}
+                        className={`planner-drag-handle absolute right-2 top-1/2 z-30 flex -translate-y-1/2 cursor-grab items-center justify-center rounded-full bg-black/35 font-semibold leading-none text-white/85 opacity-90 shadow-lg transition hover:bg-black/70 hover:text-white active:cursor-grabbing ${
+                          isTiny ? "h-5 w-8 text-[9px]" : "h-8 w-8 text-[10px]"
+                        }`}
+                        onPointerDown={(event) => handleDragStart(event, block.originalTodo, "move")}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        ⋮⋮
+                      </button>
+                      <div className="pointer-events-none absolute right-12 top-2 flex gap-1 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
                         <button
                           type="button"
                           className="rounded-full bg-black/30 px-2 py-1 text-[10px] font-semibold text-white/80 hover:bg-black/70"
@@ -1943,15 +2169,26 @@ function TimeBlockingBoard({
                           Delete
                         </button>
                       </div>
-                      <div className="flex h-full items-center gap-2 text-left">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 cursor-pointer accent-emerald-300"
-                          checked={block.originalTodo.done}
-                          onClick={(eventClick) => eventClick.stopPropagation()}
+                      <div className="flex h-full items-center gap-2 pr-10 text-left">
+                        <button
+                          type="button"
+                          aria-label={`${block.originalTodo.done ? "Reopen" : "Mark done"} ${block.label}`}
+                          aria-pressed={block.originalTodo.done}
+                          className={`relative z-20 flex shrink-0 items-center justify-center rounded-full border font-semibold transition ${
+                            isTiny ? "h-5 w-5 text-[10px]" : "h-8 w-8 text-sm"
+                          } ${
+                            block.originalTodo.done
+                              ? "border-white/80 bg-white text-emerald-800"
+                              : "border-white/55 bg-black/20 text-white/80 hover:border-white hover:bg-black/35"
+                          }`}
                           onPointerDown={(eventClick) => eventClick.stopPropagation()}
-                          onChange={() => onToggle(block.id)}
-                        />
+                          onClick={(eventClick) => {
+                            eventClick.stopPropagation();
+                            onToggle(block.id);
+                          }}
+                        >
+                          {block.originalTodo.done ? "✓" : ""}
+                        </button>
                         <div className="pointer-events-none flex min-w-0 flex-col justify-center gap-1">
                           <p
                             className={`truncate font-semibold uppercase tracking-[0.15em] ${
@@ -1971,12 +2208,15 @@ function TimeBlockingBoard({
                           )}
                         </div>
                       </div>
-                      <div
-                        className="absolute bottom-0.5 left-1/2 h-1.5 w-10 -translate-x-1/2 cursor-ns-resize rounded-full bg-white/60"
+                      <button
+                        type="button"
+                        aria-label={`Resize ${block.label}`}
+                        className="planner-resize-handle absolute bottom-0.5 left-1/2 h-2.5 w-16 -translate-x-1/2 cursor-ns-resize rounded-full bg-white/65 transition hover:bg-white/90"
                         onPointerDown={(event) => {
                           event.stopPropagation();
                           handleDragStart(event, block.originalTodo, "resize");
                         }}
+                        onClick={(event) => event.stopPropagation()}
                       />
                     </div>
                   );
@@ -2066,14 +2306,12 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
                 >
                   ⋮⋮
                 </span>
-                <label className="flex min-w-0 flex-1 items-start gap-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 cursor-pointer accent-cyan-300"
-                    checked={todo.done}
-                    onChange={() => onToggle(todo.id)}
-                  />
-                  <div className="min-w-0 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => onEdit(todo)}
+                  className="flex min-w-0 flex-1 items-start gap-3 rounded-xl text-left transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-cyan-300/40"
+                >
+                  <div className="min-w-0 space-y-1 px-1 py-1">
                     <div className="flex items-center gap-2">
                       {todo.color && (
                         <span
@@ -2089,8 +2327,20 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
                       {buildTodoMeta(todo)}
                     </p>
                   </div>
-                </label>
+                </button>
                 <div className={`flex w-full flex-wrap gap-2 ${isRail ? "" : "sm:w-auto sm:justify-end"}`}>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(todo.id)}
+                    aria-pressed={todo.done}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      todo.done
+                        ? "bg-emerald-300 text-emerald-950"
+                        : "border border-emerald-300/50 bg-emerald-300/10 text-emerald-100 hover:border-emerald-300"
+                    }`}
+                  >
+                    {todo.done ? "Done" : "Mark done"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => onCyclePriority(todo.id, nextPriority(todo.priority))}
@@ -2133,6 +2383,8 @@ function TaskPanel({
   onTextChange,
   priority,
   onPriorityChange,
+  day,
+  onDayChange,
   timeblock,
   startTime,
   onStartTimeChange,
@@ -2247,6 +2499,17 @@ function TaskPanel({
               </span>
             </div>
             <div className="mt-4 space-y-4">
+              {day && onDayChange && (
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-zinc-400">
+                  <span className="pl-1">Date</span>
+                  <input
+                    type="date"
+                    value={day}
+                    onChange={(event) => onDayChange(event.target.value as DayKey)}
+                    className="w-full rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+                  />
+                </label>
+              )}
               <TimeRangeSelector
                 startTime={startTime}
                 endTime={endTime}
@@ -2486,10 +2749,12 @@ function NowStatusCard({
   nowMinutes,
   context,
   compact = false,
+  onCurrentTaskClick,
 }: {
   nowMinutes: number;
   context: NowPlannerContext;
   compact?: boolean;
+  onCurrentTaskClick?: (todo: TodoItem) => void;
 }) {
   const current = context.currentSegment;
   const progressPercent = current
@@ -2500,8 +2765,10 @@ function NowStatusCard({
   if (current?.type === "task") {
     const remaining = getWholeMinutesRemaining(current.endMinutes, nowMinutes);
     const elapsed = getWholeMinutesElapsed(current.startMinutes, nowMinutes);
-    return (
-      <div className={`rounded-3xl border border-red-500/50 bg-red-500/10 p-4 text-white shadow-lg shadow-red-950/20 ${compact ? "lg:max-w-xl" : ""}`}>
+    const clickable = Boolean(onCurrentTaskClick);
+    const className = `w-full rounded-3xl border border-red-500/50 bg-red-500/10 p-4 text-left text-white shadow-lg shadow-red-950/20 transition ${clickable ? "hover:border-red-300/70 hover:bg-red-500/15" : ""} ${compact ? "lg:max-w-xl" : ""}`;
+    const content = (
+      <>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-red-200">Now • {currentLabel}</p>
@@ -2519,7 +2786,15 @@ function NowStatusCard({
           <span>{formatPlannedDuration(remaining)} left</span>
           <span>{formatMinutesLabel(current.startMinutes)} to {formatMinutesLabel(current.endMinutes)}</span>
         </div>
-      </div>
+      </>
+    );
+    if (!clickable) {
+      return <div className={className}>{content}</div>;
+    }
+    return (
+      <button type="button" className={className} onClick={() => onCurrentTaskClick?.(current.event.todo)}>
+        {content}
+      </button>
     );
   }
 
@@ -2609,6 +2884,8 @@ type TaskPanelState = {
   onTextChange: (value: string) => void;
   priority: TodoPriority;
   onPriorityChange: (value: TodoPriority) => void;
+  day?: DayKey;
+  onDayChange?: (value: DayKey) => void;
   timeblock?: Timeblock;
   startTime: string;
   onStartTimeChange: (value: string) => void;
@@ -2638,6 +2915,13 @@ type TaskPanelState = {
   onApplyToSeriesChange?: (value: boolean) => void;
   seriesCount?: number;
 };
+
+function formatTaskPanelDate(day: DayKey) {
+  return dayKeyToDate(day).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
 
 function readStoredDayKey(fallback: DayKey): DayKey {
   if (typeof window === "undefined") return fallback;
@@ -3251,11 +3535,45 @@ function getMobileGapHeight(durationMinutes: number) {
 }
 
 function pointerToMinutes(event: PointerEvent, element: HTMLDivElement | null) {
+  return clientYToMinutes(event.clientY, element);
+}
+
+function clientYToMinutes(clientY: number, element: HTMLDivElement | null) {
   if (!element) return null;
   const rect = element.getBoundingClientRect();
-  const y = Math.min(Math.max(event.clientY - rect.top, 0), BOARD_HEIGHT);
+  const y = Math.min(Math.max(clientY - rect.top, 0), BOARD_HEIGHT);
   const slot = Math.round(y / SLOT_HEIGHT);
   return slotToMinutes(slot);
+}
+
+function updateDragStateFromClientY(
+  current: DragState,
+  clientY: number,
+  element: HTMLDivElement | null,
+): DragState {
+  const minutes = clientYToMinutes(clientY, element);
+  if (minutes === null) return current;
+
+  if (current.type === "move" && current.pointerOffset !== undefined) {
+    const proposed = minutes - current.pointerOffset;
+    return {
+      ...current,
+      clientY,
+      startMinutes: clampMinutes(proposed, current.durationMinutes),
+    };
+  }
+
+  if (current.type === "resize") {
+    const duration = Math.max(SLOT_MINUTES, minutes - current.startMinutes);
+    const snapped = snapToSlot(duration);
+    return {
+      ...current,
+      clientY,
+      durationMinutes: Math.min(snapped, DAY_MINUTES - current.startMinutes),
+    };
+  }
+
+  return { ...current, clientY };
 }
 
 function snapToSlot(minutes: number) {
