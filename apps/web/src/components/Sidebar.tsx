@@ -7,6 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 
 import { applyTheme, getStoredTheme, onThemeChange, type ThemeMode } from "@/lib/theme";
 import { useJarvisState, type StateSyncStatus } from "@/lib/jarvisStore";
+import { assistantVoiceToggleEvent } from "@/lib/assistantVoiceEvents";
 
 type NavLink = {
   href: string;
@@ -86,6 +87,17 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
     return item.activeFor?.includes(activeRoot) ?? activeRoot === pathOnly;
   }
 
+  const onAssistantPage = activeRoot === "/assistant";
+  const mobileVoiceClass = "flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold text-cyan-100 transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-200/70";
+  const mobileVoiceContent = (
+    <>
+      <span className="flex h-14 w-14 items-center justify-center rounded-full border border-cyan-200/60 bg-cyan-300 text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.32)]">
+        <MicrophoneIcon className="h-6 w-6" />
+      </span>
+      <span className="truncate">Voice</span>
+    </>
+  );
+
   const navItems = (items: NavLink[], dense = false, onNavigate?: () => void) =>
     items.map((item) => {
       const active = isActive(item);
@@ -154,22 +166,30 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       </aside>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/88 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.45rem)] pt-2 shadow-[0_-18px_50px_rgba(2,6,23,0.4)] backdrop-blur-2xl lg:hidden"
+        className="jarvis-mobile-nav fixed inset-x-0 bottom-0 z-40 h-[var(--jarvis-mobile-nav-height)] border-t border-white/10 bg-slate-950/88 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.45rem)] pt-2 shadow-[0_-18px_50px_rgba(2,6,23,0.4)] backdrop-blur-2xl lg:hidden"
         aria-label="Primary mobile navigation"
       >
-        <div className="mx-auto grid max-w-xl grid-cols-5 items-end gap-1">
+        <div className="mx-auto grid h-full max-w-xl grid-cols-5 items-end gap-1">
           <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
           <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
-          <Link
-            href={buildHref("/assistant?voice=1")}
-            aria-label="Start voice action"
-            className="flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold text-cyan-100 transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-200/70"
-          >
-            <span className="flex h-14 w-14 items-center justify-center rounded-full border border-cyan-200/60 bg-cyan-300 text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.32)]">
-              <MicrophoneIcon className="h-6 w-6" />
-            </span>
-            <span className="truncate">Voice</span>
-          </Link>
+          {onAssistantPage ? (
+            <button
+              type="button"
+              aria-label="Toggle voice action"
+              onClick={() => window.dispatchEvent(new Event(assistantVoiceToggleEvent))}
+              className={mobileVoiceClass}
+            >
+              {mobileVoiceContent}
+            </button>
+          ) : (
+            <Link
+              href={buildHref("/assistant?voice=1")}
+              aria-label="Start voice action"
+              className={mobileVoiceClass}
+            >
+              {mobileVoiceContent}
+            </Link>
+          )}
           <MobileBarLink item={mobileLinks[2]} active={isActive(mobileLinks[2])} href={buildHref(mobileLinks[2].href)} />
           <button
             type="button"

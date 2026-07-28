@@ -447,6 +447,15 @@ type Action =
         updates: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime" | "color" | "icon">>;
       };
     }
+  | {
+      type: "MOVE_TODO";
+      payload: {
+        fromDay: DayKey;
+        id: string;
+        toDay: DayKey;
+        updates?: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime" | "color" | "icon">>;
+      };
+    }
   | { type: "TOGGLE_TODO"; payload: { day: DayKey; id: string } }
   | { type: "UPDATE_TODO_PRIORITY"; payload: { day: DayKey; id: string; priority: TodoPriority } }
   | { type: "REORDER_TODOS"; payload: { day: DayKey; orderedIds: string[] } }
@@ -833,6 +842,25 @@ function reducer(state: JarvisState, action: Action): JarvisState {
           [action.payload.day]: todosForDay.map((todo) =>
             todo.id === action.payload.id ? { ...todo, ...action.payload.updates } : todo,
           ),
+        },
+      };
+    }
+    case "MOVE_TODO": {
+      const sourceTodos = state.todos[action.payload.fromDay] ?? [];
+      const todo = sourceTodos.find((item) => item.id === action.payload.id);
+      if (!todo) return state;
+      const toDay = normalizeDayKey(action.payload.toDay);
+      const moved: TodoItem = {
+        ...todo,
+        ...action.payload.updates,
+        day: toDay,
+      };
+      return {
+        ...state,
+        todos: {
+          ...state.todos,
+          [action.payload.fromDay]: sourceTodos.filter((item) => item.id !== action.payload.id),
+          [toDay]: [moved, ...(state.todos[toDay] ?? [])],
         },
       };
     }
@@ -1511,6 +1539,18 @@ function useJarvisStoreInternal() {
     [],
   );
 
+  const moveTodo = useCallback(
+    (payload: {
+      fromDay: DayKey;
+      id: string;
+      toDay: DayKey;
+      updates?: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime" | "color" | "icon">>;
+    }) => {
+      dispatch({ type: "MOVE_TODO", payload });
+    },
+    [],
+  );
+
   const reorderTodos = useCallback((payload: { day: DayKey; orderedIds: string[] }) => {
     dispatch({ type: "REORDER_TODOS", payload });
   }, []);
@@ -1604,6 +1644,7 @@ function useJarvisStoreInternal() {
     toggleTodo,
     updateTodoPriority,
     updateTodo,
+    moveTodo,
     deleteTodo,
     reorderTodos,
     updateTodoSchedule,

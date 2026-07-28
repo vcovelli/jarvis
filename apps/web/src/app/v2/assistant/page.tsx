@@ -1,24 +1,49 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
 import {
   Day,
   DayKey,
+  JarvisState,
   MoodTag,
+  TodoItem,
   TodoPriority,
+  Timeblock,
   dayKeyToDate,
   defaultMoodTags,
   getDayKey,
   useJarvisState,
 } from "@/lib/jarvisStore";
 import { useToast } from "@/components/Toast";
-import { formatMinutesLabel, parseTimeToMinutes } from "@/lib/timeDisplay";
+import { assistantVoiceToggleEvent } from "@/lib/assistantVoiceEvents";
+import {
+  findTodoTarget,
+  type AssistantContextPayload,
+  type AssistantIntentResult,
+  type AssistantIntentTodoTarget,
+  type AssistantTodoCandidate,
+} from "@/lib/assistantIntent";
+import { formatMinutesLabel, minutesToTimeString, parseTimeToMinutes } from "@/lib/timeDisplay";
 
 type Message = {
   id: string;
   role: "user" | "assistant";
   text: string;
+};
+
+type TodoActionTarget = AssistantIntentTodoTarget;
+
+type TodoUpdatePayload = {
+  target?: TodoActionTarget;
+  updates: {
+    text?: string;
+    day?: DayKey;
+    startTime?: string;
+    endTime?: string;
+    timeblockMins?: number;
+    priority?: TodoPriority;
+  };
 };
 
 type PendingAction =
@@ -69,7 +94,24 @@ type PendingAction =
         notes?: string;
       };
       missing: Array<"duration" | "quality">;
+    }
+  | {
+      type: "todo-update";
+      payload: TodoUpdatePayload;
+      missing: Array<"target" | "change">;
+    }
+  | {
+      type: "todo-complete";
+      payload: {
+        target?: TodoActionTarget;
+        done?: boolean;
+      };
+      missing: Array<"target">;
     };
+
+type TodoDraftAction = Extract<PendingAction, { type: "todo" }>;
+type DayOption = { value: DayKey; label: string };
+type StyleSuggestion = { icon: string; color: string };
 
 type VoiceStatus = "idle" | "listening" | "processing" | "error";
 
@@ -117,6 +159,11 @@ declare global {
 const TOTAL_MINUTES = 24 * 60;
 const DIAL_MINUTES = 12 * 60;
 const DEFAULT_DURATION = 8 * 60;
+const RECORDED_VOICE_MAX_MS = 60000;
+const SPEECH_VOICE_MAX_MS = 60000;
+const SPEECH_SILENCE_SUBMIT_MS = 4500;
+const SPEECH_RESTART_LIMIT = 8;
+const durationPresets: Timeblock[] = [15, 30, 45, 60, 90, 120];
 const CLOCK_SIZE = 340;
 const CLOCK_RADIUS = 130;
 const timeblockOptions = buildStartTimeOptions(15);
@@ -166,6 +213,13 @@ const repeatDayLabels: Array<{ day: Day; label: string }> = [
   { day: 6, label: "Sat" },
 ];
 const repeatHorizonDays = 60;
+const assistantExamplePrompts = [
+  "add dinner today at 5:30pm high priority",
+  "move budget review to tomorrow at 9am",
+  "complete grocery list",
+  "log mood 7 calm note: steady day",
+  "how am I doing this week?",
+];
 type RepeatType = "none" | "weekly" | "monthly";
 
 export default function AssistantPage() {
@@ -174,6 +228,9 @@ export default function AssistantPage() {
     logMood,
     addJournal,
     addTodo,
+    toggleTodo,
+    updateTodo,
+    moveTodo,
     logSleep,
     addMoodTag,
     renameMoodTag,
@@ -193,9 +250,15 @@ export default function AssistantPage() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceAutoPrompted, setVoiceAutoPrompted] = useState(false);
+  const [intentStatus, setIntentStatus] = useState<"idle" | "thinking">("idle");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const speechErrorRef = useRef(false);
   const voiceTranscriptRef = useRef("");
+  const voiceSilenceTimerRef = useRef<number | null>(null);
+  const voiceRestartTimerRef = useRef<number | null>(null);
+  const speechRestartCountRef = useRef(0);
+  const voiceSubmitRequestedRef = useRef(false);
+  const voiceHardStopRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -220,6 +283,7 @@ export default function AssistantPage() {
     () => moodTagOptions.map((tag) => tag.toLowerCase()),
     [moodTagOptions],
   );
+  const assistantContext = useMemo(() => buildAssistantContext(state), [state]);
 
   useEffect(() => {
     const node = conversationRef.current;
@@ -234,15 +298,75 @@ export default function AssistantPage() {
     ]);
   }, []);
 
+  const applyIntentResult = useCallback(
+    (result: AssistantIntentResult) => {
+      if (result.kind === "insight") {
+        appendMessage("assistant", result.assistantMessage ?? result.summary);
+        return;
+      }
+      if (result.kind === "unsupported") {
+        appendMessage(
+          "assistant",
+          result.clarification ?? "I can help with tasks, sleep, mood, journal, and insights.",
+        );
+        return;
+      }
+
+      const action = buildPendingActionFromIntent(result, assistantContext);
+      if (!action) {
+        appendMessage("assistant", result.clarification ?? "I need one more detail to do that.");
+        return;
+      }
+      if (action.missing.length) {
+        setPending(action);
+        setDraft(null);
+        appendMessage("assistant", result.clarification ?? buildClarifier(action));
+        return;
+      }
+      setPending(null);
+      setDraft(action);
+      appendMessage("assistant", `I understood: ${result.summary}. Review the details below and confirm.`);
+    },
+    [appendMessage, assistantContext],
+  );
+
+  const requestFuzzyIntent = useCallback(
+    async (trimmed: string) => {
+      setIntentStatus("thinking");
+      try {
+        const response = await fetch("/api/assistant/intent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: trimmed, context: assistantContext }),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.error ?? `Intent parsing failed with ${response.status}`);
+        }
+        if (!data?.result) {
+          throw new Error("Assistant intent parser did not return a result.");
+        }
+        applyIntentResult(data.result as AssistantIntentResult);
+        return true;
+      } catch (error) {
+        appendMessage("assistant", getIntentErrorMessage(error));
+        return false;
+      } finally {
+        setIntentStatus("idle");
+      }
+    },
+    [appendMessage, applyIntentResult, assistantContext],
+  );
+
   const submitCommand = useCallback(
-    (rawInput: string) => {
+    async (rawInput: string, options?: { preferIntent?: boolean }) => {
       const trimmed = rawInput.trim();
       if (!trimmed) return;
       setInput("");
       appendMessage("user", trimmed);
 
       if (pending) {
-        const resolved = applyAnswer(pending, trimmed);
+        const resolved = applyAnswer(pending, trimmed, assistantContext);
         if (resolved.missing.length) {
           setPending(resolved);
           appendMessage("assistant", buildClarifier(resolved));
@@ -259,16 +383,22 @@ export default function AssistantPage() {
         return;
       }
 
+      if (options?.preferIntent) {
+        const handled = await requestFuzzyIntent(trimmed);
+        if (handled) return;
+      }
+
       const parsed = parseCommand(trimmed, knownMoodTags);
       if (!parsed) {
-        appendMessage(
-          "assistant",
-          "I can help log mood, journal, sleep, or todos. Try 'help' for examples.",
-        );
+        await requestFuzzyIntent(trimmed);
         return;
       }
 
       if (parsed.missing.length) {
+        if (parsed.type === "mood" && !options?.preferIntent) {
+          const handled = await requestFuzzyIntent(trimmed);
+          if (handled) return;
+        }
         setPending(parsed);
         setDraft(null);
         appendMessage("assistant", buildClarifier(parsed));
@@ -278,24 +408,40 @@ export default function AssistantPage() {
       setDraft(parsed);
       appendMessage("assistant", "Review the details below and confirm.");
     },
-    [appendMessage, knownMoodTags, pending],
+    [appendMessage, assistantContext, knownMoodTags, pending, requestFuzzyIntent],
   );
 
   const handleSubmit = useCallback(() => {
-    submitCommand(input);
+    void submitCommand(input);
   }, [input, submitCommand]);
 
-  const stopMediaCapture = useCallback(() => {
+  const clearVoiceTimers = useCallback(() => {
     if (voiceStopTimerRef.current !== null) {
       window.clearTimeout(voiceStopTimerRef.current);
       voiceStopTimerRef.current = null;
     }
+    if (voiceSilenceTimerRef.current !== null) {
+      window.clearTimeout(voiceSilenceTimerRef.current);
+      voiceSilenceTimerRef.current = null;
+    }
+    if (voiceRestartTimerRef.current !== null) {
+      window.clearTimeout(voiceRestartTimerRef.current);
+      voiceRestartTimerRef.current = null;
+    }
+  }, []);
+
+  const stopMediaCapture = useCallback(() => {
+    clearVoiceTimers();
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
-  }, []);
+  }, [clearVoiceTimers]);
 
   const submitVoiceTranscript = useCallback(
     (transcript: string) => {
+      clearVoiceTimers();
+      voiceSubmitRequestedRef.current = false;
+      voiceHardStopRef.current = false;
+      speechRestartCountRef.current = 0;
       const trimmed = transcript.trim();
       if (!trimmed) {
         setVoiceStatus("error");
@@ -304,9 +450,9 @@ export default function AssistantPage() {
       }
       setVoiceTranscript(trimmed);
       setVoiceStatus("idle");
-      submitCommand(trimmed);
+      void submitCommand(trimmed, { preferIntent: true });
     },
-    [submitCommand],
+    [clearVoiceTimers, submitCommand],
   );
 
   const transcribeRecordedAudio = useCallback(
@@ -376,11 +522,14 @@ export default function AssistantPage() {
 
       recorder.start();
       setVoiceStatus("listening");
+      voiceSubmitRequestedRef.current = false;
+      voiceHardStopRef.current = false;
       voiceStopTimerRef.current = window.setTimeout(() => {
+        voiceHardStopRef.current = true;
         if (recorder.state === "recording") {
           recorder.stop();
         }
-      }, 30000);
+      }, RECORDED_VOICE_MAX_MS);
     } catch (error) {
       setVoiceStatus("error");
       setVoiceError(getVoiceCaptureError(error));
@@ -390,9 +539,13 @@ export default function AssistantPage() {
 
   const startVoiceCapture = useCallback(async () => {
     if (voiceStatus === "listening" || voiceStatus === "processing") return;
+    clearVoiceTimers();
     setVoiceError(null);
     setVoiceTranscript("");
     voiceTranscriptRef.current = "";
+    voiceSubmitRequestedRef.current = false;
+    voiceHardStopRef.current = false;
+    speechRestartCountRef.current = 0;
 
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
@@ -400,54 +553,123 @@ export default function AssistantPage() {
       return;
     }
 
-    try {
-      const recognition = new Recognition();
-      let finalTranscript = "";
-      speechErrorRef.current = false;
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = navigator.language || "en-US";
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => setVoiceStatus("listening");
-      recognition.onresult = (event) => {
-        let interimTranscript = "";
-        for (let index = event.resultIndex; index < event.results.length; index += 1) {
-          const result = event.results[index];
-          const transcript = result[0]?.transcript ?? "";
-          if (result.isFinal) {
-            finalTranscript = `${finalTranscript} ${transcript}`.trim();
-          } else {
-            interimTranscript = `${interimTranscript} ${transcript}`.trim();
-          }
-        }
-        const nextTranscript = `${finalTranscript} ${interimTranscript}`.trim();
-        voiceTranscriptRef.current = nextTranscript;
-        setVoiceTranscript(nextTranscript);
-      };
-      recognition.onerror = (event) => {
-        speechErrorRef.current = true;
-        recognitionRef.current = null;
-        setVoiceStatus("error");
-        setVoiceError(getSpeechRecognitionError(event.error));
-      };
-      recognition.onend = () => {
-        recognitionRef.current = null;
-        if (speechErrorRef.current) return;
-        setVoiceStatus("processing");
-        submitVoiceTranscript(voiceTranscriptRef.current);
-      };
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (error) {
-      recognitionRef.current = null;
-      await startRecordedVoiceCapture();
-      if (error instanceof Error && error.name !== "InvalidStateError") {
-        console.warn("Speech recognition failed; falling back to recorded transcription", error);
+    let finalTranscript = "";
+
+    const clearSilenceTimer = () => {
+      if (voiceSilenceTimerRef.current !== null) {
+        window.clearTimeout(voiceSilenceTimerRef.current);
+        voiceSilenceTimerRef.current = null;
       }
-    }
-  }, [startRecordedVoiceCapture, submitVoiceTranscript, voiceStatus]);
+    };
+
+    const requestTranscriptSubmit = () => {
+      voiceSubmitRequestedRef.current = true;
+      clearSilenceTimer();
+      const activeRecognition = recognitionRef.current;
+      if (activeRecognition) {
+        activeRecognition.stop();
+        return;
+      }
+      setVoiceStatus("processing");
+      submitVoiceTranscript(voiceTranscriptRef.current);
+    };
+
+    const scheduleSilenceSubmit = () => {
+      clearSilenceTimer();
+      voiceSilenceTimerRef.current = window.setTimeout(
+        requestTranscriptSubmit,
+        SPEECH_SILENCE_SUBMIT_MS,
+      );
+    };
+
+    const startRecognition = () => {
+      try {
+        const recognition = new Recognition();
+        speechErrorRef.current = false;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = navigator.language || "en-US";
+        recognition.maxAlternatives = 1;
+        recognition.onstart = () => setVoiceStatus("listening");
+        recognition.onresult = (event) => {
+          let interimTranscript = "";
+          for (let index = event.resultIndex; index < event.results.length; index += 1) {
+            const result = event.results[index];
+            const transcript = result[0]?.transcript ?? "";
+            if (result.isFinal) {
+              finalTranscript = `${finalTranscript} ${transcript}`.trim();
+            } else {
+              interimTranscript = `${interimTranscript} ${transcript}`.trim();
+            }
+          }
+          const nextTranscript = `${finalTranscript} ${interimTranscript}`.trim();
+          voiceTranscriptRef.current = nextTranscript;
+          setVoiceTranscript(nextTranscript);
+          if (nextTranscript) scheduleSilenceSubmit();
+        };
+        recognition.onerror = (event) => {
+          recognitionRef.current = null;
+          const hasTranscript = Boolean(voiceTranscriptRef.current.trim());
+          if (event.error === "no-speech" && hasTranscript) {
+            speechErrorRef.current = true;
+            voiceSubmitRequestedRef.current = true;
+            clearVoiceTimers();
+            setVoiceStatus("processing");
+            submitVoiceTranscript(voiceTranscriptRef.current);
+            return;
+          }
+          speechErrorRef.current = true;
+          clearVoiceTimers();
+          setVoiceStatus("error");
+          setVoiceError(getSpeechRecognitionError(event.error));
+        };
+        recognition.onend = () => {
+          recognitionRef.current = null;
+          if (speechErrorRef.current) return;
+          const shouldSubmit =
+            voiceSubmitRequestedRef.current ||
+            voiceHardStopRef.current ||
+            speechRestartCountRef.current >= SPEECH_RESTART_LIMIT;
+          if (shouldSubmit) {
+            clearVoiceTimers();
+            setVoiceStatus("processing");
+            submitVoiceTranscript(voiceTranscriptRef.current);
+            return;
+          }
+          speechRestartCountRef.current += 1;
+          voiceRestartTimerRef.current = window.setTimeout(() => {
+            voiceRestartTimerRef.current = null;
+            startRecognition();
+          }, 150);
+        };
+        recognitionRef.current = recognition;
+        recognition.start();
+      } catch (error) {
+        recognitionRef.current = null;
+        clearVoiceTimers();
+        if (voiceTranscriptRef.current.trim()) {
+          setVoiceStatus("processing");
+          submitVoiceTranscript(voiceTranscriptRef.current);
+          return;
+        }
+        void startRecordedVoiceCapture();
+        if (error instanceof Error && error.name !== "InvalidStateError") {
+          console.warn("Speech recognition failed; falling back to recorded transcription", error);
+        }
+      }
+    };
+
+    voiceStopTimerRef.current = window.setTimeout(() => {
+      voiceHardStopRef.current = true;
+      requestTranscriptSubmit();
+    }, SPEECH_VOICE_MAX_MS);
+
+    startRecognition();
+  }, [clearVoiceTimers, startRecordedVoiceCapture, submitVoiceTranscript, voiceStatus]);
 
   const stopVoiceCapture = useCallback(() => {
+    voiceSubmitRequestedRef.current = true;
+    clearVoiceTimers();
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       return;
@@ -455,10 +677,27 @@ export default function AssistantPage() {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
-  }, []);
+  }, [clearVoiceTimers]);
+
+  const toggleVoiceCapture = useCallback(() => {
+    if (voiceStatus === "listening") {
+      stopVoiceCapture();
+      return;
+    }
+    if (voiceStatus === "processing" || intentStatus === "thinking") return;
+    void startVoiceCapture();
+  }, [intentStatus, startVoiceCapture, stopVoiceCapture, voiceStatus]);
+
+  useEffect(() => {
+    const handleAssistantVoiceToggle = () => toggleVoiceCapture();
+    window.addEventListener(assistantVoiceToggleEvent, handleAssistantVoiceToggle);
+    return () => window.removeEventListener(assistantVoiceToggleEvent, handleAssistantVoiceToggle);
+  }, [toggleVoiceCapture]);
 
   useEffect(() => {
     return () => {
+      voiceSubmitRequestedRef.current = true;
+      speechErrorRef.current = true;
       recognitionRef.current?.abort();
       stopMediaCapture();
     };
@@ -561,11 +800,58 @@ export default function AssistantPage() {
           showToast("Sleep logged");
           break;
         }
+        case "todo-update": {
+          const target = resolveTodoCandidate(action.payload.target, assistantContext.todos);
+          if (!target) {
+            appendMessage("assistant", "I couldn't match that task. Try naming the task more specifically.");
+            return;
+          }
+          const updates = buildTodoUpdateFields(action.payload);
+          const nextDay = action.payload.updates.day ?? target.day;
+          const hasFieldUpdates = Object.keys(updates).length > 0;
+          if (!hasFieldUpdates && nextDay === target.day) {
+            appendMessage("assistant", "I need a time, day, priority, or title change for that task.");
+            return;
+          }
+          if (nextDay !== target.day) {
+            moveTodo({ fromDay: target.day, id: target.id, toDay: nextDay, updates });
+          } else {
+            updateTodo({ day: target.day, id: target.id, updates });
+          }
+          appendMessage("assistant", buildTodoUpdateActionSummary(target, action.payload));
+          showToast("Task updated");
+          break;
+        }
+        case "todo-complete": {
+          const target = resolveTodoCandidate(action.payload.target, assistantContext.todos);
+          if (!target) {
+            appendMessage("assistant", "I couldn't match that task. Try naming the task more specifically.");
+            return;
+          }
+          const shouldBeDone = action.payload.done ?? true;
+          if (target.done !== shouldBeDone) {
+            toggleTodo({ day: target.day, id: target.id });
+          }
+          appendMessage("assistant", `${shouldBeDone ? "Completed" : "Reopened"}: ${target.text}.`);
+          showToast(shouldBeDone ? "Task completed" : "Task reopened");
+          break;
+        }
         default:
           break;
       }
     },
-    [addJournal, addTodo, appendMessage, logMood, logSleep, showToast],
+    [
+      addJournal,
+      addTodo,
+      appendMessage,
+      assistantContext.todos,
+      logMood,
+      logSleep,
+      moveTodo,
+      showToast,
+      toggleTodo,
+      updateTodo,
+    ],
   );
 
   const moodValue = draft?.type === "mood" ? draft.payload.mood ?? 5 : 5;
@@ -631,8 +917,18 @@ export default function AssistantPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+    <div
+      className={`grid gap-5 ${
+        draft
+          ? "lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.78fr)] xl:grid-cols-[minmax(0,0.9fr)_minmax(460px,0.72fr)]"
+          : "xl:grid-cols-[minmax(0,1fr)_360px]"
+      }`}
+    >
+      <section
+        className={`glass-panel rounded-[28px] border border-white/10 bg-white/[0.055] p-4 backdrop-blur-xl sm:p-5 lg:p-6 ${
+          draft ? "hidden lg:block" : "block"
+        }`}
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Assistant</p>
@@ -652,6 +948,7 @@ export default function AssistantPage() {
 
         <VoiceActionPanel
           status={voiceStatus}
+          intentStatus={intentStatus}
           transcript={voiceTranscript}
           error={voiceError}
           onStart={() => void startVoiceCapture()}
@@ -727,6 +1024,19 @@ export default function AssistantPage() {
           ))}
         </div>
 
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {assistantExamplePrompts.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => setInput(prompt)}
+              className="shrink-0 rounded-full border border-cyan-300/20 bg-cyan-300/8 px-3 py-2 text-[11px] font-semibold text-cyan-50/80 transition hover:border-cyan-200/50 hover:text-white"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+
         <div
           ref={conversationRef}
           className="mt-6 max-h-[420px] space-y-3 overflow-y-auto pr-2"
@@ -766,372 +1076,108 @@ export default function AssistantPage() {
             <p className="mt-1">{buildPendingSummary(pending)}</p>
           </div>
         )}
-        {draft && (
-          <div className="mt-5 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-4 text-sm text-white">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
-                  Confirm {draft.type}
-                </p>
-                <p className="mt-1 text-sm text-white/90">
-                  {draft.type === "sleep"
-                    ? `Duration ${formatDuration(
-                        draft.payload.durationMins ?? DEFAULT_DURATION,
-                      )}, quality ${draft.payload.quality ?? "?"}, recovery ${
-                        draft.payload.recoveryScore ?? "?"
-                      }.`
-                    : buildPendingSummary(draft)}
-                </p>
-              </div>
+        {!draft && (
+          <form
+            className="mt-6 flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSubmit();
+            }}
+          >
+            <input
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
+              placeholder="e.g. log mood 7 stressed note: long day"
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
+              >
+                Send
+              </button>
               <button
                 type="button"
-                onClick={() => setDraft(null)}
-                className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
+                onClick={() => {
+                  setMessages([]);
+                  setPending(null);
+                  setDraft(null);
+                  setTagManagerOpen(false);
+                  setNewTagValue("");
+                }}
+                className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white/70 hover:text-white"
               >
-                Cancel
+                Clear
               </button>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {draft.type === "todo" && (
-                <>
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
-                    Task
-                    <input
-                      value={draft.payload.text ?? ""}
-                      onChange={(event) =>
-                        setDraft((current) =>
-                          current && current.type === "todo"
-                            ? {
-                                ...current,
-                                payload: { ...current.payload, text: event.target.value },
-                              }
-                            : current,
-                        )
-                      }
-                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
-                    Day
-                    <select
-                      value={draft.payload.day ?? getDayKey()}
-                      onChange={(event) =>
-                        setDraft((current) =>
-                          current && current.type === "todo"
-                            ? {
-                                ...current,
-                                payload: {
-                                  ...current.payload,
-                                  day: event.target.value as DayKey,
-                                },
-                              }
-                            : current,
-                        )
-                      }
-                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                    >
-                      {dayOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
-                    Start time
-                    <div className="sm:hidden">
-                      <TimePillSelector
-                        label="Start time"
-                        value={draft.payload.startTime ?? ""}
-                        options={timeblockOptions}
-                        onChange={(value) =>
-                          setDraft((current) =>
-                            current && current.type === "todo"
-                              ? {
-                                  ...current,
-                                  payload: {
-                                    ...current.payload,
-                                    startTime: value,
-                                  },
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="hidden sm:block">
-                      <select
-                        value={draft.payload.startTime ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) =>
-                            current && current.type === "todo"
-                              ? {
-                                  ...current,
-                                  payload: {
-                                    ...current.payload,
-                                    startTime: event.target.value,
-                                  },
-                                }
-                              : current,
-                          )
-                        }
-                        className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                      >
-                        <option value="">--</option>
-                        {timeblockOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
-                    End time
-                    <div className="sm:hidden">
-                      <TimePillSelector
-                        label="End time"
-                        value={draft.payload.endTime ?? ""}
-                        options={timeblockOptions}
-                        onChange={(value) =>
-                          setDraft((current) =>
-                            current && current.type === "todo"
-                              ? {
-                                  ...current,
-                                  payload: {
-                                    ...current.payload,
-                                    endTime: value,
-                                  },
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="hidden sm:block">
-                      <select
-                        value={draft.payload.endTime ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) =>
-                            current && current.type === "todo"
-                              ? {
-                                  ...current,
-                                  payload: {
-                                    ...current.payload,
-                                    endTime: event.target.value,
-                                  },
-                                }
-                              : current,
-                          )
-                        }
-                        className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                      >
-                        <option value="">--</option>
-                        {timeblockOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
-                    Priority
-                    <select
-                      value={(draft.payload.priority ?? 2).toString()}
-                      onChange={(event) =>
-                        setDraft((current) =>
-                          current && current.type === "todo"
-                            ? {
-                                ...current,
-                                payload: {
-                                  ...current.payload,
-                                  priority: Number(event.target.value) as TodoPriority,
-                                },
-                              }
-                            : current,
-                        )
-                      }
-                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                    >
-                      <option value="1">High</option>
-                      <option value="2">Medium</option>
-                      <option value="3">Low</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
-                    Repeat
-                    <select
-                      value={draft.payload.repeatType ?? "none"}
-                      onChange={(event) =>
-                        setDraft((current) =>
-                          current && current.type === "todo"
-                            ? {
-                                ...current,
-                                payload: {
-                                  ...current.payload,
-                                  repeatType: event.target.value as RepeatType,
-                                  repeatWeekdays: current.payload.repeatWeekdays ?? [],
-                                  repeatMonthDay:
-                                    current.payload.repeatMonthDay ??
-                                    dayKeyToDate(current.payload.day ?? getDayKey()).getDate(),
-                                },
-                              }
-                            : current,
-                        )
-                      }
-                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                    >
-                      <option value="none">Once</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                  </label>
-                  {draft.payload.repeatType === "weekly" && (
-                    <div className="flex flex-wrap gap-2 sm:col-span-2">
-                      {repeatDayLabels.map((day) => {
-                        const active = draft.payload.repeatWeekdays?.includes(day.day);
-                        return (
-                          <button
-                            key={day.day}
-                            type="button"
-                            onClick={() =>
-                              setDraft((current) => {
-                                if (!current || current.type !== "todo") return current;
-                                const currentDays = current.payload.repeatWeekdays ?? [];
-                                const nextDays = active
-                                  ? currentDays.filter((value) => value !== day.day)
-                                  : [...currentDays, day.day];
-                                return {
-                                  ...current,
-                                  payload: { ...current.payload, repeatWeekdays: nextDays },
-                                };
-                              })
-                            }
-                            className={`rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] ${
-                              active ? "bg-emerald-300 text-zinc-900" : "border border-white/15 text-white/70"
-                            }`}
-                          >
-                            {day.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {draft.payload.repeatType === "monthly" && (
-                    <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
-                      Repeat day
-                      <select
-                        value={(draft.payload.repeatMonthDay ?? dayKeyToDate(draft.payload.day ?? getDayKey()).getDate()).toString()}
-                        onChange={(event) =>
-                          setDraft((current) =>
-                            current && current.type === "todo"
-                              ? {
-                                  ...current,
-                                  payload: {
-                                    ...current.payload,
-                                    repeatMonthDay: Number(event.target.value),
-                                  },
-                                }
-                              : current,
-                          )
-                        }
-                        className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                      >
-                        {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
-                          <option key={day} value={day}>
-                            Day {day}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70 sm:col-span-2">
-                    Color
-                    <div className="flex flex-wrap gap-2">
-                      {blockColors.map((hex) => {
-                        const active = draft.payload.color === hex;
-                        return (
-                          <button
-                            key={hex}
-                            type="button"
-                            onClick={() =>
-                              setDraft((current) =>
-                                current && current.type === "todo"
-                                  ? {
-                                      ...current,
-                                      payload: { ...current.payload, color: hex },
-                                    }
-                                  : current,
-                              )
-                            }
-                            className={`h-8 w-8 rounded-full border-2 transition ${
-                              active ? "border-white shadow-lg" : "border-white/20"
-                            }`}
-                            style={{ backgroundColor: hex }}
-                            aria-label={`Select color ${hex}`}
-                          />
-                        );
-                      })}
-                    </div>
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70 sm:col-span-2">
-                    Icon
-                    <div className="flex flex-wrap gap-2">
-                      {taskIconOptions.map((icon) => {
-                        const active = draft.payload.icon === icon.id;
-                        return (
-                          <button
-                            key={icon.id}
-                            type="button"
-                            onClick={() =>
-                              setDraft((current) =>
-                                current && current.type === "todo"
-                                  ? {
-                                      ...current,
-                                      payload: { ...current.payload, icon: icon.id },
-                                    }
-                                  : current,
-                              )
-                            }
-                            className={`flex h-9 w-9 items-center justify-center rounded-full border text-base transition ${
-                              active ? "border-white bg-white/10 text-white" : "border-white/20 text-white/70"
-                            }`}
-                            aria-label={`Select ${icon.label}`}
-                          >
-                            {icon.symbol}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70 sm:col-span-2">
-                    Custom emoji
-                    <input
-                      value={
-                        draft.payload.icon && taskIconOptions.some((option) => option.id === draft.payload.icon)
-                          ? ""
-                          : draft.payload.icon ?? ""
-                      }
-                      onChange={(event) => {
-                        const trimmed = event.target.value.trim();
-                        if (!trimmed) return;
-                        setDraft((current) =>
-                          current && current.type === "todo"
-                            ? {
-                                ...current,
-                                payload: { ...current.payload, icon: trimmed },
-                              }
-                            : current,
-                        );
-                      }}
-                      maxLength={4}
-                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                      placeholder="e.g. 🧠"
-                    />
-                  </label>
-                </>
-              )}
+          </form>
+        )}
+      </section>
+
+      {draft && (
+        <section className="min-w-0">
+        {draft?.type === "todo" && (
+          <AssistantTaskPanel
+            draft={draft}
+            dayOptions={dayOptions}
+            onChange={(payload) =>
+              setDraft((current) =>
+                current && current.type === "todo"
+                  ? {
+                      ...current,
+                      payload,
+                      missing: payload.text?.trim() ? [] : ["text"],
+                    }
+                  : current,
+              )
+            }
+            onConfirm={() => {
+              runAction(draft);
+              setDraft(null);
+            }}
+            onCancel={() => setDraft(null)}
+          />
+        )}
+        {draft && draft.type !== "todo" && (
+          <form
+            className="glass-panel flex h-[calc(100svh-var(--jarvis-mobile-nav-height)-6rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border border-emerald-300/20 bg-[#0b1121]/95 text-sm text-white shadow-2xl backdrop-blur-xl lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:min-h-0"
+            onSubmit={(event) => {
+              event.preventDefault();
+              runAction(draft);
+              setDraft(null);
+            }}
+          >
+            <div className="shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-[0.3em] text-emerald-100/70">Action editor</p>
+                  <h3 className="mt-1 text-xl font-semibold text-white sm:text-2xl">Confirm {draft.type}</h3>
+                  <p className="mt-1 text-sm text-white/80">
+                    {draft.type === "sleep"
+                      ? `Duration ${formatDuration(
+                          draft.payload.durationMins ?? DEFAULT_DURATION,
+                        )}, quality ${draft.payload.quality ?? "?"}, recovery ${
+                          draft.payload.recoveryScore ?? "?"
+                        }.`
+                      : buildPendingSummary(draft)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDraft(null)}
+                  className="shrink-0 rounded-full border border-white/20 px-3 py-2 text-sm text-white/70 hover:text-white"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 sm:py-5"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
               {draft.type === "mood" && (
                 <>
                   <div className="sm:col-span-2">
@@ -1443,93 +1489,522 @@ export default function AssistantPage() {
                   </label>
                 </>
               )}
+              {draft.type === "todo-update" && (
+                <>
+                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70 sm:col-span-2">
+                    Task to update
+                    <input
+                      value={draft.payload.target?.text ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) =>
+                          current && current.type === "todo-update"
+                            ? {
+                                ...current,
+                                payload: {
+                                  ...current.payload,
+                                  target: { ...current.payload.target, text: event.target.value },
+                                },
+                                missing: event.target.value.trim()
+                                  ? current.missing.filter((item) => item !== "target")
+                                  : current.missing,
+                              }
+                            : current,
+                        )
+                      }
+                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
+                    Day
+                    <input
+                      type="date"
+                      value={draft.payload.updates.day ?? draft.payload.target?.day ?? getDayKey()}
+                      onChange={(event) =>
+                        setDraft((current) =>
+                          current && current.type === "todo-update"
+                            ? {
+                                ...current,
+                                payload: {
+                                  ...current.payload,
+                                  updates: { ...current.payload.updates, day: event.target.value as DayKey },
+                                },
+                                missing: current.missing.filter((item) => item !== "change"),
+                              }
+                            : current,
+                        )
+                      }
+                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
+                    Start
+                    <select
+                      value={draft.payload.updates.startTime ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) =>
+                          current && current.type === "todo-update"
+                            ? {
+                                ...current,
+                                payload: {
+                                  ...current.payload,
+                                  updates: {
+                                    ...current.payload.updates,
+                                    startTime: event.target.value || undefined,
+                                  },
+                                },
+                                missing: current.missing.filter((item) => item !== "change"),
+                              }
+                            : current,
+                        )
+                      }
+                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                    >
+                      <option value="">No time</option>
+                      {timeblockOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
+                    Minutes
+                    <input
+                      type="number"
+                      min={5}
+                      step={5}
+                      value={draft.payload.updates.timeblockMins ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) =>
+                          current && current.type === "todo-update"
+                            ? {
+                                ...current,
+                                payload: {
+                                  ...current.payload,
+                                  updates: {
+                                    ...current.payload.updates,
+                                    timeblockMins: event.target.value ? Number(event.target.value) : undefined,
+                                  },
+                                },
+                                missing: current.missing.filter((item) => item !== "change"),
+                              }
+                            : current,
+                        )
+                      }
+                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70">
+                    Priority
+                    <select
+                      value={draft.payload.updates.priority ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) =>
+                          current && current.type === "todo-update"
+                            ? {
+                                ...current,
+                                payload: {
+                                  ...current.payload,
+                                  updates: {
+                                    ...current.payload.updates,
+                                    priority: event.target.value ? (Number(event.target.value) as TodoPriority) : undefined,
+                                  },
+                                },
+                                missing: current.missing.filter((item) => item !== "change"),
+                              }
+                            : current,
+                        )
+                      }
+                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                    >
+                      <option value="">Keep</option>
+                      <option value="1">High</option>
+                      <option value="2">Medium</option>
+                      <option value="3">Low</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              {draft.type === "todo-complete" && (
+                <>
+                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100/70 sm:col-span-2">
+                    Task to complete
+                    <input
+                      value={draft.payload.target?.text ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) =>
+                          current && current.type === "todo-complete"
+                            ? {
+                                ...current,
+                                payload: {
+                                  ...current.payload,
+                                  target: { ...current.payload.target, text: event.target.value },
+                                },
+                                missing: event.target.value.trim()
+                                  ? current.missing.filter((item) => item !== "target")
+                                  : current.missing,
+                              }
+                            : current,
+                        )
+                      }
+                      className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={draft.payload.done ?? true}
+                      onChange={(event) =>
+                        setDraft((current) =>
+                          current && current.type === "todo-complete"
+                            ? {
+                                ...current,
+                                payload: { ...current.payload, done: event.target.checked },
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                    Complete this task
+                  </label>
+                </>
+              )}
+              </div>
             </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!draft) return;
-                  runAction(draft);
-                  setDraft(null);
-                }}
-                className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-2 text-sm font-semibold text-zinc-900"
-              >
-                Confirm
-              </button>
-              <button
-                type="button"
-                onClick={() => setDraft(null)}
-                className="rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/70 hover:text-white"
-              >
-                Discard
-              </button>
-            </div>
-          </div>
-        )}
 
-        <form
-          className="mt-6 flex flex-col gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleSubmit();
-          }}
-        >
-          <input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
-            placeholder="e.g. log mood 7 stressed note: long day"
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
-            >
-              Send
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMessages([]);
-                setPending(null);
-                setDraft(null);
-                setTagManagerOpen(false);
-                setNewTagValue("");
-              }}
-              className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white/70 hover:text-white"
-            >
-              Clear
-            </button>
+            <div className="shrink-0 border-t border-white/10 bg-[#0b1121] px-5 pb-3 pt-3 shadow-[0_-18px_40px_rgba(2,6,23,0.45)] sm:px-6 sm:pb-4">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDraft(null)}
+                  className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white/70 hover:text-white"
+                >
+                  Discard
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+        </section>
+      )}
+
+      {!draft && (
+        <aside className="hidden min-w-0 xl:block">
+          <div className="glass-panel rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Ready actions</p>
+            <div className="mt-4 space-y-3 text-sm text-zinc-300">
+              <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                <p className="font-semibold text-white">Capture</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">Tasks, mood, sleep, journal notes, and quick updates.</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                <p className="font-semibold text-white">Adjust</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">Move tasks, change priorities, complete items, and reschedule blocks.</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                <p className="font-semibold text-white">Review</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">Ask for patterns across mood, sleep, tasks, and recent planner data.</p>
+              </div>
+            </div>
           </div>
-        </form>
-      </section>
+        </aside>
+      )}
     </div>
   );
 }
 
+function buildAssistantContext(state: JarvisState): AssistantContextPayload {
+  const today = getDayKey();
+  const now = Date.now();
+  const minDay = offsetDayKey(today, -14);
+  const maxDay = offsetDayKey(today, 45);
+  const todos = Object.entries(state.todos)
+    .flatMap(([day, items]) =>
+      items.map((todo) => ({
+        id: todo.id,
+        day,
+        text: todo.text,
+        done: todo.done,
+        priority: todo.priority,
+        startTime: todo.startTime,
+        timeblockMins: todo.timeblockMins,
+      })),
+    )
+    .filter((todo) => todo.day >= minDay && todo.day <= maxDay)
+    .sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      if (a.day !== b.day) return a.day.localeCompare(b.day);
+      return (a.startTime ?? "99:99").localeCompare(b.startTime ?? "99:99");
+    })
+    .slice(0, 90);
+  const mood = Object.entries(state.mood)
+    .flatMap(([day, logs]) => logs.map((log) => ({ day, mood: log.mood, note: log.note, tags: log.tags })))
+    .filter((log) => now - dayKeyToDate(log.day).getTime() <= 14 * 24 * 60 * 60 * 1000)
+    .slice(0, 30);
+  const sleep = Object.entries(state.sleep)
+    .flatMap(([day, entries]) =>
+      entries.map((entry) => ({
+        day,
+        durationMins: entry.durationMins,
+        quality: entry.quality,
+        recoveryScore: entry.recoveryScore,
+      })),
+    )
+    .filter((entry) => now - dayKeyToDate(entry.day).getTime() <= 14 * 24 * 60 * 60 * 1000)
+    .slice(0, 30);
+
+  return {
+    nowIso: new Date().toISOString(),
+    today,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "local",
+    todos,
+    mood,
+    sleep,
+    moodTags: Array.from(new Set([...defaultMoodTags, ...(state.moodTags ?? [])])),
+  };
+}
+
+function buildPendingActionFromIntent(
+  result: AssistantIntentResult,
+  context: AssistantContextPayload,
+): PendingAction | null {
+  switch (result.kind) {
+    case "log_mood": {
+      const mood = normalizeNumber(result.mood?.mood);
+      return {
+        type: "mood",
+        payload: {
+          mood: mood && mood >= 1 && mood <= 10 ? mood : undefined,
+          note: result.mood?.note,
+          tags: result.mood?.tags ?? [],
+        },
+        missing: mood ? [] : ["mood"],
+      };
+    }
+    case "add_journal": {
+      return {
+        type: "journal",
+        payload: {
+          text: result.journal?.text,
+          prompt: result.journal?.prompt ?? "free",
+        },
+        missing: result.journal?.text ? [] : ["text"],
+      };
+    }
+    case "add_todo": {
+      const day = normalizeIntentDay(result.todo?.day, context.today);
+      const text = result.todo?.text;
+      const style = suggestTaskStyle(text ?? "");
+      return {
+        type: "todo",
+        payload: {
+          text,
+          day,
+          startTime: result.todo?.startTime,
+          endTime: result.todo?.endTime,
+          timeblockMins: result.todo?.timeblockMins,
+          priority: normalizePriority(result.todo?.priority) ?? 2,
+          color: style.color,
+          icon: style.icon,
+          repeatType: "none",
+          repeatWeekdays: [],
+          repeatMonthDay: dayKeyToDate(day ?? getDayKey()).getDate(),
+        },
+        missing: text ? [] : ["text"],
+      };
+    }
+    case "log_sleep": {
+      return {
+        type: "sleep",
+        payload: {
+          durationMins: normalizeNumber(result.sleep?.durationMins),
+          quality: normalizeNumber(result.sleep?.quality) ?? 3,
+          recoveryScore: normalizeNumber(result.sleep?.recoveryScore),
+          day: normalizeIntentDay(result.sleep?.day, context.today),
+          startMinutes: normalizeNumber(result.sleep?.startMinutes),
+          endMinutes: normalizeNumber(result.sleep?.endMinutes),
+          notes: result.sleep?.notes,
+        },
+        missing: result.sleep?.durationMins ? [] : ["duration"],
+      };
+    }
+    case "update_todo": {
+      const target = result.todo?.target ?? findTodoTarget(result.todo?.text, context.todos);
+      const updates = {
+        text: result.todo?.text && target?.text !== result.todo.text ? result.todo.text : undefined,
+        day: normalizeIntentDay(result.todo?.day, undefined),
+        startTime: result.todo?.startTime,
+        endTime: result.todo?.endTime,
+        timeblockMins: result.todo?.timeblockMins,
+        priority: normalizePriority(result.todo?.priority),
+      };
+      return {
+        type: "todo-update",
+        payload: { target, updates },
+        missing: [
+          ...(target?.id || target?.text ? [] : ["target"] as const),
+          ...(hasTodoUpdates(updates) ? [] : ["change"] as const),
+        ],
+      };
+    }
+    case "complete_todo": {
+      const target = result.todo?.target ?? findTodoTarget(result.todo?.text, context.todos);
+      return {
+        type: "todo-complete",
+        payload: { target, done: result.todo?.done ?? true },
+        missing: target?.id || target?.text ? [] : ["target"],
+      };
+    }
+    case "clarify": {
+      if (result.todo?.target || result.todo?.text || result.todo?.priority || result.todo?.startTime || result.todo?.day) {
+        const target = result.todo.target ?? findTodoTarget(result.todo.text, context.todos);
+        return {
+          type: "todo-update",
+          payload: {
+            target: target ?? (result.todo.text ? { text: result.todo.text } : undefined),
+            updates: {
+              day: normalizeIntentDay(result.todo.day, undefined),
+              startTime: result.todo.startTime,
+              endTime: result.todo.endTime,
+              timeblockMins: result.todo.timeblockMins,
+              priority: normalizePriority(result.todo.priority),
+            },
+          },
+          missing: target?.id ? [] : ["target"],
+        };
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+function resolveTodoCandidate(
+  target: TodoActionTarget | undefined,
+  todos: AssistantTodoCandidate[],
+): AssistantTodoCandidate | undefined {
+  if (!target) return undefined;
+  if (target.id) {
+    const byId = todos.find((todo) => todo.id === target.id);
+    if (byId) return byId;
+  }
+  const fuzzy = findTodoTarget(target.text, todos);
+  if (fuzzy?.id) return todos.find((todo) => todo.id === fuzzy.id);
+  if (target.day && target.text) {
+    return todos.find(
+      (todo) => todo.day === target.day && todo.text.toLowerCase() === target.text?.toLowerCase(),
+    );
+  }
+  return undefined;
+}
+
+function buildTodoUpdateFields(payload: TodoUpdatePayload): Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime">> {
+  const computedTimeblock = computeTimeblockFromTimes(payload.updates.startTime, payload.updates.endTime);
+  return compactObject({
+    text: payload.updates.text,
+    priority: payload.updates.priority,
+    startTime: payload.updates.startTime,
+    timeblockMins: computedTimeblock ?? payload.updates.timeblockMins,
+  });
+}
+
+function buildTodoUpdateActionSummary(target: AssistantTodoCandidate, payload: TodoUpdatePayload) {
+  const pieces = [`Updated ${target.text}`];
+  if (payload.updates.day && payload.updates.day !== target.day) {
+    pieces.push(`to ${formatDayLabel(payload.updates.day)}`);
+  }
+  if (payload.updates.startTime) {
+    pieces.push(`at ${formatMinutesLabel(parseTimeToMinutes(payload.updates.startTime) ?? 0)}`);
+  }
+  if (payload.updates.timeblockMins) {
+    pieces.push(`for ${formatDuration(payload.updates.timeblockMins)}`);
+  }
+  if (payload.updates.priority) {
+    pieces.push(priorityLabel(payload.updates.priority).toLowerCase());
+  }
+  return `${pieces.join(" ")}.`;
+}
+
+function hasTodoUpdates(updates: TodoUpdatePayload["updates"]) {
+  return Boolean(updates.text || updates.day || updates.startTime || updates.endTime || updates.timeblockMins || updates.priority);
+}
+
+function normalizePriority(value: unknown): TodoPriority | undefined {
+  return value === 1 || value === 2 || value === 3 ? value : undefined;
+}
+
+function normalizeNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function normalizeIntentDay(value: unknown, fallback: DayKey | undefined): DayKey | undefined {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  return value;
+}
+
+function compactObject<T extends Record<string, unknown>>(value: T) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined && item !== ""),
+  ) as Partial<T>;
+}
+
+function offsetDayKey(dayKey: DayKey, offset: number) {
+  const date = dayKeyToDate(dayKey);
+  date.setDate(date.getDate() + offset);
+  return getDayKey(date);
+}
+
+function formatDayLabel(day: DayKey) {
+  return dayKeyToDate(day).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function getIntentErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return `I could not interpret that yet: ${error.message}`;
+  }
+  return "I could not interpret that yet.";
+}
+
 function VoiceActionPanel({
   status,
+  intentStatus,
   transcript,
   error,
   onStart,
   onStop,
 }: {
   status: VoiceStatus;
+  intentStatus: "idle" | "thinking";
   transcript: string;
   error: string | null;
   onStart: () => void;
   onStop: () => void;
 }) {
   const isListening = status === "listening";
-  const isProcessing = status === "processing";
+  const isProcessing = status === "processing" || intentStatus === "thinking";
   const statusLabel =
-    status === "listening"
-      ? "Listening"
-      : status === "processing"
-        ? "Processing"
-        : status === "error"
-          ? "Needs attention"
-          : "Ready";
+    intentStatus === "thinking"
+      ? "Thinking"
+      : status === "listening"
+        ? "Listening"
+        : status === "processing"
+          ? "Processing"
+          : status === "error"
+            ? "Needs attention"
+            : "Ready";
 
   return (
     <div className="mt-5 grid gap-4 rounded-2xl border border-cyan-300/20 bg-cyan-300/8 p-4 md:grid-cols-[auto,1fr] md:items-center">
@@ -1565,11 +2040,281 @@ function VoiceActionPanel({
           </span>
         </div>
         <p className="mt-2 min-h-6 truncate text-sm text-white/90">
-          {transcript || (isProcessing ? "Turning audio into an action..." : "Tap the mic and say a quick command.")}
+          {transcript || (isListening ? "Listening. Tap again when done." : isProcessing ? "Turning speech into an action..." : "Tap the mic and speak naturally.")}
         </p>
         {error && <p className="mt-2 text-xs text-rose-200">{error}</p>}
       </div>
     </div>
+  );
+}
+
+
+function AssistantTaskPanel({
+  draft,
+  dayOptions,
+  onChange,
+  onConfirm,
+  onCancel,
+}: {
+  draft: TodoDraftAction;
+  dayOptions: DayOption[];
+  onChange: (payload: TodoDraftAction["payload"]) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const payload = draft.payload;
+  const text = payload.text ?? "";
+  const priority = payload.priority ?? 2;
+  const startTime = payload.startTime ?? "";
+  const endTime = payload.endTime ?? "";
+  const durationMinutes = payload.timeblockMins ?? computeTimeblockFromTimes(startTime, endTime);
+  const icon = payload.icon ?? defaultTaskIcon;
+  const color = payload.color ?? defaultBlockColor;
+  const repeatType = payload.repeatType ?? "none";
+  const repeatMonthDay = payload.repeatMonthDay ?? dayKeyToDate(payload.day ?? getDayKey()).getDate();
+  const customEmojiValue = taskIconOptions.some((option) => option.id === icon) ? "" : icon;
+
+  const updatePayload = (updates: Partial<TodoDraftAction["payload"]>) => {
+    onChange({ ...payload, ...updates });
+  };
+
+  const handleTextChange = (value: string) => {
+    const suggestion = suggestTaskStyle(value);
+    const canApplySuggestion =
+      (!payload.color || payload.color === defaultBlockColor) &&
+      (!payload.icon || payload.icon === defaultTaskIcon);
+    updatePayload({
+      text: value,
+      ...(canApplySuggestion ? { color: suggestion.color, icon: suggestion.icon } : {}),
+    });
+  };
+
+  return (
+    <form
+      className="glass-panel flex h-[calc(100svh-var(--jarvis-mobile-nav-height)-6rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0b1121]/95 shadow-2xl backdrop-blur-xl lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:min-h-0"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onConfirm();
+      }}
+    >
+      <div className="shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Task editor</p>
+            <h3 className="mt-1 text-xl font-semibold text-white sm:text-2xl">Review and schedule</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="shrink-0 rounded-full border border-white/20 px-3 py-2 text-sm text-white/70 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 sm:py-5"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="flex flex-col gap-5 pb-3">
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-2xl text-white">
+                {getTaskIconSymbol(icon, text)}
+              </div>
+              <div className="flex-1">
+                <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Task</p>
+                <input
+                  value={text}
+                  onChange={(event) => handleTextChange(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-base text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+                  placeholder="Name the focus block"
+                />
+              </div>
+            </div>
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Schedule</p>
+              <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                {durationMinutes ? `${durationMinutes}m` : "No duration"}
+              </span>
+            </div>
+            <div className="mt-4 space-y-4">
+              <SelectField
+                label="Day"
+                value={payload.day ?? getDayKey()}
+                onChange={(value) =>
+                  updatePayload({
+                    day: value as DayKey,
+                    repeatMonthDay: dayKeyToDate(value as DayKey).getDate(),
+                  })
+                }
+              >
+                {dayOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectField>
+              <TimeRangeSelector
+                startTime={startTime}
+                endTime={endTime}
+                timeblock={payload.timeblockMins}
+                onStartTimeChange={(value) => {
+                  const nextEndTime = payload.timeblockMins ? buildEndTime(value, payload.timeblockMins) : endTime;
+                  updatePayload({
+                    startTime: value || undefined,
+                    endTime: nextEndTime || undefined,
+                  });
+                }}
+                onEndTimeChange={(value) => {
+                  const nextDuration = computeTimeblockFromTimes(startTime, value);
+                  updatePayload({
+                    endTime: value || undefined,
+                    timeblockMins: nextDuration ?? payload.timeblockMins,
+                  });
+                }}
+                onDurationChange={(duration) =>
+                  updatePayload({
+                    timeblockMins: duration,
+                    endTime: startTime ? buildEndTime(startTime, duration) : endTime,
+                  })
+                }
+                onClear={() =>
+                  updatePayload({
+                    startTime: undefined,
+                    endTime: undefined,
+                    timeblockMins: undefined,
+                  })
+                }
+              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SelectField
+                  label="Priority"
+                  value={priority.toString()}
+                  onChange={(value) => updatePayload({ priority: Number(value) as TodoPriority })}
+                >
+                  {[1, 2, 3].map((value) => (
+                    <option key={value} value={value}>
+                      {priorityLabel(value as TodoPriority)}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Repeat"
+                  value={repeatType}
+                  onChange={(value) =>
+                    updatePayload({
+                      repeatType: value as RepeatType,
+                      repeatWeekdays: payload.repeatWeekdays ?? [],
+                      repeatMonthDay,
+                    })
+                  }
+                >
+                  <option value="none">Once</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </SelectField>
+              </div>
+            </div>
+            {repeatType === "weekly" && (
+              <div className="mt-4 flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
+                <span className="pl-1">Repeat days</span>
+                <div className="flex flex-wrap gap-2">
+                  {repeatDayLabels.map((day) => {
+                    const active = payload.repeatWeekdays?.includes(day.day);
+                    return (
+                      <button
+                        key={day.day}
+                        type="button"
+                        onClick={() => {
+                          const currentDays = payload.repeatWeekdays ?? [];
+                          updatePayload({
+                            repeatWeekdays: active
+                              ? currentDays.filter((value) => value !== day.day)
+                              : [...currentDays, day.day],
+                          });
+                        }}
+                        className={`rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] ${
+                          active ? "bg-cyan-300 text-zinc-900" : "border border-white/15 text-white/70"
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {repeatType === "monthly" && (
+              <div className="mt-4">
+                <SelectField
+                  label="Repeat day"
+                  value={repeatMonthDay.toString()}
+                  onChange={(value) => updatePayload({ repeatMonthDay: Number(value) })}
+                >
+                  {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                    <option key={day} value={day}>
+                      Day {day}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+            )}
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Style</p>
+              <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">Suggested</span>
+            </div>
+            <div className="mt-4 space-y-4">
+              <ColorPicker colors={blockColors} value={color} onChange={(value) => updatePayload({ color: value })} />
+              <IconPicker icons={taskIconOptions} value={icon} onChange={(value) => updatePayload({ icon: value })} />
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                <CustomEmojiField
+                  value={customEmojiValue}
+                  onChange={(value) => {
+                    const trimmed = value.trim();
+                    if (!trimmed) return;
+                    updatePayload({ icon: trimmed });
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => updatePayload({ icon: defaultTaskIcon })}
+                  className="rounded-full border border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
+                >
+                  Reset icon
+                </button>
+              </div>
+            </div>
+            </section>
+
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-white/10 bg-[#0b1121] px-5 pb-3 pt-3 shadow-[0_-18px_40px_rgba(2,6,23,0.45)] sm:px-6 sm:pb-4">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white/70 hover:text-white"
+          >
+            Discard
+          </button>
+          <button
+            type="submit"
+            className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
+          >
+            Save task
+          </button>
+        </div>
+      </div>
+    </form>
   );
 }
 
@@ -1664,11 +2409,14 @@ function isHelpRequest(text: string) {
 function buildHelpText() {
   return [
     "Try commands like:",
+    "- add dinner today at 5:30pm high priority",
+    "- add a task for 5:30 today for dinner high priority",
+    "- move budget review to tomorrow at 9am",
+    "- make workout high priority",
+    "- complete grocery list",
     "- log mood 7 stressed note: long day",
-    "- journal morning: shipped new feature, feeling focused",
-    "- add todo review deck tomorrow at 9am for 45m",
-    "- task call plumber tomorrow at 2pm for 30m",
     "- sleep 7.5h quality 4 recovery 3 yesterday",
+    "- how am I doing this week?",
   ].join("\n");
 }
 
@@ -1716,21 +2464,15 @@ function parseJournalCommand(input: string): PendingAction {
 }
 
 function parseTodoCommand(input: string): PendingAction {
-  const shouldDropLeadingArticle = /\b(task|todo)\b/i.test(input);
-  const cleaned = input
-    .replace(/^add\s+/i, "")
-    .replace(/^todo\s*/i, "")
-    .replace(/^task\s*/i, "");
+  const cleaned = stripTodoLeadIn(input);
   const range = extractTimeRange(cleaned);
   const day = extractDayKey(cleaned);
   const timeblockMins = range?.durationMins ?? extractDurationMinutes(cleaned);
   const startTime = range?.startTime ?? extractTime(cleaned);
   const priority = extractPriority(cleaned);
-  const rawText = stripCommandMetadata(cleaned).trim();
-  const withoutArticle = shouldDropLeadingArticle
-    ? rawText.replace(/^(a|an)\s+/i, "")
-    : rawText;
-  const text = withoutArticle ? smartTitleCase(withoutArticle) : withoutArticle;
+  const rawText = cleanTodoTitle(cleaned);
+  const text = rawText ? smartTitleCase(rawText) : rawText;
+  const style = suggestTaskStyle(text);
   const missing: Array<"text"> = text ? [] : ["text"];
   return {
     type: "todo",
@@ -1741,8 +2483,8 @@ function parseTodoCommand(input: string): PendingAction {
       startTime,
       endTime: range?.endTime,
       priority,
-      color: defaultBlockColor,
-      icon: defaultTaskIcon,
+      color: style.color,
+      icon: style.icon,
       repeatType: "none",
       repeatWeekdays: [],
       repeatMonthDay: dayKeyToDate(day ?? getDayKey()).getDate(),
@@ -1751,6 +2493,41 @@ function parseTodoCommand(input: string): PendingAction {
   };
 }
 
+
+function stripTodoLeadIn(input: string) {
+  return input
+    .replace(/^hey jarvis[,\s]*/i, "")
+    .replace(/^(please\s+)?(add|create|schedule|set up)\s+/i, "")
+    .replace(/^(todo|task)\s*/i, "")
+    .trim();
+}
+
+function cleanTodoTitle(input: string) {
+  const cleaned = normalizeTodoTitle(stripCommandMetadata(input));
+  return isPlaceholderTodoTitle(cleaned) ? "" : cleaned;
+}
+
+function normalizeTodoTitle(text: string) {
+  return text
+    .replace(/^hey jarvis[,\s]*/i, "")
+    .replace(/^(please\s+)?(add|create|schedule|set up)\s+/i, "")
+    .replace(/^(a|an|the)\s+(new\s+)?(task|todo)\s*(for|to)?\s*/i, "")
+    .replace(/^(new\s+)?(task|todo)\s*(for|to)?\s*/i, "")
+    .replace(/^(a|an|the)\s+/i, "")
+    .replace(/^(remind me to|remember to|i need to|need to|i have to|have to|gotta|make sure i)\s+/i, "")
+    .replace(/^(for|to)\s+/i, "")
+    .replace(/\b(a|an|the)\s+(task|todo)\s+(for|to)\s+/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[,.:;\-\s]+|[,.:;\-\s]+$/g, "")
+    .replace(/^(for|to)\s+/i, "")
+    .replace(/^(a|an|the)\s+/i, "")
+    .trim();
+}
+
+function isPlaceholderTodoTitle(text: string) {
+  const normalized = text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  return !normalized || ["a task", "task", "todo", "new task", "new todo"].includes(normalized);
+}
 function parseSleepCommand(input: string): PendingAction {
   const durationMins = extractDurationMinutes(input);
   const quality = extractQuality(input) ?? 3;
@@ -1774,7 +2551,11 @@ function parseSleepCommand(input: string): PendingAction {
   };
 }
 
-function applyAnswer(pending: PendingAction, answer: string): PendingAction {
+function applyAnswer(
+  pending: PendingAction,
+  answer: string,
+  context: AssistantContextPayload,
+): PendingAction {
   switch (pending.type) {
     case "mood": {
       const mood = extractMoodScore(answer);
@@ -1824,6 +2605,28 @@ function applyAnswer(pending: PendingAction, answer: string): PendingAction {
         missing: remaining.length ? remaining : [],
       };
     }
+    case "todo-update": {
+      if (pending.missing.includes("target")) {
+        const target = findTodoTarget(answer, context.todos) ?? { text: answer.trim() };
+        return {
+          ...pending,
+          payload: { ...pending.payload, target },
+          missing: pending.missing.filter((item) => item !== "target"),
+        };
+      }
+      return pending;
+    }
+    case "todo-complete": {
+      if (pending.missing.includes("target")) {
+        const target = findTodoTarget(answer, context.todos) ?? { text: answer.trim() };
+        return {
+          ...pending,
+          payload: { ...pending.payload, target },
+          missing: pending.missing.filter((item) => item !== "target"),
+        };
+      }
+      return pending;
+    }
     default:
       return pending;
   }
@@ -1846,6 +2649,13 @@ function buildClarifier(action: PendingAction) {
     }
     return "What was the sleep quality (1-5)?";
   }
+  if (action.type === "todo-update") {
+    if (next === "target") return "Which task should I update?";
+    return "What should I change about that task?";
+  }
+  if (action.type === "todo-complete") {
+    return "Which task should I complete?";
+  }
   return "Can you clarify?";
 }
 
@@ -1865,21 +2675,38 @@ function buildPendingSummary(action: PendingAction) {
         action.payload.startTime,
         action.payload.timeblockMins,
         action.payload.endTime,
-      )}${action.payload.priority ? ` • ${priorityLabel(action.payload.priority)}` : ""}`;
+      )}${action.payload.priority ? ` - ${priorityLabel(action.payload.priority)}` : ""}`;
     case "sleep":
       return `Duration ${formatDuration(
         action.payload.durationMins ?? DEFAULT_DURATION,
       )}, quality ${action.payload.quality ?? "?"}.`;
+    case "todo-update":
+      return buildTodoUpdatePendingSummary(action.payload);
+    case "todo-complete":
+      return `Complete task: ${action.payload.target?.text ?? "?"}.`;
     default:
       return "Pending action.";
   }
 }
 
+function buildTodoUpdatePendingSummary(payload: TodoUpdatePayload) {
+  const pieces = [`Task: ${payload.target?.text ?? "?"}`];
+  if (payload.updates.text) pieces.push(`rename to ${payload.updates.text}`);
+  if (payload.updates.day) pieces.push(`move to ${formatDayLabel(payload.updates.day)}`);
+  if (payload.updates.startTime) {
+    pieces.push(`start ${formatMinutesLabel(parseTimeToMinutes(payload.updates.startTime) ?? 0)}`);
+  }
+  const duration = computeTimeblockFromTimes(payload.updates.startTime, payload.updates.endTime) ?? payload.updates.timeblockMins;
+  if (duration) pieces.push(`duration ${formatDuration(duration)}`);
+  if (payload.updates.priority) pieces.push(priorityLabel(payload.updates.priority));
+  return pieces.join(" - ");
+}
+
 function buildActionSummary(action: PendingAction) {
   switch (action.type) {
     case "mood": {
-      const tags = action.payload.tags?.length ? ` • tags: ${action.payload.tags.join(", ")}` : "";
-      const note = action.payload.note ? ` • note: ${action.payload.note}` : "";
+      const tags = action.payload.tags?.length ? ` - tags: ${action.payload.tags.join(", ")}` : "";
+      const note = action.payload.note ? ` - note: ${action.payload.note}` : "";
       return `Logged mood ${action.payload.mood}/10${tags}${note}.`;
     }
     case "journal": {
@@ -1899,14 +2726,14 @@ function buildActionSummary(action: PendingAction) {
         action.payload.timeblockMins,
         action.payload.endTime,
       );
-      const priority = action.payload.priority ? ` • ${priorityLabel(action.payload.priority)}` : "";
+      const priority = action.payload.priority ? ` - ${priorityLabel(action.payload.priority)}` : "";
       const repeatLabel =
         action.payload.repeatType && action.payload.repeatType !== "none"
           ? action.payload.repeatType === "weekly"
-            ? " • repeats weekly"
-            : ` • repeats monthly (${action.payload.repeatMonthDay ?? "?"})`
+            ? " - repeats weekly"
+            : ` - repeats monthly (${action.payload.repeatMonthDay ?? "?"})`
           : "";
-      return `Added todo: ${action.payload.text} • ${dayLabel}${timeLabel}${priority}${repeatLabel}`;
+      return `Added todo: ${action.payload.text} - ${dayLabel}${timeLabel}${priority}${repeatLabel}`;
     }
     case "sleep": {
       const durationValue =
@@ -1914,8 +2741,8 @@ function buildActionSummary(action: PendingAction) {
           ? calculateDuration(action.payload.startMinutes, action.payload.endMinutes)
           : action.payload.durationMins;
       const duration = durationValue ? formatDuration(durationValue) : "?";
-      const quality = action.payload.quality ? ` • quality ${action.payload.quality}/5` : "";
-      const recovery = action.payload.recoveryScore ? ` • recovery ${action.payload.recoveryScore}/5` : "";
+      const quality = action.payload.quality ? ` - quality ${action.payload.quality}/5` : "";
+      const recovery = action.payload.recoveryScore ? ` - recovery ${action.payload.recoveryScore}/5` : "";
       const dayLabel = action.payload.day
         ? dayKeyToDate(action.payload.day).toLocaleDateString(undefined, {
             weekday: "short",
@@ -1923,19 +2750,41 @@ function buildActionSummary(action: PendingAction) {
             day: "numeric",
           })
         : "Today";
-      return `Logged sleep: ${duration} • ${dayLabel}${quality}${recovery}.`;
+      return `Logged sleep: ${duration} - ${dayLabel}${quality}${recovery}.`;
     }
+    case "todo-update":
+      return buildTodoUpdatePendingSummary(action.payload);
+    case "todo-complete":
+      return `Complete task: ${action.payload.target?.text ?? "?"}.`;
     default:
       return "Action completed.";
   }
 }
 
 function extractMoodScore(text: string) {
-  const match = text.match(/\b(10|[1-9])\b/);
-  if (!match) return undefined;
-  const value = Number(match[1]);
-  if (Number.isNaN(value)) return undefined;
-  return value;
+  const numeric = text.match(/\b(10|[1-9])\b/) ?? text.match(/\b(10|[1-9])\s*(?:\/|out of\s*)10\b/i);
+  if (numeric) {
+    const value = Number(numeric[1]);
+    return Number.isNaN(value) ? undefined : value;
+  }
+  const wordScore = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/i);
+  return wordScore ? moodWordToScore(wordScore[1]) : undefined;
+}
+
+function moodWordToScore(value: string) {
+  const scores: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+  };
+  return scores[value.toLowerCase()];
 }
 
 function extractNote(text: string) {
@@ -2350,22 +3199,60 @@ function extractDayKey(text: string) {
 
 function extractTime(text: string) {
   const match12 = text.match(
-    /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)\b/i,
+    /\b(1[0-2]|0?[1-9])(?:\s*[:.]\s*|\s+)?([0-5]\d)?\s*(a\.?\s*m\.?|p\.?\s*m\.?)\b/i,
   );
   if (match12) {
-    let hours = Number(match12[1]);
-    const mins = match12[2] ?? "00";
-    const meridiem = match12[3].toLowerCase().replace(/\./g, "");
-    if (meridiem === "pm" && hours !== 12) hours += 12;
-    if (meridiem === "am" && hours === 12) hours = 0;
-    return `${hours.toString().padStart(2, "0")}:${mins}`;
+    return formatClockTime(Number(match12[1]), match12[2] ?? "00", match12[3]);
   }
-  const match24 = text.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  if (/\bnoon\b/i.test(text)) return "12:00";
+  if (/\bmidnight\b/i.test(text)) return "00:00";
+
+  const match24 = text.match(/\b(2[0-3]|1[3-9]|0?0):([0-5]\d)\b/);
   if (match24) {
     const hours = match24[1].padStart(2, "0");
     return `${hours}:${match24[2]}`;
   }
+
+  const ambiguousClock = text.match(
+    /\b(?:at|around|about|by|for|from|to)?\s*(1[0-2]|0?[1-9])[:.]([0-5]\d)\b/i,
+  );
+  if (ambiguousClock) {
+    const meridiem = inferMeridiemForAmbiguousTime(text, Number(ambiguousClock[1]));
+    return formatClockTime(Number(ambiguousClock[1]), ambiguousClock[2], meridiem);
+  }
+
+  const casual = text.match(/\b(1[0-2]|0?[1-9])\s*(morning|afternoon|evening|night)\b/i);
+  if (casual) {
+    const meridiem = casual[2].toLowerCase() === "morning" ? "am" : "pm";
+    return formatClockTime(Number(casual[1]), "00", meridiem);
+  }
+
+  const bareTime = text.match(
+    /\b(?:at|around|about|by|for|from|to)\s+(1[0-2]|0?[1-9])\b(?!\s*(?:h|hr|hrs|hour|hours|m|min|mins|minute|minutes|out\s+of))/i,
+  );
+  if (bareTime) {
+    const meridiem = inferMeridiemForAmbiguousTime(text, Number(bareTime[1]));
+    return formatClockTime(Number(bareTime[1]), "00", meridiem);
+  }
+
   return undefined;
+}
+
+function formatClockTime(hourValue: number, minuteValue: string, meridiemValue: string) {
+  let hours = hourValue;
+  const meridiem = meridiemValue.toLowerCase().replace(/[\s.]/g, "");
+  if (meridiem === "pm" && hours !== 12) hours += 12;
+  if (meridiem === "am" && hours === 12) hours = 0;
+  return `${hours.toString().padStart(2, "0")}:${minuteValue.padStart(2, "0")}`;
+}
+
+function inferMeridiemForAmbiguousTime(text: string, hour: number): "am" | "pm" {
+  const lower = text.toLowerCase();
+  if (/\b(morning|breakfast|before work|early)\b/.test(lower)) return "am";
+  if (/\b(afternoon|evening|tonight|night|dinner|supper|after work|lunch|pm|p\.m\.)\b/.test(lower)) return "pm";
+  if (hour === 12) return "pm";
+  if (hour >= 1 && hour <= 6) return "pm";
+  return "am";
 }
 
 function extractTimeRange(text: string) {
@@ -2402,15 +3289,15 @@ function formatTimeWindow(startTime?: string, durationMins?: number, endTime?: s
   if (startMinutes === null) return "";
   const startLabel = formatMinutesLabel(startMinutes);
   if (!durationMins && !endTime) {
-    return ` • ${startLabel}`;
+    return ` - ${startLabel}`;
   }
   if (endTime) {
     const endMinutes = parseTimeToMinutes(endTime);
-    if (endMinutes === null) return ` • ${startLabel}`;
-    return ` • ${startLabel}-${formatMinutesLabel(endMinutes)}`;
+    if (endMinutes === null) return ` - ${startLabel}`;
+    return ` - ${startLabel}-${formatMinutesLabel(endMinutes)}`;
   }
   const endLabel = formatMinutesLabel(startMinutes + (durationMins ?? 0));
-  return ` • ${startLabel}-${endLabel}`;
+  return ` - ${startLabel}-${endLabel}`;
 }
 
 function computeTimeblockFromTimes(start?: string, end?: string) {
@@ -2584,95 +3471,100 @@ function buildStartTimeOptions(stepMinutes = 15): StartTimeOption[] {
   });
 }
 
-function TimePillSelector({
+function SelectField({
   label,
   value,
-  options,
   onChange,
+  children,
 }: {
   label: string;
   value: string;
-  options: StartTimeOption[];
   onChange: (value: string) => void;
+  children: ReactNode;
 }) {
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  return (
+    <div className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">{label}</span>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-full appearance-none rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+        >
+          {children}
+        </select>
+        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white/60">
+          <svg className="h-3 w-3" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </div>
+    </div>
+  );
+}
 
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list) return;
-    const active = list.querySelector<HTMLButtonElement>(`button[data-value="${value}"]`);
-    if (!active) return;
-    const target =
-      active.offsetTop - list.clientHeight / 2 + active.offsetHeight / 2;
-    const nextTop = Math.max(0, Math.min(target, list.scrollHeight - list.clientHeight));
-    list.scrollTo({ top: nextTop });
-  }, [value]);
-
-  useEffect(() => {
-    return () => {
-      if (scrollTimeoutRef.current !== null) {
-        window.clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleScroll = useCallback(() => {
-    if (scrollTimeoutRef.current !== null) {
-      window.clearTimeout(scrollTimeoutRef.current);
-    }
-    scrollTimeoutRef.current = window.setTimeout(() => {
-      const list = listRef.current;
-      if (!list) return;
-      const buttons = Array.from(
-        list.querySelectorAll("button[data-value]"),
-      ) as HTMLButtonElement[];
-      if (!buttons.length) return;
-      const listRect = list.getBoundingClientRect();
-      const listCenter = listRect.top + listRect.height / 2;
-      let closestValue: string | null = null;
-      let closestDistance = Number.POSITIVE_INFINITY;
-      buttons.forEach((button) => {
-        const rect = button.getBoundingClientRect();
-        const center = rect.top + rect.height / 2;
-        const distance = Math.abs(center - listCenter);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestValue = button.getAttribute("data-value");
-        }
-      });
-      const nextValue = closestValue ?? undefined;
-      if (nextValue && nextValue !== value) {
-        onChange(nextValue);
-      }
-    }, 120);
-  }, [onChange, value]);
+function TimeRangeSelector({
+  startTime,
+  endTime,
+  timeblock,
+  onStartTimeChange,
+  onEndTimeChange,
+  onDurationChange,
+  onClear,
+}: {
+  startTime: string;
+  endTime: string;
+  timeblock?: Timeblock;
+  onStartTimeChange: (value: string) => void;
+  onEndTimeChange: (value: string) => void;
+  onDurationChange: (value: Timeblock) => void;
+  onClear: () => void;
+}) {
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = parseTimeToMinutes(endTime);
+  const hasRange = startMinutes !== null && endMinutes !== null && endMinutes > startMinutes;
+  const durationMinutes = timeblock ?? (hasRange ? endMinutes - startMinutes : undefined);
+  const startLabel = startMinutes !== null ? formatMinutesLabel(startMinutes) : "Choose start";
+  const endLabel = endMinutes !== null ? formatMinutesLabel(endMinutes) : "Choose end";
 
   return (
-    <div className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-emerald-100/70">
-      <span className="pl-1">{label}</span>
-      <div className="relative rounded-2xl border border-white/10 bg-black/30 p-2">
-        <div className="pointer-events-none absolute inset-x-3 top-1/2 h-10 -translate-y-1/2 rounded-full border border-white/10 bg-white/5" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-[#0b1121]/90 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#0b1121]/90 to-transparent" />
-        <div
-          ref={listRef}
-          onScroll={handleScroll}
-          className="hide-scrollbar max-h-40 overflow-y-auto snap-y snap-mandatory py-6"
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">Time window</p>
+          <p className="mt-1 text-sm font-semibold text-white">
+            {hasRange ? `${startLabel} to ${endLabel}` : startMinutes !== null ? `Starts ${startLabel}` : "No time selected"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          className="rounded-full border border-white/15 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-white/40 hover:text-white"
         >
-          {options.map((option) => {
-            const active = option.value === value;
+          No time
+        </button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TimeInputField label="Start" value={startTime} onChange={onStartTimeChange} />
+        <TimeInputField label="End" value={endTime} onChange={onEndTimeChange} />
+      </div>
+      <div className="space-y-2">
+        <p className="pl-1 text-xs uppercase tracking-[0.3em] text-zinc-400">Duration</p>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {durationPresets.map((duration) => {
+            const active = durationMinutes === duration;
             return (
               <button
-                key={option.value}
+                key={duration}
                 type="button"
-                data-value={option.value}
-                onClick={() => onChange(option.value)}
-                className={`mx-auto block w-full snap-center rounded-full px-4 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.25em] transition ${
-                  active ? "text-cyan-200" : "text-white/70 hover:text-white"
+                onClick={() => onDurationChange(duration)}
+                className={`rounded-2xl border px-2 py-3 text-xs font-semibold transition ${
+                  active
+                    ? "border-cyan-300/70 bg-cyan-300/15 text-cyan-100"
+                    : "border-white/10 bg-black/20 text-white/70 hover:border-white/30 hover:text-white"
                 }`}
               >
-                {option.label}
+                {formatDurationPreset(duration)}
               </button>
             );
           })}
@@ -2680,6 +3572,178 @@ function TimePillSelector({
       </div>
     </div>
   );
+}
+
+function TimeInputField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">{label}</span>
+      <input
+        type="time"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white accent-cyan-300 focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+      />
+    </label>
+  );
+}
+
+function ColorPicker({
+  colors,
+  value,
+  onChange,
+}: {
+  colors: string[];
+  value?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">Block color</span>
+      <div className="flex flex-wrap gap-2">
+        {colors.map((hex) => {
+          const active = value === hex;
+          return (
+            <button
+              key={hex}
+              type="button"
+              onClick={() => onChange(hex)}
+              className={`h-9 w-9 rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${active ? "border-white shadow-lg" : "border-white/20"}`}
+              style={{ backgroundColor: hex }}
+              aria-label={`Select color ${hex}`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function IconPicker({
+  icons,
+  value,
+  onChange,
+}: {
+  icons: Array<{ id: string; label: string; symbol: string }>;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">Icon</span>
+      <div className="flex flex-wrap gap-2">
+        {icons.map((icon) => {
+          const active = icon.id === value;
+          return (
+            <button
+              key={icon.id}
+              type="button"
+              onClick={() => onChange(icon.id)}
+              className={`flex h-10 w-10 items-center justify-center rounded-full border text-base transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                active ? "border-white bg-white/10 text-white" : "border-white/20 text-white/70"
+              }`}
+              aria-label={`Select ${icon.label}`}
+            >
+              {icon.symbol}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CustomEmojiField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-zinc-400">
+      <span className="pl-1">Custom emoji</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        maxLength={4}
+        className="rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-base font-medium text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+        placeholder="e.g. food"
+      />
+    </label>
+  );
+}
+
+function formatDurationPreset(duration: Timeblock) {
+  if (duration < 60) return `${duration}m`;
+  const hours = Math.floor(duration / 60);
+  const minutes = duration % 60;
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
+function buildEndTime(start: string, duration?: Timeblock) {
+  if (!start || !duration) return "";
+  const startMinutes = parseTimeToMinutes(start);
+  if (startMinutes === null) return "";
+  return minutesToTimeString(startMinutes + duration);
+}
+
+function suggestTaskStyle(text: string): StyleSuggestion {
+  const normalized = text.toLowerCase();
+  const hasAny = (words: string[]) => words.some((word) => normalized.includes(word));
+  if (hasAny(["meeting", "sync", "standup", "call", "interview"])) {
+    return { icon: "calendar", color: "#60a5fa" };
+  }
+  if (hasAny(["email", "inbox", "reply", "follow up"])) {
+    return { icon: "email", color: "#38bdf8" };
+  }
+  if (hasAny(["write", "draft", "post", "outline", "notes"])) {
+    return { icon: "pen", color: "#a78bfa" };
+  }
+  if (hasAny(["code", "build", "ship", "deploy", "debug"])) {
+    return { icon: "laptop", color: "#34d399" };
+  }
+  if (hasAny(["workout", "gym", "run", "training", "lift"])) {
+    return { icon: "dumbbell", color: "#f97316" };
+  }
+  if (hasAny(["read", "study", "learn", "course"])) {
+    return { icon: "book", color: "#818cf8" };
+  }
+  if (hasAny(["coffee", "break", "lunch", "meal", "cook", "dinner", "breakfast"])) {
+    return { icon: "food", color: "#facc15" };
+  }
+  if (hasAny(["money", "budget", "invoice", "finance", "tax"])) {
+    return { icon: "chart", color: "#4ade80" };
+  }
+  if (hasAny(["clean", "tidy", "laundry"])) {
+    return { icon: "broom", color: "#fb7185" };
+  }
+  if (hasAny(["drive", "commute", "travel"])) {
+    return { icon: "car", color: "#f87171" };
+  }
+  if (hasAny(["sleep", "rest", "night"])) {
+    return { icon: "moon", color: "#60a5fa" };
+  }
+  if (hasAny(["focus", "deep work", "plan"])) {
+    return { icon: "spark", color: "#facc15" };
+  }
+  return { icon: defaultTaskIcon, color: defaultBlockColor };
+}
+
+function getTaskIconSymbol(iconId?: string, fallbackText = "") {
+  const icon = taskIconOptions.find((option) => option.id === iconId);
+  if (icon) return icon.symbol;
+  if (iconId) return iconId;
+  const trimmed = fallbackText.trim();
+  return trimmed ? trimmed.charAt(0).toUpperCase() : "•";
 }
 
 function priorityLabel(priority: TodoPriority) {
@@ -2695,11 +3759,19 @@ function priorityLabel(priority: TodoPriority) {
 
 function stripCommandMetadata(text: string) {
   return text
-    .replace(/\b(today|tomorrow|yesterday|last night)\b/gi, "")
-    .replace(/\bfrom\s+[0-9:.\samp]+\s+to\s+[0-9:.\samp]+\b/gi, "")
-    .replace(/\bat\s+[0-9:.\samp]+\s+to\s+[0-9:.\samp]+\b/gi, "")
-    .replace(/\b(at)\s+[0-9:.\samp]+\b/gi, "")
-    .replace(/\b(for)\s+\d+(\.\d+)?\s*[hm]\b/gi, "")
+    .replace(/\b(today|tonight|tomorrow|tmrw|yesterday|last night|next week|this weekend|next weekend)\b/gi, "")
+    .replace(/\b(last|this|next)?\s*(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi, "")
+    .replace(/\bin\s+\d+\s+(day|days|week|weeks)\b/gi, "")
+    .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, "")
+    .replace(/\bfrom\s+[0-9:.,\samp]+\s+to\s+[0-9:.,\samp]+\b/gi, "")
+    .replace(/\bat\s+[0-9:.,\samp]+\s+to\s+[0-9:.,\samp]+\b/gi, "")
+    .replace(/\b(?:at|around|about|by|for)\s+(1[0-2]|0?[1-9])(?:\s*[:.]\s*|\s+)?([0-5]\d)?\s*(a\.?\s*m\.?|p\.?\s*m\.?)\b/gi, "")
+    .replace(/\b(?:at|around|about|by|for)\s+([01]?\d|2[0-3])[:.]([0-5]\d)\b/gi, "")
+    .replace(/\b(1[0-2]|0?[1-9])(?:\s*[:.]\s*|\s+)?([0-5]\d)?\s*(a\.?\s*m\.?|p\.?\s*m\.?)\b/gi, "")
+    .replace(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/gi, "")
+    .replace(/\b(?:at|around|about|by|for)\s+(1[0-2]|0?[1-9])\s*(morning|afternoon|evening|night)\b/gi, "")
+    .replace(/\b(?:at|around|about|by|for)\s+(noon|midnight)\b/gi, "")
+    .replace(/\b(for)\s+\d+(\.\d+)?\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b/gi, "")
     .replace(/\b(priority)\s+(high|medium|low|\d)\b/gi, "")
     .replace(/\b(high|medium|low)\s+priority\b/gi, "")
     .replace(/\bp[1-3]\b/gi, "")
@@ -2708,13 +3780,15 @@ function stripCommandMetadata(text: string) {
     .replace(/note[:\-].+$/i, "")
     .replace(/\ba task to\b/gi, "")
     .replace(/\btask to\b/gi, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
+
 function extractMeridiem(text: string) {
-  const match = text.match(/\b(a\.?m\.?|p\.?m\.?)\b/i);
+  const match = text.match(/\b(a\.?\s*m\.?|p\.?\s*m\.?)\b/i);
   if (!match) return undefined;
-  return match[1].toLowerCase().replace(/\./g, "");
+  return match[1].toLowerCase().replace(/[\s.]/g, "");
 }
 
 function smartTitleCase(text: string) {
