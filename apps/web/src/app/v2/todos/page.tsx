@@ -30,7 +30,6 @@ const BOARD_HEIGHT = SLOTS_PER_DAY * SLOT_HEIGHT;
 const HOUR_LABELS = Array.from({ length: 24 }, (_, index) => index);
 const DAY_MINUTES = 24 * 60;
 const NOW_UPDATE_MS = 15_000;
-const PLANNER_SELECTED_DAY_KEY = "jarvis-daily-planner-selected-day-v1";
 const PLANNER_TIMELINE_MODE_KEY = "jarvis-daily-planner-timeline-mode-v1";
 const MOBILE_TASK_MIN_HEIGHT = 44;
 const MOBILE_TASK_MINUTE_HEIGHT = 0.85;
@@ -127,7 +126,9 @@ export default function TodosPage() {
   const initialFocusTodoId = search?.get("focus") ?? undefined;
   const focusDay = search?.get("day");
   const todayKey = getDayKey();
-  const [selectedDay, setSelectedDay] = useState<DayKey>(() => readStoredDayKey(todayKey));
+  const [selectedDay, setSelectedDay] = useState<DayKey>(() =>
+    normalizeDayKey(focusDay ?? todayKey, todayKey),
+  );
   const [focusedTodoId, setFocusedTodoId] = useState<string | undefined>(() => initialFocusTodoId);
   const todaysMustWin = state.mustWin[selectedDay];
   const [text, setText] = useState("");
@@ -488,10 +489,11 @@ export default function TodosPage() {
 
   const handleDelete = useCallback(
     (id: string) => {
-      deleteTodo({ day: selectedDay, id });
       if (editingId === id) {
         closePanel();
       }
+      deleteTodo({ day: selectedDay, id });
+      setFocusedTodoId((current) => (current === id ? undefined : current));
       showToast("Todo deleted");
     },
     [deleteTodo, selectedDay, editingId, closePanel, showToast],
@@ -505,18 +507,14 @@ export default function TodosPage() {
   );
 
   useEffect(() => {
-    if (!focusDay) return undefined;
-    const frame = requestAnimationFrame(() => setSelectedDay(normalizeDayKey(focusDay)));
+    const nextDay = normalizeDayKey(focusDay ?? todayKey, todayKey);
+    const frame = requestAnimationFrame(() => setSelectedDay(nextDay));
     return () => cancelAnimationFrame(frame);
-  }, [focusDay]);
+  }, [focusDay, todayKey]);
 
   useEffect(() => {
     setFocusedTodoId(initialFocusTodoId);
   }, [initialFocusTodoId]);
-
-  useEffect(() => {
-    writePlannerPreference(PLANNER_SELECTED_DAY_KEY, selectedDay);
-  }, [selectedDay]);
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
@@ -634,6 +632,7 @@ export default function TodosPage() {
           onOpenCalendar={() => setCalendarOpen(true)}
           onAddTask={openAddPanel}
           onEdit={beginEdit}
+          onDelete={handleDelete}
           highlightId={focusedTodoId}
           onFocusTodo={focusTodoOnPage}
           onToggle={(id) => toggleTodo({ day: selectedDay, id })}
@@ -1288,6 +1287,7 @@ type DayTimelineProps = {
   onOpenCalendar: () => void;
   onAddTask: () => void;
   onEdit: (todo: TodoItem) => void;
+  onDelete: (id: string) => void;
   highlightId?: string;
   onFocusTodo: (id: string) => void;
   onToggle: (id: string) => void;
@@ -1304,6 +1304,7 @@ function DayTimeline({
   onOpenCalendar,
   onAddTask,
   onEdit,
+  onDelete,
   highlightId,
   onFocusTodo,
   onToggle,
@@ -1568,6 +1569,30 @@ function DayTimeline({
                               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-white/70">
                                 {formatPlannedDuration(segment.durationMinutes)}
                               </span>
+                              {segment.type === "task" && (
+                                <button
+                                  type="button"
+                                  onClick={(eventClick) => {
+                                    eventClick.stopPropagation();
+                                    onEdit(segment.event.todo);
+                                  }}
+                                  className="rounded-full border border-cyan-300/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-200 hover:border-cyan-300"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {segment.type === "task" && (
+                                <button
+                                  type="button"
+                                  onClick={(eventClick) => {
+                                    eventClick.stopPropagation();
+                                    onDelete(segment.event.todo.id);
+                                  }}
+                                  className="rounded-full border border-red-300/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-red-200 hover:border-red-300"
+                                >
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           </div>
                           {segment.type === "gap" ? (
@@ -1700,6 +1725,16 @@ function DayTimeline({
                               className="rounded-full border border-cyan-300/40 px-3 py-1 text-[10px] font-semibold text-cyan-200 hover:border-cyan-300"
                             >
                               Schedule
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(eventClick) => {
+                                eventClick.stopPropagation();
+                                onDelete(todo.id);
+                              }}
+                              className="rounded-full border border-red-300/40 px-3 py-1 text-[10px] font-semibold text-red-200 hover:border-red-300"
+                            >
+                              Delete
                             </button>
                           </div>
                         </div>
@@ -2331,7 +2366,10 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
                 <div className={`flex w-full flex-wrap gap-2 ${isRail ? "" : "sm:w-auto sm:justify-end"}`}>
                   <button
                     type="button"
-                    onClick={() => onToggle(todo.id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onToggle(todo.id);
+                    }}
                     aria-pressed={todo.done}
                     className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
                       todo.done
@@ -2343,21 +2381,30 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
                   </button>
                   <button
                     type="button"
-                    onClick={() => onCyclePriority(todo.id, nextPriority(todo.priority))}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onCyclePriority(todo.id, nextPriority(todo.priority));
+                    }}
                     className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-zinc-200"
                   >
                     {priorityLabel(todo.priority)}
                   </button>
                   <button
                     type="button"
-                    onClick={() => onEdit(todo)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEdit(todo);
+                    }}
                     className="rounded-full border border-cyan-300/40 px-3 py-1 text-xs font-semibold text-cyan-200 hover:border-cyan-300"
                   >
                     Edit
                   </button>
                   <button
                     type="button"
-                    onClick={() => onDelete(todo.id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDelete(todo.id);
+                    }}
                     className="rounded-full bg-red-500/80 px-3 py-1 text-xs font-semibold text-white hover:bg-red-500"
                   >
                     Delete
@@ -2638,7 +2685,11 @@ function TaskPanel({
             {onDelete && (
               <button
                 type="button"
-                onClick={onDelete}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onDelete();
+                }}
                 className="rounded-2xl border border-red-500/60 px-4 py-3 text-sm font-semibold text-red-300 hover:border-red-400"
               >
                 Delete task
@@ -2921,17 +2972,6 @@ function formatTaskPanelDate(day: DayKey) {
     month: "short",
     day: "numeric",
   });
-}
-
-function readStoredDayKey(fallback: DayKey): DayKey {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const value = window.localStorage.getItem(PLANNER_SELECTED_DAY_KEY);
-    return normalizeDayKey(value, fallback);
-  } catch (error) {
-    console.warn("Planner day preference load failed", error);
-    return fallback;
-  }
 }
 
 function readStoredTimelineMode(): TimelineMode {
