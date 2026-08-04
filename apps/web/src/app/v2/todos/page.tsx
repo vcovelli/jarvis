@@ -487,16 +487,28 @@ export default function TodosPage() {
     applyEditTimeRange({ startTime: "", endTime: "", timeblock: undefined });
   }, [applyEditTimeRange]);
 
+  const findTodoDayById = useCallback(
+    (id: string): DayKey | null => {
+      if ((state.todos[selectedDay] ?? []).some((todo) => todo.id === id)) return selectedDay;
+      const match = Object.entries(state.todos).find(([, todos]) =>
+        todos.some((todo) => todo.id === id),
+      );
+      return match ? (match[0] as DayKey) : null;
+    },
+    [selectedDay, state.todos],
+  );
+
   const handleDelete = useCallback(
     (id: string) => {
+      const targetDay = findTodoDayById(id);
       if (editingId === id) {
         closePanel();
       }
-      deleteTodo({ day: selectedDay, id });
+      deleteTodo({ day: targetDay ?? selectedDay, id });
       setFocusedTodoId((current) => (current === id ? undefined : current));
-      showToast("Todo deleted");
+      showToast(targetDay ? "Todo deleted" : "Todo removed");
     },
-    [deleteTodo, selectedDay, editingId, closePanel, showToast],
+    [deleteTodo, selectedDay, editingId, closePanel, showToast, findTodoDayById],
   );
 
   const handleReorder = useCallback(
