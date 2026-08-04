@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, ReactNode, useCallback, useMemo, useState } from "react";
+import { FormEvent, MouseEvent, ReactNode, TouchEvent, useCallback, useMemo, useRef, useState } from "react";
 
 import { mobileSidebarOpenEvent } from "@/lib/shellEvents";
 
@@ -54,6 +54,17 @@ const emptyDraft: HabitDraft = {
 const iconPresets = ["✓", "🎯", "💧", "🧘", "💪", "📓", "🧠", "🏦", "🚫", "📈", "🌙", "☀️"];
 const weekLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const chainLabels = ["S", "M", "T", "W", "T", "F", "S"];
+const SWIPE_THRESHOLD = 92;
+const SWIPE_MAX_OFFSET = 54;
+
+type SwipeTracker = {
+  tracking: boolean;
+  swiping: boolean;
+  startX: number;
+  startY: number;
+  lastDeltaX: number;
+  ready: boolean;
+};
 
 export default function HabitsPage() {
   const {
@@ -73,6 +84,18 @@ export default function HabitsPage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [editorMode, setEditorMode] = useState<EditorMode>(null);
   const [draft, setDraft] = useState<HabitDraft>(emptyDraft);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [swipeDragging, setSwipeDragging] = useState(false);
+  const [swipeReady, setSwipeReady] = useState(false);
+  const swipeRef = useRef<SwipeTracker>({
+    tracking: false,
+    swiping: false,
+    startX: 0,
+    startY: 0,
+    lastDeltaX: 0,
+    ready: false,
+  });
+  const suppressSwipeClickRef = useRef(false);
 
   const orderedHabits = useMemo(() => {
     return [...(state.habits ?? [])]
@@ -116,12 +139,95 @@ export default function HabitsPage() {
     pulse(8);
   }, []);
 
+  const shiftDay = useCallback((amount: number) => {
+    setSelectedDay((current) => shiftDayKey(current, amount));
+    pulse(8);
+  }, []);
+
   const shiftRange = useCallback((amount: number) => {
     setSelectedDay((current) =>
       viewMode === "month" ? shiftMonthKey(current, amount) : shiftDayKey(current, amount * 7),
     );
-    pulse(8);
+    pulse([8, 24, 8]);
   }, [viewMode]);
+
+  const resetSwipe = useCallback(() => {
+    swipeRef.current = {
+      tracking: false,
+      swiping: false,
+      startX: 0,
+      startY: 0,
+      lastDeltaX: 0,
+      ready: false,
+    };
+    setSwipeDragging(false);
+    setSwipeReady(false);
+    setSwipeOffset(0);
+  }, []);
+
+  const handleSwipeStart = useCallback((event: TouchEvent<HTMLElement>) => {
+    if (event.touches.length !== 1) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('input, textarea, select, [contenteditable="true"], [data-no-swipe="true"]')) return;
+    const touch = event.touches[0];
+    swipeRef.current = {
+      tracking: true,
+      swiping: false,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      lastDeltaX: 0,
+      ready: false,
+    };
+  }, []);
+
+  const handleSwipeMove = useCallback((event: TouchEvent<HTMLElement>) => {
+    const tracker = swipeRef.current;
+    if (!tracker.tracking || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - tracker.startX;
+    const deltaY = touch.clientY - tracker.startY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    if (!tracker.swiping) {
+      if (absY > 14 && absY > absX) {
+        resetSwipe();
+        return;
+      }
+      if (absX < 14 || absX < absY * 1.15) return;
+      tracker.swiping = true;
+      suppressSwipeClickRef.current = true;
+      setSwipeDragging(true);
+    }
+
+    event.preventDefault();
+    tracker.lastDeltaX = deltaX;
+    const clamped = Math.max(-SWIPE_THRESHOLD, Math.min(SWIPE_THRESHOLD, deltaX));
+    const progress = clamped / SWIPE_THRESHOLD;
+    setSwipeOffset(Math.round(progress * SWIPE_MAX_OFFSET));
+
+    const ready = absX >= SWIPE_THRESHOLD;
+    if (ready && !tracker.ready) pulse([8, 22, 8]);
+    tracker.ready = ready;
+    setSwipeReady(ready);
+  }, [resetSwipe]);
+
+  const handleSwipeEnd = useCallback(() => {
+    const tracker = swipeRef.current;
+    if (tracker.swiping && Math.abs(tracker.lastDeltaX) >= SWIPE_THRESHOLD) {
+      shiftRange(tracker.lastDeltaX < 0 ? 1 : -1);
+    }
+    resetSwipe();
+    window.setTimeout(() => {
+      suppressSwipeClickRef.current = false;
+    }, 160);
+  }, [resetSwipe, shiftRange]);
+
+  const handleSwipeClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
+    if (!suppressSwipeClickRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
 
   const openMobileMenu = useCallback(() => {
     window.dispatchEvent(new Event(mobileSidebarOpenEvent));
@@ -211,7 +317,19 @@ export default function HabitsPage() {
   return (
     <div className="fixed inset-0 z-30 h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_top_right,rgba(129,140,248,0.14),transparent_26%),#060912] text-zinc-50 lg:relative lg:inset-auto lg:z-auto lg:h-[calc(100dvh-5rem)] lg:rounded-[28px]">
       <div className="mx-auto grid h-full max-h-full max-w-7xl gap-4 px-3 pb-0 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pb-0 sm:pt-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/74 shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl">
+        <section
+          className={
+            "relative flex h-full min-h-0 touch-pan-y flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/74 shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl transition-[transform] " +
+            (swipeDragging ? "duration-0" : "duration-200 ease-out")
+          }
+          style={{ transform: `translate3d(${swipeOffset}px, 0, 0)` }}
+          onTouchStart={handleSwipeStart}
+          onTouchMove={handleSwipeMove}
+          onTouchEnd={handleSwipeEnd}
+          onTouchCancel={resetSwipe}
+          onClickCapture={handleSwipeClickCapture}
+        >
+          <SwipeHint direction={swipeOffset < 0 ? 1 : swipeOffset > 0 ? -1 : 0} ready={swipeReady} viewMode={viewMode} />
           <header className="z-30 shrink-0 border-b border-white/10 bg-slate-950/84 px-3 py-3 backdrop-blur-2xl sm:px-4">
             <div className="grid grid-cols-[2.6rem_minmax(0,1fr)_2.6rem] items-center gap-2">
               <button
@@ -248,7 +366,7 @@ export default function HabitsPage() {
               <SegmentedControl value={viewMode} onChange={setViewMode} />
               <button
                 type="button"
-                onClick={() => shiftRange(-1)}
+                onClick={() => shiftDay(-1)}
                 aria-label="Previous day"
                 className="ml-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:text-white active:scale-95"
               >
@@ -256,7 +374,7 @@ export default function HabitsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => shiftRange(1)}
+                onClick={() => shiftDay(1)}
                 aria-label="Next day"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:text-white active:scale-95"
               >
@@ -324,12 +442,12 @@ export default function HabitsPage() {
             )}
           </main>
 
-          <footer data-no-pull-refresh="true" className="shrink-0 border-t border-white/10 bg-slate-950/86 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.55rem)] pt-2 shadow-[0_-18px_45px_rgba(2,6,23,0.36)] backdrop-blur-2xl lg:hidden">
+          <footer data-no-pull-refresh="true" data-no-swipe="true" className="shrink-0 border-t border-white/10 bg-slate-950/86 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.55rem)] pt-2 shadow-[0_-18px_45px_rgba(2,6,23,0.36)] backdrop-blur-2xl lg:hidden">
             <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
               <ToolbarButton label="Menu" onClick={openMobileMenu} icon={<MenuIcon />} />
               <ToolbarButton label="Today" onClick={() => selectDay(todayKey)} icon={<CalendarIcon />} />
-              <ToolbarButton label="Prev" onClick={() => shiftRange(-1)} icon={<ChevronLeftIcon />} />
-              <ToolbarButton label="Next" onClick={() => shiftRange(1)} icon={<ChevronRightIcon />} />
+              <ToolbarButton label="Prev" onClick={() => shiftDay(-1)} icon={<ChevronLeftIcon />} />
+              <ToolbarButton label="Next" onClick={() => shiftDay(1)} icon={<ChevronRightIcon />} />
               <ToolbarButton label="Edit" onClick={openEdit} disabled={!selectedHabit} icon={<EditIcon />} />
             </div>
           </footer>
@@ -519,7 +637,7 @@ function InlineActionBar({
   onApply: (status: HabitLogStatus | "erase") => void;
 }) {
   return (
-    <div className="mt-3 grid grid-cols-4 gap-2 rounded-[20px] border border-white/10 bg-slate-950/62 p-2 shadow-inner">
+    <div data-no-swipe="true" className="mt-3 grid grid-cols-4 gap-2 rounded-[20px] border border-white/10 bg-slate-950/62 p-2 shadow-inner">
       <ActionButton label="Erase" icon={<EraseIcon />} active={false} onClick={() => onApply("erase")} tone="neutral" disabled={!isRecordedStatus(currentStatus)} />
       <ActionButton label="Yes" icon={<CheckIcon />} active={currentStatus === "yes"} onClick={() => onApply("yes")} tone="yes" />
       <ActionButton label="No" icon={<XIcon />} active={currentStatus === "no"} onClick={() => onApply("no")} tone="no" />
@@ -766,6 +884,26 @@ function EmptyState({ onAdd, onStarters }: { onAdd: () => void; onStarters: () =
             Add
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SwipeHint({ direction, ready, viewMode }: { direction: -1 | 0 | 1; ready: boolean; viewMode: ViewMode }) {
+  if (direction === 0) return null;
+  const period = viewMode === "month" ? "month" : "week";
+  const target = direction > 0 ? `next ${period}` : `previous ${period}`;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-1/2 z-40 flex -translate-y-1/2 justify-center px-4">
+      <div
+        className={
+          "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] shadow-[0_16px_40px_rgba(2,6,23,0.34)] backdrop-blur-2xl transition " +
+          (ready
+            ? "border-cyan-200/60 bg-cyan-300 text-slate-950"
+            : "border-white/10 bg-slate-950/82 text-cyan-100")
+        }
+      >
+        {ready ? `Release for ${target}` : `Swipe for ${target}`}
       </div>
     </div>
   );
