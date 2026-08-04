@@ -8,6 +8,7 @@ import { signOut, useSession } from "next-auth/react";
 import { applyTheme, getStoredTheme, onThemeChange, type ThemeMode } from "@/lib/theme";
 import { useJarvisState, type StateSyncStatus } from "@/lib/jarvisStore";
 import { assistantVoiceToggleEvent } from "@/lib/assistantVoiceEvents";
+import { mobileSidebarOpenEvent } from "@/lib/shellEvents";
 
 type NavLink = {
   href: string;
@@ -32,6 +33,7 @@ const systemLinks: NavLink[] = [
 ];
 
 const growthLinks: NavLink[] = [
+  { href: "/habits", label: "Habits", description: "Chains" },
   { href: "/focus", label: "Focus", description: "Discipline" },
   { href: "/career", label: "Career", description: "Skills" },
   { href: "/manufacturing", label: "Manufacturing", description: "CNC" },
@@ -58,13 +60,24 @@ type SidebarProps = {
 export function Sidebar({ basePath = "/" }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { syncStatus } = useJarvisState();
+  const { syncStatus, refreshRemoteState } = useJarvisState();
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(true);
 
   useEffect(() => {
     return onThemeChange(setTheme);
+  }, []);
+
+  useEffect(() => {
+    function openMobileSidebar() {
+      setMobileOpen(true);
+    }
+
+    window.addEventListener(mobileSidebarOpenEvent, openMobileSidebar);
+    return () => {
+      window.removeEventListener(mobileSidebarOpenEvent, openMobileSidebar);
+    };
   }, []);
 
   const normalizedBase =
@@ -88,6 +101,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   }
 
   const onAssistantPage = activeRoot === "/assistant";
+  const habitsImmersive = activeRoot === "/habits";
   const mobileVoiceClass = "flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold text-cyan-100 transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-200/70";
   const mobileVoiceContent = (
     <>
@@ -161,53 +175,62 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
             <NavGroup title="Tools">{navItems(utilityLinks)}</NavGroup>
           </nav>
 
-          <ShellControls sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme} syncStatus={syncStatus} />
+          <ShellControls
+            sessionEmail={session?.user?.email}
+            theme={theme}
+            setTheme={setTheme}
+            syncStatus={syncStatus}
+            onRefresh={refreshRemoteState}
+          />
         </div>
       </aside>
 
-      <nav
-        className="jarvis-mobile-nav fixed inset-x-0 bottom-0 z-40 h-[var(--jarvis-mobile-nav-height)] border-t border-white/10 bg-slate-950/88 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.45rem)] pt-2 shadow-[0_-18px_50px_rgba(2,6,23,0.4)] backdrop-blur-2xl lg:hidden"
-        aria-label="Primary mobile navigation"
-      >
-        <div className="mx-auto grid h-full max-w-xl grid-cols-5 items-end gap-1">
-          <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
-          <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
-          {onAssistantPage ? (
+      {!habitsImmersive && (
+        <nav
+          className="jarvis-mobile-nav fixed inset-x-3 z-40 h-20 rounded-[28px] border border-white/10 bg-slate-950/82 px-2 py-2 shadow-[0_18px_55px_rgba(2,6,23,0.45)] backdrop-blur-2xl lg:hidden"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.65rem)" }}
+          aria-label="Primary mobile navigation"
+        >
+          <div className="mx-auto grid h-full max-w-xl grid-cols-5 items-end gap-1">
+            <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
+            <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
+            {onAssistantPage ? (
+              <button
+                type="button"
+                aria-label="Toggle voice action"
+                onClick={() => window.dispatchEvent(new Event(assistantVoiceToggleEvent))}
+                className={mobileVoiceClass}
+              >
+                {mobileVoiceContent}
+              </button>
+            ) : (
+              <Link
+                href={buildHref("/assistant?voice=1")}
+                aria-label="Start voice action"
+                className={mobileVoiceClass}
+              >
+                {mobileVoiceContent}
+              </Link>
+            )}
+            <MobileBarLink item={mobileLinks[2]} active={isActive(mobileLinks[2])} href={buildHref(mobileLinks[2].href)} />
             <button
               type="button"
-              aria-label="Toggle voice action"
-              onClick={() => window.dispatchEvent(new Event(assistantVoiceToggleEvent))}
-              className={mobileVoiceClass}
+              onClick={() => setMobileOpen(true)}
+              className="flex min-w-0 flex-col items-center gap-1 rounded-[22px] px-1 py-2 text-center text-[10px] font-semibold text-zinc-300 transition hover:bg-white/6 hover:text-white active:scale-[0.98]"
+              aria-label="Open more navigation"
+              aria-expanded={mobileOpen}
             >
-              {mobileVoiceContent}
+              <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-base leading-none">...</span>
+              <span className="truncate">More</span>
             </button>
-          ) : (
-            <Link
-              href={buildHref("/assistant?voice=1")}
-              aria-label="Start voice action"
-              className={mobileVoiceClass}
-            >
-              {mobileVoiceContent}
-            </Link>
-          )}
-          <MobileBarLink item={mobileLinks[2]} active={isActive(mobileLinks[2])} href={buildHref(mobileLinks[2].href)} />
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center text-[10px] font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
-            aria-label="Open more navigation"
-            aria-expanded={mobileOpen}
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-base leading-none">...</span>
-            <span className="truncate">More</span>
-          </button>
-        </div>
-      </nav>
+          </div>
+        </nav>
+      )}
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex mobile-sidebar-overlay lg:hidden">
+        <div className="fixed inset-0 z-50 flex bg-slate-950/50 backdrop-blur-sm mobile-sidebar-overlay lg:hidden">
           <div
-            className="mobile-sidebar flex h-full w-80 max-w-[86vw] flex-col gap-6 bg-slate-950/95 px-6 py-8 text-sm text-zinc-200 shadow-2xl backdrop-blur-2xl"
+            className="mobile-sidebar flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] border-r border-white/10 bg-slate-950/92 px-6 py-8 text-sm text-zinc-200 shadow-[24px_0_80px_rgba(2,6,23,0.45)] backdrop-blur-2xl"
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
               paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -229,9 +252,15 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
               <NavGroup title="Growth">{navItems(growthLinks, true, () => setMobileOpen(false))}</NavGroup>
               <NavGroup title="Tools">{navItems(utilityLinks, true, () => setMobileOpen(false))}</NavGroup>
             </nav>
-            <ShellControls sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme} syncStatus={syncStatus} />
+            <ShellControls
+              sessionEmail={session?.user?.email}
+              theme={theme}
+              setTheme={setTheme}
+              syncStatus={syncStatus}
+              onRefresh={refreshRemoteState}
+            />
           </div>
-          <button type="button" className="h-full flex-1 bg-black/60" onClick={() => setMobileOpen(false)}>
+          <button type="button" className="h-full flex-1" onClick={() => setMobileOpen(false)}>
             <span className="sr-only">Close menu</span>
           </button>
         </div>
@@ -245,8 +274,8 @@ function MobileBarLink({ item, active, href }: { item: NavLink; active: boolean;
     <Link
       href={href}
       className={
-        "flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center text-[10px] font-semibold transition " +
-        (active ? "bg-cyan-300 text-zinc-950 shadow-lg" : "text-zinc-300 hover:bg-white/5 hover:text-white")
+        "flex min-w-0 flex-col items-center gap-1 rounded-[22px] px-1 py-2 text-center text-[10px] font-semibold transition active:scale-[0.98] " +
+        (active ? "bg-cyan-300 text-zinc-950 shadow-[0_10px_24px_rgba(34,211,238,0.24)]" : "text-zinc-300 hover:bg-white/6 hover:text-white")
       }
     >
       <span className={"flex h-7 w-7 items-center justify-center rounded-full border text-[12px] font-bold " + (active ? "border-zinc-950/10 bg-zinc-950/10" : "border-white/10 bg-white/5")}>
@@ -314,6 +343,9 @@ function getSaveStatusDisplay(syncStatus: StateSyncStatus) {
   if (syncStatus.remote === "saving") {
     return { label: "Saving", detail: lastSaved, toneClass: "bg-cyan-300 animate-pulse" };
   }
+  if (syncStatus.remote === "refreshing") {
+    return { label: "Refreshing", detail: lastSaved, toneClass: "bg-cyan-300 animate-pulse" };
+  }
   if (syncStatus.remote === "pending") {
     return { label: "Saving soon", detail: lastSaved, toneClass: "bg-amber-300" };
   }
@@ -339,12 +371,19 @@ function ShellControls({
   theme,
   setTheme,
   syncStatus,
+  onRefresh,
 }: {
   sessionEmail?: string | null;
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
   syncStatus: StateSyncStatus;
+  onRefresh: () => Promise<boolean>;
 }) {
+  const refreshDisabled =
+    syncStatus.local === "loading" ||
+    syncStatus.remote === "saving" ||
+    syncStatus.remote === "refreshing";
+
   return (
     <div className="mt-auto space-y-3 rounded-[24px] border border-white/10 bg-white/5 p-4 text-xs text-zinc-300">
       <StateSaveStatus syncStatus={syncStatus} />
@@ -375,6 +414,14 @@ function ShellControls({
           );
         })}
       </div>
+      <button
+        type="button"
+        onClick={() => void onRefresh()}
+        disabled={refreshDisabled}
+        className="w-full rounded-full border border-cyan-200/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-100 transition hover:border-cyan-200/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {syncStatus.remote === "refreshing" ? "Refreshing" : "Refresh state"}
+      </button>
       <button
         type="button"
         onClick={() => signOut({ callbackUrl: "/login" })}

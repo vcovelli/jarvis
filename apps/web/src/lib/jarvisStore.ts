@@ -107,6 +107,22 @@ export type MustWinEntry = {
   completedTs?: number;
 };
 
+export type HabitIntent = "build" | "quit";
+export type HabitLogStatus = "yes" | "no" | "skip";
+
+export type HabitEntry = {
+  id: string;
+  title: string;
+  icons: string;
+  intent: HabitIntent;
+  category?: string;
+  createdTs: number;
+  updatedTs: number;
+  archivedTs?: number;
+  order?: number;
+  logs: Record<DayKey, HabitLogStatus>;
+};
+
 export type DailyReviewReason =
   | "overplanned"
   | "low-energy"
@@ -182,6 +198,7 @@ export type JarvisState = {
   sleepSchedule: SleepSchedule;
   operatingMode: Record<DayKey, OperatingModeEntry>;
   mustWin: Record<DayKey, MustWinEntry>;
+  habits: HabitEntry[];
   dailyReview: Record<DayKey, DailyReviewEntry>;
   weeklyReview: Record<string, WeeklyReviewEntry>;
   objectives: Objective[];
@@ -193,7 +210,7 @@ const STORAGE_META_KEY = "jarvis-state-meta-v1";
 const MAX_HOMELAB_ACTIONS = 100;
 
 export type LocalSaveStatus = "loading" | "saved" | "error";
-export type RemoteSaveStatus = "idle" | "pending" | "saving" | "saved" | "offline" | "error";
+export type RemoteSaveStatus = "idle" | "pending" | "saving" | "refreshing" | "saved" | "offline" | "error";
 
 export type StateSyncStatus = {
   local: LocalSaveStatus;
@@ -230,6 +247,8 @@ function buildStorageContext(status: string, userId?: string | null) {
     metaKey: buildMetaKey(resolvedUserId),
   };
 }
+
+type StorageContext = ReturnType<typeof buildStorageContext>;
 
 function readStoredState(key: string): JarvisState | null {
   if (typeof window === "undefined") return null;
@@ -287,34 +306,90 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown persistence error";
 }
 
-type RemoteSaveResult = {
-  etag?: string;
-  updatedAt?: number;
-};
+type RemoteSaveResult =
+  | {
+      status: "saved";
+      etag?: string;
+      updatedAt?: number;
+    }
+  | {
+      status: "conflict";
+      state: unknown;
+      etag?: string;
+      updatedAt?: number;
+    };
+
+type RemoteLoadResult =
+  | { type: "not-modified"; etag?: string }
+  | { type: "loaded"; state: unknown; etag?: string; updatedAt?: number }
+  | { type: "error"; status: number };
 
 async function saveStateToServer(
   state: JarvisState,
-  options: { signal?: AbortSignal; keepalive?: boolean } = {},
+  options: { signal?: AbortSignal; keepalive?: boolean; baseEtag?: string | null } = {},
 ): Promise<RemoteSaveResult> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (options.baseEtag) {
+    headers["If-Match"] = options.baseEtag;
+  }
+
   const response = await fetch("/api/state", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ state }),
+    headers,
+    body: JSON.stringify({ state, baseEtag: options.baseEtag ?? null }),
     signal: options.signal,
     keepalive: options.keepalive,
   });
+  const data = await response.json().catch(() => null);
+  if (response.status === 409) {
+    return {
+      status: "conflict",
+      state: data?.state ?? null,
+      etag: response.headers.get("etag") ?? undefined,
+      updatedAt: typeof data?.updatedAt === "number" ? data.updatedAt : undefined,
+    };
+  }
   if (!response.ok) {
     throw new Error(`State save failed with ${response.status}`);
   }
-  const data = await response.json().catch(() => null);
   return {
+    status: "saved",
     etag: response.headers.get("etag") ?? undefined,
     updatedAt: typeof data?.updatedAt === "number" ? data.updatedAt : undefined,
   };
 }
 
-function queueStateSaveBeacon(state: JarvisState) {
-  const body = JSON.stringify({ state });
+async function fetchStateFromServer(
+  options: { etag?: string; noCache?: boolean; signal?: AbortSignal } = {},
+): Promise<RemoteLoadResult> {
+  const headers: Record<string, string> = {};
+  if (options.etag && !options.noCache) {
+    headers["If-None-Match"] = options.etag;
+  }
+
+  const response = await fetch("/api/state", {
+    headers,
+    signal: options.signal,
+    cache: "no-store",
+  });
+  if (response.status === 304) {
+    return { type: "not-modified", etag: response.headers.get("etag") ?? options.etag };
+  }
+  if (!response.ok) {
+    return { type: "error", status: response.status };
+  }
+
+  const data = await response.json().catch(() => null);
+  return {
+    type: "loaded",
+    state: data?.state ?? null,
+    etag: response.headers.get("etag") ?? undefined,
+    updatedAt: typeof data?.updatedAt === "number" ? data.updatedAt : undefined,
+  };
+}
+
+function queueStateSaveBeacon(state: JarvisState, baseEtag?: string | null) {
+  const body = JSON.stringify({ state, baseEtag: baseEtag ?? null });
   if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
     try {
       const payload = new Blob([body], { type: "application/json" });
@@ -362,6 +437,7 @@ const initialState: JarvisState = {
   sleepSchedule: defaultSchedule,
   operatingMode: {},
   mustWin: {},
+  habits: [],
   dailyReview: {},
   weeklyReview: {},
   objectives: [],
@@ -393,6 +469,24 @@ type Action =
       payload: { day?: DayKey; text: string; timeBound?: string };
     }
   | { type: "TOGGLE_MUST_WIN"; payload: { day: DayKey } }
+  | {
+      type: "ADD_HABIT";
+      payload: { title: string; icons?: string; intent?: HabitIntent; category?: string };
+    }
+  | {
+      type: "UPDATE_HABIT";
+      payload: {
+        id: string;
+        updates: Partial<Pick<HabitEntry, "title" | "icons" | "intent" | "category" | "order" | "archivedTs">>;
+      };
+    }
+  | { type: "DELETE_HABIT"; payload: { id: string } }
+  | {
+      type: "RECORD_HABIT";
+      payload: { id: string; day?: DayKey; status: HabitLogStatus };
+    }
+  | { type: "ERASE_HABIT_LOG"; payload: { id: string; day?: DayKey } }
+  | { type: "REORDER_HABITS"; payload: { orderedIds: string[] } }
   | {
       type: "LOG_DAILY_REVIEW";
       payload: { day?: DayKey; expected: boolean; reason?: DailyReviewReason; tomorrow?: string };
@@ -508,6 +602,121 @@ type Action =
         note?: string;
       };
     };
+
+function mergeJarvisStates(serverState: JarvisState, localState: JarvisState): JarvisState {
+  return sanitizeState({
+    mood: mergeDayListRecord(serverState.mood, localState.mood),
+    journal: mergeDayListRecord(serverState.journal, localState.journal),
+    todos: mergeDayListRecord(serverState.todos, localState.todos),
+    sleep: mergeDayListRecord(serverState.sleep, localState.sleep),
+    moodTags: sanitizeMoodTagList([...localState.moodTags, ...serverState.moodTags]),
+    sleepSchedule: localState.sleepSchedule,
+    operatingMode: { ...serverState.operatingMode, ...localState.operatingMode },
+    mustWin: { ...serverState.mustWin, ...localState.mustWin },
+    habits: mergeHabits(serverState.habits, localState.habits),
+    dailyReview: { ...serverState.dailyReview, ...localState.dailyReview },
+    weeklyReview: { ...serverState.weeklyReview, ...localState.weeklyReview },
+    objectives: mergeObjectives(serverState.objectives, localState.objectives),
+    homelabActions: mergeListById(serverState.homelabActions, localState.homelabActions).slice(
+      0,
+      MAX_HOMELAB_ACTIONS,
+    ),
+  });
+}
+
+function mergeDayListRecord<T extends { id: string }>(
+  serverRecord: Record<DayKey, T[]>,
+  localRecord: Record<DayKey, T[]>,
+): Record<DayKey, T[]> {
+  const keys = new Set([...Object.keys(serverRecord), ...Object.keys(localRecord)]);
+  return Array.from(keys).reduce((acc, key) => {
+    acc[key as DayKey] = mergeListById(serverRecord[key as DayKey] ?? [], localRecord[key as DayKey] ?? []);
+    return acc;
+  }, {} as Record<DayKey, T[]>);
+}
+
+function mergeListById<T extends { id: string }>(serverItems: T[], localItems: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const item of serverItems) {
+    byId.set(item.id, item);
+  }
+  for (const item of localItems) {
+    byId.set(item.id, item);
+  }
+
+  const orderedIds = [...localItems.map((item) => item.id)];
+  for (const item of serverItems) {
+    if (!orderedIds.includes(item.id)) orderedIds.push(item.id);
+  }
+
+  return orderedIds
+    .map((id) => byId.get(id))
+    .filter((item): item is T => Boolean(item));
+}
+
+function mergeObjectives(serverObjectives: Objective[], localObjectives: Objective[]): Objective[] {
+  const serverById = new Map(serverObjectives.map((objective) => [objective.id, objective]));
+  const mergedById = new Map<string, Objective>();
+
+  for (const objective of serverObjectives) {
+    mergedById.set(objective.id, objective);
+  }
+  for (const objective of localObjectives) {
+    const serverObjective = serverById.get(objective.id);
+    mergedById.set(
+      objective.id,
+      serverObjective
+        ? {
+            ...serverObjective,
+            ...objective,
+            projects: mergeListById(serverObjective.projects, objective.projects),
+          }
+        : objective,
+    );
+  }
+
+  const orderedIds = [...localObjectives.map((objective) => objective.id)];
+  for (const objective of serverObjectives) {
+    if (!orderedIds.includes(objective.id)) orderedIds.push(objective.id);
+  }
+
+  return orderedIds
+    .map((id) => mergedById.get(id))
+    .filter((objective): objective is Objective => Boolean(objective));
+}
+
+function mergeHabits(serverHabits: HabitEntry[], localHabits: HabitEntry[]): HabitEntry[] {
+  const serverById = new Map(serverHabits.map((habit) => [habit.id, habit]));
+  const mergedById = new Map<string, HabitEntry>();
+
+  for (const habit of serverHabits) {
+    mergedById.set(habit.id, habit);
+  }
+  for (const habit of localHabits) {
+    const serverHabit = serverById.get(habit.id);
+    mergedById.set(
+      habit.id,
+      serverHabit
+        ? {
+            ...serverHabit,
+            ...habit,
+            logs: { ...serverHabit.logs, ...habit.logs },
+            updatedTs: Math.max(serverHabit.updatedTs, habit.updatedTs),
+          }
+        : habit,
+    );
+  }
+
+  const orderedIds = [...localHabits.map((habit) => habit.id)];
+  for (const habit of serverHabits) {
+    if (!orderedIds.includes(habit.id)) orderedIds.push(habit.id);
+  }
+
+  return orderedIds
+    .map((id) => mergedById.get(id))
+    .filter((habit): habit is HabitEntry => Boolean(habit))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || b.createdTs - a.createdTs);
+}
 
 function reducer(state: JarvisState, action: Action): JarvisState {
   switch (action.type) {
@@ -655,6 +864,100 @@ function reducer(state: JarvisState, action: Action): JarvisState {
             completedTs: done ? Date.now() : undefined,
           },
         },
+      };
+    }
+    case "ADD_HABIT": {
+      const title = cleanOptionalString(action.payload.title);
+      if (!title) return state;
+      const now = Date.now();
+      const maxOrder = state.habits.reduce((max, habit, index) => {
+        return Math.max(max, habit.order ?? index);
+      }, -1);
+      const habit: HabitEntry = {
+        id: createId(),
+        title,
+        icons: normalizeHabitIcons(action.payload.icons),
+        intent: sanitizeHabitIntent(action.payload.intent),
+        category: cleanOptionalString(action.payload.category),
+        createdTs: now,
+        updatedTs: now,
+        order: maxOrder + 1,
+        logs: {},
+      };
+      return {
+        ...state,
+        habits: [...state.habits, habit],
+      };
+    }
+    case "UPDATE_HABIT": {
+      const now = Date.now();
+      const updates = sanitizeHabitUpdates(action.payload.updates);
+      return {
+        ...state,
+        habits: state.habits.map((habit) =>
+          habit.id === action.payload.id
+            ? {
+                ...habit,
+                ...updates,
+                updatedTs: now,
+              }
+            : habit,
+        ),
+      };
+    }
+    case "DELETE_HABIT": {
+      return {
+        ...state,
+        habits: state.habits.filter((habit) => habit.id !== action.payload.id),
+      };
+    }
+    case "RECORD_HABIT": {
+      const day = normalizeDayKey(action.payload.day);
+      const status = sanitizeHabitStatus(action.payload.status);
+      return {
+        ...state,
+        habits: state.habits.map((habit) =>
+          habit.id === action.payload.id
+            ? {
+                ...habit,
+                updatedTs: Date.now(),
+                logs: {
+                  ...habit.logs,
+                  [day]: status,
+                },
+              }
+            : habit,
+        ),
+      };
+    }
+    case "ERASE_HABIT_LOG": {
+      const day = normalizeDayKey(action.payload.day);
+      return {
+        ...state,
+        habits: state.habits.map((habit) => {
+          if (habit.id !== action.payload.id || !habit.logs[day]) return habit;
+          const logs = { ...habit.logs };
+          delete logs[day];
+          return {
+            ...habit,
+            updatedTs: Date.now(),
+            logs,
+          };
+        }),
+      };
+    }
+    case "REORDER_HABITS": {
+      const orderMap = new Map(action.payload.orderedIds.map((id, index) => [id, index]));
+      const now = Date.now();
+      return {
+        ...state,
+        habits: state.habits
+          .map((habit, index) => ({
+            ...habit,
+            order: orderMap.get(habit.id) ?? action.payload.orderedIds.length + index,
+            updatedTs: orderMap.has(habit.id) ? now : habit.updatedTs,
+          }))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || b.createdTs - a.createdTs),
       };
     }
     case "LOG_DAILY_REVIEW": {
@@ -1005,6 +1308,7 @@ function useJarvisStoreInternal() {
   const [networkRetryTick, setNetworkRetryTick] = useState(0);
   const stateRef = useRef(state);
   const lastRemoteSaveRef = useRef<string | null>(null);
+  const lastAutoRefreshRef = useRef(0);
   const scheduleSyncStatus = useCallback(
     (updater: (current: StateSyncStatus) => StateSyncStatus) => {
       Promise.resolve().then(() => setSyncStatus(updater));
@@ -1072,6 +1376,30 @@ function useJarvisStoreInternal() {
     [scheduleSyncStatus, session?.user?.id, status],
   );
 
+  const handleSaveConflict = useCallback(
+    (
+      context: StorageContext,
+      result: Extract<RemoteSaveResult, { status: "conflict" }>,
+      localState: JarvisState,
+    ) => {
+      const serverState = sanitizeState(result.state);
+      const serverStateJson = JSON.stringify(serverState);
+      const serverEtag = result.etag ?? createETagFromJson(serverStateJson);
+      const syncedAt = Date.now();
+      const mergedState = mergeJarvisStates(serverState, localState);
+
+      lastRemoteSaveRef.current = `${context.storageKey}:${serverStateJson}`;
+      persistLocalSnapshot(mergedState, {
+        etag: serverEtag,
+        pendingRemoteSave: true,
+        remoteSyncedAt: syncedAt,
+        remoteUpdatedAt: result.updatedAt,
+      });
+      dispatch({ type: "HYDRATE", payload: mergedState });
+    },
+    [persistLocalSnapshot],
+  );
+
   useEffect(() => {
     function handleOnline() {
       setNetworkRetryTick((value) => value + 1);
@@ -1084,7 +1412,10 @@ function useJarvisStoreInternal() {
 
     function handleOffline() {
       setSyncStatus((current) =>
-        current.remote === "pending" || current.remote === "saving" || current.remote === "error"
+        current.remote === "pending" ||
+          current.remote === "saving" ||
+          current.remote === "refreshing" ||
+          current.remote === "error"
           ? { ...current, remote: "offline" }
           : current,
       );
@@ -1147,7 +1478,7 @@ function useJarvisStoreInternal() {
     }
 
     const headers: HeadersInit = cachedMeta?.etag ? { "If-None-Match": cachedMeta.etag } : {};
-    fetch("/api/state", { headers })
+    fetch("/api/state", { headers, cache: "no-store" })
       .then(async (response) => {
         if (response.status === 304) {
           return { status: 304 as const, etag: cachedMeta?.etag ?? undefined };
@@ -1305,10 +1636,15 @@ function useJarvisStoreInternal() {
     }
 
     const controller = new AbortController();
+    const baseMeta = readStoredMeta(context.metaKey);
     scheduleSyncStatus((current) => ({ ...current, remote: "saving", error: undefined }));
-    void saveStateToServer(state, { signal: controller.signal })
+    void saveStateToServer(state, { signal: controller.signal, baseEtag: baseMeta?.etag ?? null })
       .then((result) => {
         if (controller.signal.aborted) return;
+        if (result.status === "conflict") {
+          handleSaveConflict(context, result, stateRef.current);
+          return;
+        }
         const syncedAt = Date.now();
         const meta = readStoredMeta(context.metaKey);
         writeStoredMeta(context.metaKey, {
@@ -1348,7 +1684,173 @@ function useJarvisStoreInternal() {
     return () => {
       controller.abort();
     };
-  }, [state, hydrated, scheduleSyncStatus, status, session?.user?.id, networkRetryTick]);
+  }, [
+    state,
+    hydrated,
+    scheduleSyncStatus,
+    status,
+    session?.user?.id,
+    networkRetryTick,
+    handleSaveConflict,
+  ]);
+
+  const refreshRemoteState = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      const context = buildStorageContext(status, session?.user?.id);
+      if (!hydrated || !readyRef.current || lastUserRef.current !== context.userKey) return false;
+      if (!context.isAuthenticated) return false;
+      if (!canUseNetwork()) {
+        scheduleSyncStatus((current) => ({ ...current, remote: "offline" }));
+        return false;
+      }
+
+      if (!options.silent) {
+        scheduleSyncStatus((current) => ({ ...current, remote: "refreshing", error: undefined }));
+      }
+
+      try {
+        const startingState = stateRef.current;
+        const startingStateJson = JSON.stringify(startingState);
+        const startingSignature = `${context.storageKey}:${startingStateJson}`;
+        const startingMeta = readStoredMeta(context.metaKey);
+        const needsRemoteSave = Boolean(
+          startingMeta?.pendingRemoteSave || lastRemoteSaveRef.current !== startingSignature,
+        );
+
+        if (needsRemoteSave) {
+          const saveResult = await saveStateToServer(startingState, {
+            baseEtag: startingMeta?.etag ?? null,
+          });
+          if (saveResult.status === "conflict") {
+            handleSaveConflict(context, saveResult, stateRef.current);
+            return true;
+          }
+
+          const syncedAt = Date.now();
+          const currentMeta = readStoredMeta(context.metaKey);
+          writeStoredMeta(context.metaKey, {
+            ...(currentMeta ?? {}),
+            etag: saveResult.etag ?? createETagFromJson(startingStateJson),
+            savedAt: currentMeta?.savedAt ?? syncedAt,
+            pendingRemoteSave: false,
+            remoteSyncedAt: syncedAt,
+            remoteUpdatedAt: saveResult.updatedAt ?? currentMeta?.remoteUpdatedAt,
+          });
+          lastRemoteSaveRef.current = startingSignature;
+        }
+
+        const remoteResult = await fetchStateFromServer({ noCache: true });
+        if (remoteResult.type === "not-modified") {
+          const syncedAt = Date.now();
+          setSyncStatus((current) => ({
+            ...current,
+            remote: "saved",
+            lastRemoteSavedAt: syncedAt,
+            error: undefined,
+          }));
+          return true;
+        }
+        if (remoteResult.type === "error") {
+          throw new Error(`State refresh failed with ${remoteResult.status}`);
+        }
+
+        const syncedAt = Date.now();
+        if (!remoteResult.state) {
+          const localStateJson = JSON.stringify(stateRef.current);
+          const localSignature = `${context.storageKey}:${localStateJson}`;
+          const localIsInitial = localStateJson === JSON.stringify(initialState);
+          writeStoredMeta(context.metaKey, {
+            ...(readStoredMeta(context.metaKey) ?? {}),
+            etag: remoteResult.etag ?? createETagFromJson(JSON.stringify(null)),
+            savedAt: syncedAt,
+            pendingRemoteSave: !localIsInitial,
+            remoteSyncedAt: syncedAt,
+            remoteUpdatedAt: remoteResult.updatedAt,
+          });
+          lastLocalSaveRef.current = localSignature;
+          lastRemoteSaveRef.current = localIsInitial ? localSignature : `${context.storageKey}:null`;
+          setSyncStatus({
+            local: "saved",
+            remote: localIsInitial ? "saved" : "pending",
+            lastLocalSavedAt: syncedAt,
+            lastRemoteSavedAt: syncedAt,
+          });
+          return true;
+        }
+
+        const serverState = sanitizeState(remoteResult.state);
+        const serverStateJson = JSON.stringify(serverState);
+        const serverSignature = `${context.storageKey}:${serverStateJson}`;
+        const latestLocalState = stateRef.current;
+        const latestLocalStateJson = JSON.stringify(latestLocalState);
+        const latestLocalSignature = `${context.storageKey}:${latestLocalStateJson}`;
+        const latestMeta = readStoredMeta(context.metaKey);
+        const shouldMerge = Boolean(
+          latestMeta?.pendingRemoteSave ||
+            (lastRemoteSaveRef.current &&
+              lastRemoteSaveRef.current !== latestLocalSignature &&
+              latestLocalSignature !== serverSignature),
+        );
+        const nextState = shouldMerge
+          ? mergeJarvisStates(serverState, latestLocalState)
+          : serverState;
+        const nextStateJson = JSON.stringify(nextState);
+        const nextSignature = `${context.storageKey}:${nextStateJson}`;
+        const nextEtag = createETagFromJson(nextStateJson);
+
+        if (nextStateJson !== latestLocalStateJson) {
+          dispatch({ type: "HYDRATE", payload: nextState });
+        }
+        writeStoredState(context.storageKey, nextStateJson);
+        writeStoredMeta(context.metaKey, {
+          etag: shouldMerge
+            ? remoteResult.etag ?? createETagFromJson(serverStateJson)
+            : remoteResult.etag ?? nextEtag,
+          savedAt: syncedAt,
+          pendingRemoteSave: shouldMerge,
+          remoteSyncedAt: syncedAt,
+          remoteUpdatedAt: remoteResult.updatedAt,
+        });
+        lastLocalSaveRef.current = nextSignature;
+        lastRemoteSaveRef.current = shouldMerge ? serverSignature : nextSignature;
+        setSyncStatus({
+          local: "saved",
+          remote: shouldMerge ? "pending" : "saved",
+          lastLocalSavedAt: syncedAt,
+          lastRemoteSavedAt: syncedAt,
+        });
+        return true;
+      } catch (error) {
+        console.warn("Jarvis state refresh failed", error);
+        scheduleSyncStatus((current) => ({
+          ...current,
+          remote: canUseNetwork() ? "error" : "offline",
+          error: getErrorMessage(error),
+        }));
+        return false;
+      }
+    },
+    [handleSaveConflict, hydrated, scheduleSyncStatus, session?.user?.id, status],
+  );
+
+  useEffect(() => {
+    if (!hydrated || !readyRef.current) return;
+
+    function refreshOnResume() {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastAutoRefreshRef.current < 15000) return;
+      lastAutoRefreshRef.current = now;
+      void refreshRemoteState({ silent: true });
+    }
+
+    window.addEventListener("focus", refreshOnResume);
+    document.addEventListener("visibilitychange", refreshOnResume);
+    return () => {
+      window.removeEventListener("focus", refreshOnResume);
+      document.removeEventListener("visibilitychange", refreshOnResume);
+    };
+  }, [hydrated, refreshRemoteState]);
 
   useEffect(() => {
     if (!hydrated || !readyRef.current) return;
@@ -1367,7 +1869,7 @@ function useJarvisStoreInternal() {
       persistLocalSnapshot(stateRef.current, { pendingRemoteSave: needsRemoteSave });
       if (!needsRemoteSave || !canUseNetwork()) return;
 
-      if (queueStateSaveBeacon(stateRef.current)) {
+      if (queueStateSaveBeacon(stateRef.current, meta?.etag ?? null)) {
         setSyncStatus((current) => ({ ...current, remote: "saving", error: undefined }));
       }
     }
@@ -1447,6 +1949,42 @@ function useJarvisStoreInternal() {
     },
     [],
   );
+
+  const addHabit = useCallback(
+    (payload: { title: string; icons?: string; intent?: HabitIntent; category?: string }) => {
+      dispatch({ type: "ADD_HABIT", payload });
+    },
+    [],
+  );
+
+  const updateHabit = useCallback(
+    (payload: {
+      id: string;
+      updates: Partial<Pick<HabitEntry, "title" | "icons" | "intent" | "category" | "order" | "archivedTs">>;
+    }) => {
+      dispatch({ type: "UPDATE_HABIT", payload });
+    },
+    [],
+  );
+
+  const deleteHabit = useCallback((payload: { id: string }) => {
+    dispatch({ type: "DELETE_HABIT", payload });
+  }, []);
+
+  const recordHabit = useCallback(
+    (payload: { id: string; day?: DayKey; status: HabitLogStatus }) => {
+      dispatch({ type: "RECORD_HABIT", payload });
+    },
+    [],
+  );
+
+  const eraseHabitLog = useCallback((payload: { id: string; day?: DayKey }) => {
+    dispatch({ type: "ERASE_HABIT_LOG", payload });
+  }, []);
+
+  const reorderHabits = useCallback((payload: { orderedIds: string[] }) => {
+    dispatch({ type: "REORDER_HABITS", payload });
+  }, []);
 
   const saveWeeklyReview = useCallback(
     (payload: { weekKey: string; stop: string; doubleDown: string; experiment: string }) => {
@@ -1621,6 +2159,7 @@ function useJarvisStoreInternal() {
     state,
     hydrated,
     syncStatus,
+    refreshRemoteState,
     logMood,
     updateMood,
     deleteMood,
@@ -1631,6 +2170,12 @@ function useJarvisStoreInternal() {
     setOperatingMode,
     setMustWin,
     toggleMustWin,
+    addHabit,
+    updateHabit,
+    deleteHabit,
+    recordHabit,
+    eraseHabitLog,
+    reorderHabits,
     logDailyReview,
     saveWeeklyReview,
     addObjective,
@@ -1724,6 +2269,7 @@ function sanitizeState(input: unknown): JarvisState {
     sleepSchedule: sanitizeSleepSchedule(state.sleepSchedule),
     operatingMode: sanitizeDayValueRecord(state.operatingMode),
     mustWin: sanitizeDayValueRecord(state.mustWin),
+    habits: sanitizeHabits(state.habits),
     dailyReview: sanitizeDayValueRecord(state.dailyReview),
     weeklyReview: sanitizeKeyRecord(state.weeklyReview),
     objectives: sanitizeObjectives(state.objectives),
@@ -1869,6 +2415,72 @@ function sanitizeObjectiveUpdates(
 function sanitizeObjectiveStatus(value?: string): ObjectiveStatus {
   if (value === "paused" || value === "done") return value;
   return "active";
+}
+
+function sanitizeHabits(value?: unknown): HabitEntry[] {
+  if (!Array.isArray(value)) return [];
+  const habits: HabitEntry[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const habit = entry as Partial<HabitEntry>;
+    const title = cleanOptionalString(habit.title);
+    if (!title) continue;
+    const createdTs = typeof habit.createdTs === "number" ? habit.createdTs : Date.now();
+    habits.push({
+      id: typeof habit.id === "string" ? habit.id : createId(),
+      title,
+      icons: normalizeHabitIcons(habit.icons),
+      intent: sanitizeHabitIntent(habit.intent),
+      category: cleanOptionalString(habit.category),
+      createdTs,
+      updatedTs: typeof habit.updatedTs === "number" ? habit.updatedTs : createdTs,
+      archivedTs: typeof habit.archivedTs === "number" ? habit.archivedTs : undefined,
+      order: typeof habit.order === "number" ? habit.order : habits.length,
+      logs: sanitizeHabitLogs(habit.logs),
+    });
+  }
+  return habits.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || b.createdTs - a.createdTs);
+}
+
+function sanitizeHabitLogs(value?: unknown): Record<DayKey, HabitLogStatus> {
+  if (!value || typeof value !== "object") return {};
+  return Object.entries(value).reduce((acc, [key, status]) => {
+    const normalizedKey = extractDayKey(key) ?? (key as DayKey);
+    acc[normalizedKey] = sanitizeHabitStatus(status);
+    return acc;
+  }, {} as Record<DayKey, HabitLogStatus>);
+}
+
+function sanitizeHabitUpdates(
+  updates: Partial<Pick<HabitEntry, "title" | "icons" | "intent" | "category" | "order" | "archivedTs">>,
+) {
+  const next: Partial<Pick<HabitEntry, "title" | "icons" | "intent" | "category" | "order" | "archivedTs">> = {};
+  if (typeof updates.title === "string") {
+    const title = cleanOptionalString(updates.title);
+    if (title) next.title = title;
+  }
+  if (typeof updates.icons === "string") next.icons = normalizeHabitIcons(updates.icons);
+  if (typeof updates.intent === "string") next.intent = sanitizeHabitIntent(updates.intent);
+  if (typeof updates.category === "string") next.category = cleanOptionalString(updates.category);
+  if (typeof updates.order === "number") next.order = updates.order;
+  if (Object.prototype.hasOwnProperty.call(updates, "archivedTs")) {
+    next.archivedTs = typeof updates.archivedTs === "number" ? updates.archivedTs : undefined;
+  }
+  return next;
+}
+
+function sanitizeHabitIntent(value?: string): HabitIntent {
+  return value === "quit" ? "quit" : "build";
+}
+
+function sanitizeHabitStatus(value: unknown): HabitLogStatus {
+  if (value === "no" || value === "skip") return value;
+  return "yes";
+}
+
+function normalizeHabitIcons(value?: string): string {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed ? trimmed.slice(0, 16) : "✓";
 }
 
 function sanitizeHomelabActions(value?: unknown): HomelabActionLog[] {
