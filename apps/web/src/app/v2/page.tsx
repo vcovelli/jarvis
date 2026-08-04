@@ -112,12 +112,21 @@ export default function Home() {
   );
   const todaysMustWin = useMemo(() => state.mustWin[todayKey], [state.mustWin, todayKey]);
   const todaysReview = useMemo(() => state.dailyReview[todayKey], [state.dailyReview, todayKey]);
+  const activeHabits = useMemo(
+    () => (state.habits ?? []).filter((habit) => !habit.archivedTs),
+    [state.habits],
+  );
+  const hasHabitLoggedToday = useMemo(
+    () => activeHabits.some((habit) => {
+      const status = habit.logs[todayKey];
+      return status === "yes" || status === "no" || status === "skip";
+    }),
+    [activeHabits, todayKey],
+  );
 
   const [moodValue, setMoodValue] = useState(5);
   const [moodNote, setMoodNote] = useState("");
   const [selectedMoodTags, setSelectedMoodTags] = useState<MoodTag[]>([]);
-  const [pulseMoodValue, setPulseMoodValue] = useState(5);
-  const [pulseNote, setPulseNote] = useState("");
   const [editingMood, setEditingMood] = useState<{ day: DayKey; log: MoodLog } | null>(null);
   const [editMoodValue, setEditMoodValue] = useState(5);
   const [editMoodNote, setEditMoodNote] = useState("");
@@ -183,18 +192,6 @@ export default function Home() {
     }
     return { text: "text-emerald-300", accent: "#34d399" };
   }, [moodValue]);
-  const pulseMoodTone = useMemo(() => {
-    if (pulseMoodValue <= 3) {
-      return { text: "text-rose-300", accent: "#f87171" };
-    }
-    if (pulseMoodValue <= 5) {
-      return { text: "text-amber-300", accent: "#fbbf24" };
-    }
-    if (pulseMoodValue <= 7) {
-      return { text: "text-lime-300", accent: "#84cc16" };
-    }
-    return { text: "text-emerald-300", accent: "#34d399" };
-  }, [pulseMoodValue]);
   const moodPercent = useMemo(() => ((moodValue - 1) / 9) * 100, [moodValue]);
   const editMoodTone = useMemo(() => {
     if (editMoodValue <= 3) {
@@ -409,18 +406,6 @@ export default function Home() {
     showToast("Mood logged");
   }
 
-  function handlePulseSubmit(event?: React.FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-    const trimmed = pulseNote.trim();
-    logMood({ mood: pulseMoodValue, note: trimmed || undefined, tags: [] });
-    if (trimmed) {
-      addJournal({ text: trimmed, prompt: "free" });
-    }
-    setPulseMoodValue(5);
-    setPulseNote("");
-    showToast(trimmed ? "Pulse logged and journal saved" : "Pulse logged");
-  }
-
   function handleJournalSubmit(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const trimmed = journalText.trim();
@@ -596,8 +581,10 @@ export default function Home() {
       <section className="lg:hidden">
         <div className="rounded-3xl border border-white/10 bg-slate-950/90 p-4 shadow-xl shadow-black/30 backdrop-blur-xl">
           <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-400">Quick actions</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-white">
+          <div className="mt-3 grid grid-cols-2 gap-3 text-white sm:grid-cols-3">
             <QuickNavLink href="/v2?focus=mood" label="Mood" attention={!hasMoodToday} />
+            <QuickNavLink href="/v2/sleep" label="Sleep" attention={todaysSleep.length === 0} />
+            <QuickNavLink href="/v2/habits" label="Habits" attention={activeHabits.length === 0 || !hasHabitLoggedToday} />
             <QuickNavLink href="/v2?focus=mustwin" label="Must Win" attention={!todaysMustWin?.done} />
             <QuickNavLink href="/v2?focus=todos" label="Todos" attention={todaysTodos.length === 0 || !hasTodoDoneToday} />
             <QuickNavLink href="/v2/review" label="Review" attention={!todaysReview} />
@@ -664,49 +651,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="glass-panel rounded-3xl border border-cyan-400/20 bg-linear-to-br from-cyan-400/10 via-white/5 to-indigo-500/10 p-6 backdrop-blur-lg">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Daily pulse</p>
-              <h2 className="mt-3 text-xl font-semibold text-white">Capture the signal in under 20 seconds</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">
-                Log your energy and save a short note without breaking your flow.
-              </p>
-            </div>
-          </div>
-          <form className="mt-6 flex flex-col gap-4" onSubmit={handlePulseSubmit}>
-            <label className="text-sm font-medium text-zinc-200">
-              Energy: <span className={`slider-emphasis ${pulseMoodTone.text}`}>{pulseMoodValue}/10</span>
-            </label>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={pulseMoodValue}
-              onChange={(event) => setPulseMoodValue(Number(event.target.value))}
-              className="h-2 w-full cursor-pointer appearance-none rounded bg-transparent"
-              style={{
-                accentColor: pulseMoodTone.accent,
-                background: `linear-gradient(90deg, ${pulseMoodTone.accent} 0%, ${pulseMoodTone.accent} ${((pulseMoodValue - 1) / 9) * 100}%, #3f3f46 ${((pulseMoodValue - 1) / 9) * 100}%, #3f3f46 100%)`,
-              }}
-            />
-            <textarea
-              value={pulseNote}
-              onChange={(event) => setPulseNote(event.target.value)}
-              rows={4}
-              className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
-              placeholder="What matters most right now?"
-            />
-            <button
-              type="submit"
-              className="rounded-2xl bg-linear-to-r from-cyan-400 via-indigo-400 to-blue-500 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90"
-            >
-              Log pulse
-            </button>
-          </form>
-        </div>
-
+      <section className="grid gap-6">
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Weekly insight</p>
           <h2 className="mt-3 text-xl font-semibold text-white">{weeklyInsight.headline}</h2>

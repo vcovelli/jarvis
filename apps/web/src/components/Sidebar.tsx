@@ -188,11 +188,10 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       {!habitsImmersive && (
         <nav
           data-no-pull-refresh="true"
-          className="jarvis-mobile-nav fixed inset-x-3 z-40 h-20 rounded-[28px] border border-white/10 bg-slate-950/82 px-2 py-2 shadow-[0_18px_55px_rgba(2,6,23,0.45)] backdrop-blur-2xl lg:hidden"
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.65rem)" }}
+          className="jarvis-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/90 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 shadow-[0_-18px_45px_rgba(2,6,23,0.38)] backdrop-blur-2xl lg:hidden"
           aria-label="Primary mobile navigation"
         >
-          <div className="mx-auto grid h-full max-w-xl grid-cols-5 items-end gap-1">
+          <div className="mx-auto grid h-[4.45rem] max-w-xl grid-cols-5 items-end gap-1">
             <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
             <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
             {onAssistantPage ? (
