@@ -108,7 +108,7 @@ export type MustWinEntry = {
 };
 
 export type HabitIntent = "build" | "quit";
-export type HabitLogStatus = "yes" | "no" | "skip";
+export type HabitLogStatus = "yes" | "no" | "skip" | "empty";
 
 export type HabitEntry = {
   id: string;
@@ -935,13 +935,14 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       return {
         ...state,
         habits: state.habits.map((habit) => {
-          if (habit.id !== action.payload.id || !habit.logs[day]) return habit;
-          const logs = { ...habit.logs };
-          delete logs[day];
+          if (habit.id !== action.payload.id || habit.logs[day] === "empty") return habit;
           return {
             ...habit,
             updatedTs: Date.now(),
-            logs,
+            logs: {
+              ...habit.logs,
+              [day]: "empty",
+            },
           };
         }),
       };
@@ -2474,7 +2475,7 @@ function sanitizeHabitIntent(value?: string): HabitIntent {
 }
 
 function sanitizeHabitStatus(value: unknown): HabitLogStatus {
-  if (value === "no" || value === "skip") return value;
+  if (value === "no" || value === "skip" || value === "empty") return value;
   return "yes";
 }
 

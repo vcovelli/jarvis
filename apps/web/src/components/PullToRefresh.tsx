@@ -7,6 +7,7 @@ import { useJarvisState } from "@/lib/jarvisStore";
 const TRIGGER_DISTANCE = 76;
 const MAX_PULL_DISTANCE = 126;
 const MIN_REFRESH_VISIBLE_MS = 520;
+const PULL_START_MAX_Y = 124;
 
 export function PullToRefresh() {
   const { refreshRemoteState, syncStatus } = useJarvisState();
@@ -42,9 +43,11 @@ export function PullToRefresh() {
       ) {
         return;
       }
+      const startY = event.touches[0]?.clientY ?? null;
+      if (startY === null || startY > PULL_START_MAX_Y) return;
       if (!canStartPull(event.target)) return;
-      startYRef.current = event.touches[0]?.clientY ?? null;
-      trackingRef.current = startYRef.current !== null;
+      startYRef.current = startY;
+      trackingRef.current = true;
       readyRef.current = false;
     }
 
@@ -158,7 +161,7 @@ function canStartPull(target: EventTarget | null) {
   const element = target instanceof Element ? target : null;
   if (
     element?.closest(
-      'input, textarea, select, [contenteditable="true"], [data-no-pull-refresh="true"]',
+      'a, button, input, textarea, select, [role="button"], [contenteditable="true"], [data-no-pull-refresh="true"], .jarvis-mobile-nav, .mobile-sidebar, .mobile-sidebar-overlay',
     )
   ) {
     return false;

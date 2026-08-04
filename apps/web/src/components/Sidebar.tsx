@@ -187,6 +187,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
 
       {!habitsImmersive && (
         <nav
+          data-no-pull-refresh="true"
           className="jarvis-mobile-nav fixed inset-x-3 z-40 h-20 rounded-[28px] border border-white/10 bg-slate-950/82 px-2 py-2 shadow-[0_18px_55px_rgba(2,6,23,0.45)] backdrop-blur-2xl lg:hidden"
           style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.65rem)" }}
           aria-label="Primary mobile navigation"
@@ -228,7 +229,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       )}
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex bg-slate-950/50 backdrop-blur-sm mobile-sidebar-overlay lg:hidden">
+        <div data-no-pull-refresh="true" className="fixed inset-0 z-50 flex bg-slate-950/50 backdrop-blur-sm mobile-sidebar-overlay lg:hidden">
           <div
             className="mobile-sidebar flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] border-r border-white/10 bg-slate-950/92 px-6 py-8 text-sm text-zinc-200 shadow-[24px_0_80px_rgba(2,6,23,0.45)] backdrop-blur-2xl"
             style={{

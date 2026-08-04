@@ -209,10 +209,10 @@ export default function HabitsPage() {
   });
 
   return (
-    <div className="-mx-4 -mb-[calc(var(--jarvis-mobile-nav-height)+1rem)] -mt-20 min-h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_top_right,rgba(129,140,248,0.14),transparent_26%),#060912] text-zinc-50 sm:-mx-6 sm:-mt-16 lg:mx-0 lg:mb-0 lg:mt-0 lg:min-h-[calc(100dvh-5rem)] lg:rounded-[28px]">
-      <div className="mx-auto grid min-h-dvh max-w-7xl gap-4 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pt-5 lg:min-h-[calc(100dvh-5rem)] lg:grid-cols-[minmax(0,1fr)_21rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/74 shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl">
-          <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/84 px-3 py-3 backdrop-blur-2xl sm:px-4">
+    <div className="fixed inset-0 z-30 h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_top_right,rgba(129,140,248,0.14),transparent_26%),#060912] text-zinc-50 lg:relative lg:inset-auto lg:z-auto lg:h-[calc(100dvh-5rem)] lg:rounded-[28px]">
+      <div className="mx-auto grid h-full max-h-full max-w-7xl gap-4 px-3 pb-0 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pb-0 sm:pt-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/74 shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl">
+          <header className="z-30 shrink-0 border-b border-white/10 bg-slate-950/84 px-3 py-3 backdrop-blur-2xl sm:px-4">
             <div className="grid grid-cols-[2.6rem_minmax(0,1fr)_2.6rem] items-center gap-2">
               <button
                 type="button"
@@ -267,7 +267,7 @@ export default function HabitsPage() {
             <DayStrip days={visibleDays} viewMode={viewMode} onSelectDay={selectDay} />
           </header>
 
-          <div className="border-b border-white/10 bg-slate-950/58 px-3 py-3 sm:px-4">
+          <div className="shrink-0 border-b border-white/10 bg-slate-950/58 px-3 py-3 sm:px-4">
             <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {categories.map((category) => {
                 const active = category === categoryFilter;
@@ -295,7 +295,7 @@ export default function HabitsPage() {
             </div>
           </div>
 
-          <main className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4 lg:py-4">
+          <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 lg:py-4">
             {!hydrated && <HabitSkeleton />}
 
             {hydrated && visibleHabits.length === 0 && (
@@ -303,7 +303,7 @@ export default function HabitsPage() {
             )}
 
             {hydrated && visibleHabits.length > 0 && (
-              <div className="space-y-3 pb-32 lg:pb-4">
+              <div className="space-y-3 pb-3 lg:pb-4">
                 {visibleHabits.map((habit) => (
                   <HabitRow
                     key={habit.id}
@@ -324,7 +324,7 @@ export default function HabitsPage() {
             )}
           </main>
 
-          <footer className="fixed inset-x-3 z-40 rounded-[28px] border border-white/10 bg-slate-950/84 px-3 py-2 shadow-[0_18px_55px_rgba(2,6,23,0.48)] backdrop-blur-2xl lg:hidden" style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.65rem)" }}>
+          <footer data-no-pull-refresh="true" className="shrink-0 border-t border-white/10 bg-slate-950/86 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.55rem)] pt-2 shadow-[0_-18px_45px_rgba(2,6,23,0.36)] backdrop-blur-2xl lg:hidden">
             <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
               <ToolbarButton label="Menu" onClick={openMobileMenu} icon={<MenuIcon />} />
               <ToolbarButton label="Today" onClick={() => selectDay(todayKey)} icon={<CalendarIcon />} />
@@ -520,7 +520,7 @@ function InlineActionBar({
 }) {
   return (
     <div className="mt-3 grid grid-cols-4 gap-2 rounded-[20px] border border-white/10 bg-slate-950/62 p-2 shadow-inner">
-      <ActionButton label="Erase" icon={<EraseIcon />} active={false} onClick={() => onApply("erase")} tone="neutral" disabled={!currentStatus} />
+      <ActionButton label="Erase" icon={<EraseIcon />} active={false} onClick={() => onApply("erase")} tone="neutral" disabled={!isRecordedStatus(currentStatus)} />
       <ActionButton label="Yes" icon={<CheckIcon />} active={currentStatus === "yes"} onClick={() => onApply("yes")} tone="yes" />
       <ActionButton label="No" icon={<XIcon />} active={currentStatus === "no"} onClick={() => onApply("no")} tone="no" />
       <ActionButton label="Skip" icon={<SkipIcon />} active={currentStatus === "skip"} onClick={() => onApply("skip")} tone="neutral" />
@@ -917,7 +917,7 @@ function buildDayStats(habits: HabitEntry[], day: DayKey) {
       if (status === "yes") acc.yes += 1;
       if (status === "no") acc.no += 1;
       if (status === "skip") acc.skip += 1;
-      if (status) acc.logged += 1;
+      if (isRecordedStatus(status)) acc.logged += 1;
       return acc;
     },
     { total: habits.length, logged: 0, yes: 0, no: 0, skip: 0 },
@@ -1003,6 +1003,10 @@ function statusLabel(status?: HabitLogStatus) {
   if (status === "no") return "No";
   if (status === "skip") return "Skip";
   return "Empty";
+}
+
+function isRecordedStatus(status?: HabitLogStatus) {
+  return status === "yes" || status === "no" || status === "skip";
 }
 
 function pulse(pattern: number | number[]) {
