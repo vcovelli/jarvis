@@ -17,6 +17,7 @@ import {
   TodoPriority,
   SleepEntry,
   defaultMoodTags,
+  dayKeyToDate,
   getDayKey,
   useJarvisState,
 } from "@/lib/jarvisStore";
@@ -237,8 +238,10 @@ export default function Home() {
       load: `${context.taskCount} task${context.taskCount === 1 ? "" : "s"}`,
     };
   }, [suggestedMode]);
-  const manualReviewOpen = reviewManuallyOpenedDay === todayKey;
-  const reviewOpen = manualReviewOpen && !todaysReview;
+  const activeReviewDay = reviewManuallyOpenedDay ?? todayKey;
+  const activeReviewEntry = state.dailyReview[activeReviewDay];
+  const activeReviewDayLabel = formatDashboardReviewDay(activeReviewDay);
+  const reviewOpen = reviewManuallyOpenedDay !== null;
   const moodPanelCollapsed = Boolean(collapsedPanels.mood);
   const timelinePanelCollapsed = Boolean(collapsedPanels.timeline);
   const todosPanelCollapsed = Boolean(collapsedPanels.todos);
@@ -432,18 +435,26 @@ export default function Home() {
     showToast("Must Win locked");
   }
 
+  function openReviewForDay(day: DayKey) {
+    const existingReview = state.dailyReview[day];
+    setReviewManuallyOpenedDay(day);
+    setReviewExpected(existingReview?.expected ?? null);
+    setReviewReason(existingReview?.reason ?? "");
+    setReviewTomorrow(existingReview?.tomorrow ?? "");
+  }
+
   function handleReviewSubmit(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (reviewExpected === null) return;
     logDailyReview({
-      day: todayKey,
+      day: activeReviewDay,
       expected: reviewExpected,
       reason: reviewExpected
         ? undefined
         : reviewReason
           ? (reviewReason as DailyReviewReason)
           : undefined,
-      tomorrow: reviewTomorrow,
+      tomorrow: reviewTomorrow.trim() || undefined,
     });
     setReviewExpected(null);
     setReviewReason("");
@@ -1163,17 +1174,13 @@ export default function Home() {
               30-second reflection to close the loop.
             </p>
           </div>
-          {!todaysReview && (
-            <button
-              type="button"
-              onClick={() => {
-                setReviewManuallyOpenedDay(todayKey);
-              }}
-              className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white"
-            >
-              Start review
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => openReviewForDay(todayKey)}
+            className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white"
+          >
+            {todaysReview ? "Edit / backfill" : "Start review"}
+          </button>
         </div>
         {todaysReview ? (
           <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-4 text-sm text-zinc-200">
@@ -1205,7 +1212,7 @@ export default function Home() {
               <div>
                 <h3 className="text-lg font-semibold">30-second review</h3>
                 <p className="mt-1 text-sm text-zinc-300">
-                  Capture the signal before it fades.
+                  Writing for {activeReviewDayLabel}.
                 </p>
               </div>
               <button
@@ -1219,8 +1226,27 @@ export default function Home() {
               </button>
             </div>
             <form className="mt-6 space-y-5" onSubmit={handleReviewSubmit}>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                  Review day
+                  <input
+                    type="date"
+                    value={activeReviewDay}
+                    onChange={(event) => {
+                      if (!event.target.value) return;
+                      openReviewForDay(event.target.value as DayKey);
+                    }}
+                    className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base font-semibold normal-case tracking-normal text-white outline-none focus:border-cyan-300/60"
+                  />
+                </label>
+                {activeReviewEntry && (
+                  <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-100">
+                    Saved
+                  </span>
+                )}
+              </div>
               <div>
-                <p className="text-sm font-semibold text-white">Did today go as expected?</p>
+                <p className="text-sm font-semibold text-white">Did this day go as expected?</p>
                 <div className="mt-3 flex flex-wrap gap-3">
                   {[
                     { label: "Yes", value: true },
@@ -1774,6 +1800,14 @@ function formatTimelineTime(timestamp: number) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+  });
+}
+
+function formatDashboardReviewDay(day: DayKey) {
+  return dayKeyToDate(day).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
   });
 }
 
