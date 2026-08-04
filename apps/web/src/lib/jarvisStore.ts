@@ -21,6 +21,7 @@ export type MoodTag = string;
 export const defaultMoodTags = ["energy", "stress", "sleep", "workout"] as const;
 const defaultMoodTagSet = new Set(defaultMoodTags.map((tag) => tag.toLowerCase()));
 const MAX_CUSTOM_MOOD_TAGS = 24;
+const MAX_DELETED_TODO_IDS = 500;
 const MAX_MOOD_TAG_LENGTH = 24;
 
 export type MoodLog = {
@@ -193,6 +194,7 @@ export type JarvisState = {
   mood: Record<DayKey, MoodLog[]>;
   journal: Record<DayKey, JournalEntry[]>;
   todos: Record<DayKey, TodoItem[]>;
+  deletedTodoIds: string[];
   sleep: Record<DayKey, SleepEntry[]>;
   moodTags: string[];
   sleepSchedule: SleepSchedule;
@@ -432,6 +434,7 @@ const initialState: JarvisState = {
   mood: {},
   journal: {},
   todos: {},
+  deletedTodoIds: [],
   sleep: {},
   moodTags: [],
   sleepSchedule: defaultSchedule,
@@ -604,10 +607,15 @@ type Action =
     };
 
 function mergeJarvisStates(serverState: JarvisState, localState: JarvisState): JarvisState {
+  const deletedTodoIds = mergeDeletedTodoIds(serverState.deletedTodoIds, localState.deletedTodoIds);
   return sanitizeState({
     mood: mergeDayListRecord(serverState.mood, localState.mood),
     journal: mergeDayListRecord(serverState.journal, localState.journal),
-    todos: mergeDayListRecord(serverState.todos, localState.todos),
+    todos: filterDeletedTodos(
+      mergeDayListRecord(serverState.todos, localState.todos),
+      deletedTodoIds,
+    ),
+    deletedTodoIds,
     sleep: mergeDayListRecord(serverState.sleep, localState.sleep),
     moodTags: sanitizeMoodTagList([...localState.moodTags, ...serverState.moodTags]),
     sleepSchedule: localState.sleepSchedule,
@@ -652,6 +660,26 @@ function mergeListById<T extends { id: string }>(serverItems: T[], localItems: T
   return orderedIds
     .map((id) => byId.get(id))
     .filter((item): item is T => Boolean(item));
+}
+
+function mergeDeletedTodoIds(serverIds: string[] = [], localIds: string[] = []): string[] {
+  return sanitizeDeletedTodoIds([...localIds, ...serverIds]);
+}
+
+function addDeletedTodoId(ids: string[], id: string): string[] {
+  return sanitizeDeletedTodoIds([id, ...ids]);
+}
+
+function filterDeletedTodos(
+  todos: Record<DayKey, TodoItem[]>,
+  deletedTodoIds: string[],
+): Record<DayKey, TodoItem[]> {
+  if (!deletedTodoIds.length) return todos;
+  const deleted = new Set(deletedTodoIds);
+  return Object.entries(todos).reduce((acc, [day, items]) => {
+    acc[day as DayKey] = items.filter((todo) => !deleted.has(todo.id));
+    return acc;
+  }, {} as Record<DayKey, TodoItem[]>);
 }
 
 function mergeObjectives(serverObjectives: Objective[], localObjectives: Objective[]): Objective[] {
@@ -1183,13 +1211,18 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       };
     }
     case "DELETE_TODO": {
-      const todosForDay = state.todos[action.payload.day] ?? [];
+      let changed = false;
+      const nextTodos = Object.entries(state.todos).reduce((acc, [day, todosForDay]) => {
+        const filtered = todosForDay.filter((todo) => todo.id !== action.payload.id);
+        if (filtered.length !== todosForDay.length) changed = true;
+        acc[day as DayKey] = filtered;
+        return acc;
+      }, {} as Record<DayKey, TodoItem[]>);
+      if (!changed && state.deletedTodoIds.includes(action.payload.id)) return state;
       return {
         ...state,
-        todos: {
-          ...state.todos,
-          [action.payload.day]: todosForDay.filter((todo) => todo.id !== action.payload.id),
-        },
+        todos: nextTodos,
+        deletedTodoIds: addDeletedTodoId(state.deletedTodoIds, action.payload.id),
       };
     }
     case "REORDER_TODOS": {
@@ -2264,7 +2297,11 @@ function sanitizeState(input: unknown): JarvisState {
   return {
     mood: sanitizeRecord(state.mood),
     journal: sanitizeRecord(state.journal),
-    todos: sanitizeRecord(state.todos),
+    todos: filterDeletedTodos(
+      sanitizeRecord(state.todos),
+      sanitizeDeletedTodoIds(state.deletedTodoIds),
+    ),
+    deletedTodoIds: sanitizeDeletedTodoIds(state.deletedTodoIds),
     sleep: sanitizeRecord(state.sleep),
     moodTags: sanitizeMoodTagList(state.moodTags),
     sleepSchedule: sanitizeSleepSchedule(state.sleepSchedule),
@@ -2316,6 +2353,21 @@ function sanitizeRecord<T>(record?: Record<DayKey, T[]>): Record<DayKey, T[]> {
     acc[normalizedKey] = Array.isArray(value) ? value : [];
     return acc;
   }, {} as Record<DayKey, T[]>);
+}
+
+function sanitizeDeletedTodoIds(value?: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const id = entry.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+    if (ids.length >= MAX_DELETED_TODO_IDS) break;
+  }
+  return ids;
 }
 
 function sanitizeMoodTagList(value?: unknown): string[] {

@@ -85,15 +85,25 @@ export default function WeeklyReviewPage() {
   const insightHighlights = useMemo(() => buildInsightHighlights(summary), [summary]);
   const selectedReviewDayLabel = useMemo(() => formatFullDate(selectedReviewDay), [selectedReviewDay]);
 
-  function handleDailyReviewSubmit(event: FormEvent<HTMLFormElement>) {
+  function loadDailyReviewForDay(day: DayKey) {
+    const nextReview = state.dailyReview[day];
+    setSelectedReviewDay(day);
+    setDailyExpected(nextReview?.expected ?? null);
+    setDailyReason(nextReview?.reason ?? "");
+    setDailyTomorrow(nextReview?.tomorrow ?? "");
+  }
+
+  function handleReviewSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (dailyExpected === null) return;
-    logDailyReview({
-      day: selectedReviewDay,
-      expected: dailyExpected,
-      reason: dailyExpected ? undefined : dailyReason || undefined,
-      tomorrow: dailyTomorrow.trim() || undefined,
-    });
+    if (dailyExpected !== null) {
+      logDailyReview({
+        day: selectedReviewDay,
+        expected: dailyExpected,
+        reason: dailyExpected ? undefined : dailyReason || undefined,
+        tomorrow: dailyTomorrow.trim() || undefined,
+      });
+    }
+    saveWeeklyReview({ weekKey, stop, doubleDown, experiment });
   }
 
   if (!hydrated) {
@@ -353,20 +363,28 @@ export default function WeeklyReviewPage() {
         </section>
       </div>
 
-      <section className="glass-panel rounded-3xl border border-cyan-300/20 bg-cyan-300/[0.055] p-6 backdrop-blur-lg">
+      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Daily review</p>
-            <h2 className="mt-2 text-lg font-medium text-white">Backfill a day</h2>
-            <p className="mt-1 text-sm text-zinc-300">Choose the day this reflection belongs to.</p>
+            <h2 className="text-lg font-medium text-white">Manual reset</h2>
+            <p className="mt-1 text-sm text-zinc-300">
+              Daily expectation check, then one stop, one double-down, one experiment.
+            </p>
           </div>
-          {selectedDailyReview && (
-            <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-100">
-              Saved
-            </span>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {selectedDailyReview && (
+              <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-100">
+                Day saved
+              </span>
+            )}
+            {weeklyReview && (
+              <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70">
+                Week saved
+              </span>
+            )}
+          </div>
         </div>
-        <form className="mt-6 grid gap-5" onSubmit={handleDailyReviewSubmit}>
+        <form className="mt-6 grid gap-6" onSubmit={handleReviewSubmit}>
           <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
             <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
               Day
@@ -375,12 +393,7 @@ export default function WeeklyReviewPage() {
                 value={selectedReviewDay}
                 onChange={(event) => {
                   if (!event.target.value) return;
-                  const nextDay = event.target.value as DayKey;
-                  const nextReview = state.dailyReview[nextDay];
-                  setSelectedReviewDay(nextDay);
-                  setDailyExpected(nextReview?.expected ?? null);
-                  setDailyReason(nextReview?.reason ?? "");
-                  setDailyTomorrow(nextReview?.tomorrow ?? "");
+                  loadDailyReviewForDay(event.target.value as DayKey);
                 }}
                 className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base font-semibold normal-case tracking-normal text-white outline-none focus:border-cyan-300/60"
               />
@@ -391,44 +404,24 @@ export default function WeeklyReviewPage() {
             </div>
           </div>
 
-          <div>
-            <p className="text-sm font-semibold text-white">Did the day go as expected?</p>
-            <div className="mt-3 flex flex-wrap gap-3">
-              {[
-                { label: "Yes", value: true },
-                { label: "No", value: false },
-              ].map((option) => (
-                <button
-                  key={option.label}
-                  type="button"
-                  onClick={() => {
-                    setDailyExpected(option.value);
-                    if (option.value) setDailyReason("");
-                  }}
-                  className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] ${
-                    dailyExpected === option.value
-                      ? "border-cyan-300/70 bg-cyan-300/20 text-white"
-                      : "border-white/10 text-zinc-300 hover:border-white/20 hover:text-white"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {dailyExpected === false && (
+          <div className="rounded-3xl border border-cyan-300/15 bg-cyan-300/[0.055] p-4">
             <div>
-              <p className="text-sm font-semibold text-white">Main reason</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                {dailyReviewReasons.map((option) => (
+              <p className="text-sm font-semibold text-white">Did this day go as expected?</p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {[
+                  { label: "Yes", value: true },
+                  { label: "No", value: false },
+                ].map((option) => (
                   <button
-                    key={option.id}
+                    key={option.label}
                     type="button"
-                    onClick={() => setDailyReason(option.id)}
-                    className={`rounded-2xl border px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] ${
-                      dailyReason === option.id
-                        ? "border-rose-300/70 bg-rose-300/10 text-white"
+                    onClick={() => {
+                      setDailyExpected(option.value);
+                      if (option.value) setDailyReason("");
+                    }}
+                    className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] ${
+                      dailyExpected === option.value
+                        ? "border-cyan-300/70 bg-cyan-300/20 text-white"
                         : "border-white/10 text-zinc-300 hover:border-white/20 hover:text-white"
                     }`}
                   >
@@ -437,94 +430,86 @@ export default function WeeklyReviewPage() {
                 ))}
               </div>
             </div>
-          )}
 
-          <label className="grid gap-2 text-sm font-semibold text-white">
-            Tomorrow will be better if I...
-            <textarea
-              value={dailyTomorrow}
-              onChange={(event) => setDailyTomorrow(event.target.value)}
-              rows={3}
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-normal text-white placeholder:text-zinc-500"
-              placeholder="Finish the sentence for this day."
-            />
-          </label>
+            {dailyExpected === false && (
+              <div className="mt-4">
+                <p className="text-sm font-semibold text-white">Main reason</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {dailyReviewReasons.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setDailyReason(option.id)}
+                      className={`rounded-2xl border px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] ${
+                        dailyReason === option.id
+                          ? "border-rose-300/70 bg-rose-300/10 text-white"
+                          : "border-white/10 text-zinc-300 hover:border-white/20 hover:text-white"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <label className="mt-4 grid gap-2 text-sm font-semibold text-white">
+              Tomorrow will be better if I...
+              <textarea
+                value={dailyTomorrow}
+                onChange={(event) => setDailyTomorrow(event.target.value)}
+                rows={3}
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-normal text-white placeholder:text-zinc-500"
+                placeholder="Finish the sentence for this day."
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                Stop
+              </label>
+              <textarea
+                value={stop}
+                onChange={(event) => setStop(event.target.value)}
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+                placeholder="One thing to stop."
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                Double down
+              </label>
+              <textarea
+                value={doubleDown}
+                onChange={(event) => setDoubleDown(event.target.value)}
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+                placeholder="One thing to double down."
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                Experiment
+              </label>
+              <textarea
+                value={experiment}
+                onChange={(event) => setExperiment(event.target.value)}
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+                placeholder="One experiment for next week."
+              />
+            </div>
+          </div>
 
           <button
             type="submit"
-            disabled={dailyExpected === null}
-            className="rounded-full bg-cyan-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-900 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-45"
+            className="w-full rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-900"
           >
-            Save daily review
+            Save review
           </button>
-        </form>
-      </section>
-
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-medium text-white">Manual reset</h2>
-            <p className="mt-1 text-sm text-zinc-300">
-              One stop, one double-down, one experiment.
-            </p>
-          </div>
-          {weeklyReview && (
-            <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70">
-              Saved
-            </span>
-          )}
-        </div>
-        <form
-          className="mt-6 grid gap-4 lg:grid-cols-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            saveWeeklyReview({ weekKey, stop, doubleDown, experiment });
-          }}
-        >
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-              Stop
-            </label>
-            <textarea
-              value={stop}
-              onChange={(event) => setStop(event.target.value)}
-              rows={4}
-              className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-              placeholder="One thing to stop."
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-              Double down
-            </label>
-            <textarea
-              value={doubleDown}
-              onChange={(event) => setDoubleDown(event.target.value)}
-              rows={4}
-              className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-              placeholder="One thing to double down."
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-              Experiment
-            </label>
-            <textarea
-              value={experiment}
-              onChange={(event) => setExperiment(event.target.value)}
-              rows={4}
-              className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-              placeholder="One experiment for next week."
-            />
-          </div>
-          <div className="lg:col-span-3">
-            <button
-              type="submit"
-              className="w-full rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-900"
-            >
-              Save review
-            </button>
-          </div>
         </form>
       </section>
     </div>
