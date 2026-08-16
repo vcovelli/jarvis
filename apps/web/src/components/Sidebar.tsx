@@ -38,6 +38,7 @@ const growthLinks: NavLink[] = [
   { href: "/career", label: "Career", description: "Skills" },
   { href: "/manufacturing", label: "Manufacturing", description: "CNC" },
   { href: "/finance", label: "Finance", description: "Goals" },
+  { href: "/real-estate", label: "Real Estate", description: "Deals" },
   { href: "/fitness", label: "Fitness", description: "Health" },
 ];
 
