@@ -292,10 +292,20 @@ export default function AssistantPage() {
   }, [messages, pending, draft]);
 
   const appendMessage = useCallback((role: Message["role"], text: string) => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     setMessages((current) => [
       ...current,
-      { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, role, text },
+      { id, role, text },
     ]);
+    return id;
+  }, []);
+
+  const updateMessage = useCallback((id: string, updater: (text: string) => string) => {
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === id ? { ...message, text: updater(message.text) } : message,
+      ),
+    );
   }, []);
 
   const applyIntentResult = useCallback(
@@ -334,20 +344,49 @@ export default function AssistantPage() {
     async (trimmed: string) => {
       setIntentStatus("thinking");
       try {
-        const response = await fetch("/api/assistant/intent", {
+        const response = await fetch("/api/assistant/message", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ input: trimmed, context: assistantContext }),
         });
+        const contentType = response.headers.get("content-type") ?? "";
+
+        if (contentType.includes("text/event-stream")) {
+          if (!response.ok) {
+            throw new Error(`Assistant request failed with ${response.status}`);
+          }
+          const messageId = appendMessage("assistant", "");
+          await readAssistantEventStream(response, {
+            onDelta: ({ text, replace }) => {
+              updateMessage(messageId, (current) => (replace ? text : `${current}${text}`));
+            },
+            onFinal: ({ text }) => {
+              if (text) updateMessage(messageId, () => text);
+            },
+            onError: (message) => {
+              updateMessage(messageId, () => message);
+            },
+          });
+          return true;
+        }
+
         const data = await response.json().catch(() => null);
         if (!response.ok) {
-          throw new Error(data?.error ?? `Intent parsing failed with ${response.status}`);
+          throw new Error(data?.error ?? `Assistant request failed with ${response.status}`);
         }
-        if (!data?.result) {
-          throw new Error("Assistant intent parser did not return a result.");
+        if (data?.mode === "intent" && data.result) {
+          applyIntentResult(data.result as AssistantIntentResult);
+          return true;
         }
-        applyIntentResult(data.result as AssistantIntentResult);
-        return true;
+        if (data?.mode === "message" && typeof data.message === "string") {
+          appendMessage("assistant", data.message);
+          return true;
+        }
+        if (data?.result) {
+          applyIntentResult(data.result as AssistantIntentResult);
+          return true;
+        }
+        throw new Error("Assistant did not return a response.");
       } catch (error) {
         appendMessage("assistant", getIntentErrorMessage(error));
         return false;
@@ -355,7 +394,7 @@ export default function AssistantPage() {
         setIntentStatus("idle");
       }
     },
-    [appendMessage, applyIntentResult, assistantContext],
+    [appendMessage, applyIntentResult, assistantContext, updateMessage],
   );
 
   const submitCommand = useCallback(
@@ -1719,6 +1758,76 @@ export default function AssistantPage() {
   );
 }
 
+
+type AssistantStreamHandlers = {
+  onDelta: (payload: { text: string; replace?: boolean }) => void;
+  onFinal: (payload: { text?: string }) => void;
+  onError: (message: string) => void;
+};
+
+async function readAssistantEventStream(response: Response, handlers: AssistantStreamHandlers) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Assistant stream was empty.");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const chunk = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      handleAssistantStreamChunk(chunk, handlers);
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+
+  if (buffer.trim()) handleAssistantStreamChunk(buffer, handlers);
+}
+
+function handleAssistantStreamChunk(chunk: string, handlers: AssistantStreamHandlers) {
+  const lines = chunk.split(/\r?\n/);
+  let event = "message";
+  const dataLines: string[] = [];
+
+  lines.forEach((line) => {
+    if (line.startsWith("event:")) event = line.slice("event:".length).trim();
+    if (line.startsWith("data:")) dataLines.push(line.slice("data:".length).trimStart());
+  });
+
+  if (!dataLines.length) return;
+  const payload = parseAssistantStreamPayload(dataLines.join("\n"));
+  if (!payload) return;
+
+  if (event === "delta") {
+    const text = typeof payload.text === "string" ? payload.text : "";
+    if (text) handlers.onDelta({ text, replace: payload.replace === true });
+    return;
+  }
+
+  if (event === "final") {
+    handlers.onFinal({ text: typeof payload.text === "string" ? payload.text : undefined });
+    return;
+  }
+
+  if (event === "error") {
+    handlers.onError(typeof payload.message === "string" ? payload.message : "Assistant stream failed.");
+  }
+}
+
+function parseAssistantStreamPayload(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 function buildAssistantContext(state: JarvisState): AssistantContextPayload {
   const today = getDayKey();
   const now = Date.now();
@@ -1829,6 +1938,7 @@ function buildPendingActionFromIntent(
           day: normalizeIntentDay(result.sleep?.day, context.today),
           startMinutes: normalizeNumber(result.sleep?.startMinutes),
           endMinutes: normalizeNumber(result.sleep?.endMinutes),
+          dreams: result.sleep?.dreams,
           notes: result.sleep?.notes,
         },
         missing: result.sleep?.durationMins ? [] : ["duration"],
@@ -2546,6 +2656,8 @@ function parseSleepCommand(input: string): PendingAction {
       day,
       startMinutes: fallbackStart,
       endMinutes: fallbackEnd,
+      dreams: extractDreams(input),
+      notes: extractSleepNotes(input),
     },
     missing,
   };
@@ -2790,6 +2902,36 @@ function moodWordToScore(value: string) {
 function extractNote(text: string) {
   const match = text.match(/notes?[:\-]\s*(.+)$/i);
   return match ? match[1].trim() : undefined;
+}
+
+function extractDreams(text: string) {
+  const lower = text.toLowerCase();
+  if (/\b(no dreams?|dreamless)\b/.test(lower)) return "No dreams";
+  const explicit = text.match(/\bdreams?[:\-]?\s*(.+?)(?:\s+notes?[:\-]?|$)/i);
+  if (explicit?.[1]) return cleanSleepFreeText(explicit[1]);
+  return undefined;
+}
+
+function extractSleepNotes(text: string) {
+  const explicit = extractNote(text);
+  if (explicit) return cleanSleepFreeText(explicit);
+  const trailingNotes = text.match(/(.+?)\s+notes?\s*$/i);
+  if (!trailingNotes?.[1]) return undefined;
+  return cleanSleepFreeText(trailingNotes[1]);
+}
+
+function cleanSleepFreeText(text: string) {
+  const cleaned = text
+    .replace(/\b(log|record|track|add|my)?\s*sleep\b/gi, "")
+    .replace(/\b\d+(?:\.\d+)?\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b/gi, "")
+    .replace(/\bquality\s*[1-5]\b/gi, "")
+    .replace(/\brecovery\s*[1-5]\b/gi, "")
+    .replace(/\b(no dreams?|dreamless)\b/gi, "")
+    .replace(/\bdreams?[:\-]?/gi, "")
+    .replace(/\bnotes?[:\-]?/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || undefined;
 }
 
 function extractTags(text: string, knownTags: string[]) {
