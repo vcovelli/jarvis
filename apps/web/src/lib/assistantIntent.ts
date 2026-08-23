@@ -102,6 +102,7 @@ export type AssistantIntentResult = {
     startMinutes?: number;
     endMinutes?: number;
     notes?: string;
+    dreams?: string;
   };
 };
 
@@ -228,7 +229,8 @@ export function parseAssistantIntentFallback(
         day: day ?? context.today,
         startMinutes: sleepRange?.startMinutes,
         endMinutes: sleepRange?.endMinutes,
-        notes: extractNote(normalized),
+        dreams: extractDreams(normalized),
+        notes: extractSleepNotes(normalized),
       },
       source: "local",
     };
@@ -395,6 +397,7 @@ function isTodoUpdateRequest(lower: string) {
 
 function isSleepRequest(lower: string) {
   return (
+    lower.startsWith("sleep") ||
     /\b(log|record|track|add)\s+(my\s+)?sleep\b/.test(lower) ||
     /\bsleep\s+\d+(?:\.\d+)?\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b/.test(lower) ||
     /\b(slept|bed|woke up|wakeup|nap)\b/.test(lower)
@@ -705,6 +708,36 @@ function extractRecovery(text: string) {
 function extractNote(text: string) {
   const match = text.match(/notes?[:\-]\s*(.+)$/i);
   return match ? match[1].trim() : undefined;
+}
+
+function extractDreams(text: string) {
+  const lower = text.toLowerCase();
+  if (/\b(no dreams?|dreamless)\b/.test(lower)) return "No dreams";
+  const explicit = text.match(/\bdreams?[:\-]?\s*(.+?)(?:\s+notes?[:\-]?|$)/i);
+  if (explicit?.[1]) return cleanSleepFreeText(explicit[1]);
+  return undefined;
+}
+
+function extractSleepNotes(text: string) {
+  const explicit = extractNote(text);
+  if (explicit) return cleanSleepFreeText(explicit);
+  const trailingNotes = text.match(/(.+?)\s+notes?\s*$/i);
+  if (!trailingNotes?.[1]) return undefined;
+  return cleanSleepFreeText(trailingNotes[1]);
+}
+
+function cleanSleepFreeText(text: string) {
+  const cleaned = text
+    .replace(/\b(log|record|track|add|my)?\s*sleep\b/gi, "")
+    .replace(/\b\d+(?:\.\d+)?\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b/gi, "")
+    .replace(/\bquality\s*[1-5]\b/gi, "")
+    .replace(/\brecovery\s*[1-5]\b/gi, "")
+    .replace(/\b(no dreams?|dreamless)\b/gi, "")
+    .replace(/\bdreams?[:\-]?/gi, "")
+    .replace(/\bnotes?[:\-]?/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || undefined;
 }
 
 function extractJournalPrompt(lower: string) {
