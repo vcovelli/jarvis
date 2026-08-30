@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
+import {
+  appendAssistantMessage,
+  buildOpenClawConversationInput,
+  ensureAssistantConversation,
+  updateAssistantAutoMemory,
+  updateConversationSummary,
+} from "@/lib/assistant/conversations";
 import { classifyAssistantMessage } from "@/lib/assistant/router";
 import { resolveAssistantIntent } from "@/lib/assistant/serverIntent";
 import { authOptions } from "@/lib/auth";
@@ -11,7 +18,7 @@ import { getMonitoringSummary } from "@/lib/prometheus";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type AssistantSseEvent = "accepted" | "delta" | "final" | "error";
+type AssistantSseEvent = "accepted" | "delta" | "final" | "error" | "conversation";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -26,6 +33,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing assistant input." }, { status: 400 });
   }
 
+  const conversation = await ensureAssistantConversation({
+    userId,
+    conversationId: typeof body?.conversationId === "string" ? body.conversationId : undefined,
+    domain: typeof body?.domain === "string" ? body.domain : undefined,
+    seedText: input,
+  });
+  await appendAssistantMessage({
+    userId,
+    conversationId: conversation.id,
+    role: "user",
+    content: input,
+    source: "user",
+  });
+
   const resolved = await resolveAssistantIntent({
     userId,
     input,
@@ -34,31 +55,100 @@ export async function POST(request: Request) {
   const route = classifyAssistantMessage(input, resolved.result);
 
   if (route === "intent") {
+    const assistantMessage = buildIntentPersistenceMessage(resolved.result);
+    await appendAssistantMessage({
+      userId,
+      conversationId: conversation.id,
+      role: "assistant",
+      content: assistantMessage,
+      source: "intent",
+      metadata: { kind: resolved.result.kind },
+    });
+    await updateConversationSummary({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage,
+    });
+    await updateAssistantAutoMemory({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage,
+    });
     return NextResponse.json({
       mode: "intent",
       result: resolved.result,
       used: resolved.used,
+      conversation: projectConversation(conversation),
     });
   }
 
   if (route === "status") {
     const message = await buildJarvisStatusMessage();
+    await appendAssistantMessage({
+      userId,
+      conversationId: conversation.id,
+      role: "assistant",
+      content: message,
+      source: "jarvis-status",
+    });
+    await updateConversationSummary({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage: message,
+    });
+    await updateAssistantAutoMemory({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage: message,
+    });
     return NextResponse.json({
       mode: "message",
       message,
       used: "jarvis-status",
+      conversation: projectConversation(conversation),
     });
   }
 
   const health = await checkOpenClawHealth();
   if (!health.ok) {
+    const message = `I could not reach OpenClaw on the Jarvis server${health.error ? `: ${health.error}` : "."}`;
+    await appendAssistantMessage({
+      userId,
+      conversationId: conversation.id,
+      role: "assistant",
+      content: message,
+      source: "openclaw-unavailable",
+    });
+    await updateConversationSummary({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage: message,
+    });
+    await updateAssistantAutoMemory({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage: message,
+    });
     return NextResponse.json({
       mode: "message",
-      message: `I could not reach OpenClaw on the Jarvis server${health.error ? `: ${health.error}` : "."}`,
+      message,
       used: "openclaw-unavailable",
+      conversation: projectConversation(conversation),
     });
   }
 
+  const openClawMessage = await buildOpenClawConversationInput({
+    userId,
+    conversationId: conversation.id,
+    userMessage: input,
+    lifeContext: body?.context,
+  });
   const encoder = new TextEncoder();
   let closed = false;
 
@@ -75,17 +165,13 @@ export async function POST(request: Request) {
         controller.close();
       };
 
-      request.signal.addEventListener(
-        "abort",
-        () => {
-          close();
-        },
-        { once: true },
-      );
+      send("conversation", { conversation: projectConversation(conversation) });
+      request.signal.addEventListener("abort", close, { once: true });
 
       void streamOpenClawChat({
         userId,
-        message: input,
+        message: openClawMessage,
+        sessionKey: conversation.openClawSessionKey,
         signal: request.signal,
         handlers: {
           onAccepted: (payload) => send("accepted", { runId: payload.runId }),
@@ -96,12 +182,39 @@ export async function POST(request: Request) {
           },
         },
       })
-        .then((result) => {
+        .then(async (result) => {
           if (!finalSent) send("final", { text: result.text, state: "final" });
+          await appendAssistantMessage({
+            userId,
+            conversationId: conversation.id,
+            role: "assistant",
+            content: result.text,
+            source: "openclaw",
+          });
+          await updateConversationSummary({
+            userId,
+            conversationId: conversation.id,
+            userMessage: input,
+            assistantMessage: result.text,
+          });
+          await updateAssistantAutoMemory({
+            userId,
+            conversationId: conversation.id,
+            userMessage: input,
+            assistantMessage: result.text,
+          });
           close();
         })
-        .catch((error) => {
-          send("error", { message: getErrorMessage(error) });
+        .catch(async (error) => {
+          const message = getErrorMessage(error);
+          await appendAssistantMessage({
+            userId,
+            conversationId: conversation.id,
+            role: "assistant",
+            content: message,
+            source: "openclaw-error",
+          });
+          send("error", { message });
           close();
         });
     },
@@ -118,6 +231,37 @@ export async function POST(request: Request) {
       "X-Accel-Buffering": "no",
     },
   });
+}
+
+function buildIntentPersistenceMessage(result: { kind: string; summary: string; clarification?: string; assistantMessage?: string }) {
+  if (result.kind === "insight") return result.assistantMessage ?? result.summary;
+  if (result.kind === "clarify") return result.clarification ?? "I need one more detail.";
+  if (result.kind === "unsupported") return result.clarification ?? "I can help with tasks, sleep, mood, journal, and insights.";
+  return `I understood: ${result.summary}. Review the details and confirm before I save it.`;
+}
+
+function projectConversation(conversation: {
+  id: string;
+  title: string;
+  domain: string;
+  summary: string | null;
+  pinned: boolean;
+  archivedAt: Date | null;
+  lastMessageAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: conversation.id,
+    title: conversation.title,
+    domain: conversation.domain,
+    summary: conversation.summary,
+    pinned: conversation.pinned,
+    archivedAt: conversation.archivedAt?.toISOString() ?? null,
+    lastMessageAt: conversation.lastMessageAt?.toISOString() ?? null,
+    createdAt: conversation.createdAt.toISOString(),
+    updatedAt: conversation.updatedAt.toISOString(),
+  };
 }
 
 async function buildJarvisStatusMessage() {

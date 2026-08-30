@@ -581,7 +581,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col gap-8 pb-24 sm:pb-10">
+    <div className="flex min-h-full w-full min-w-0 flex-col gap-8 pb-24 sm:pb-10">
       <header className="hidden lg:block">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
       </header>

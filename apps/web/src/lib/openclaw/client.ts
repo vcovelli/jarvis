@@ -1,6 +1,9 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { createPrivateKey, createPublicKey, randomUUID, sign } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
 
 const DEFAULT_GATEWAY_URL = "ws://127.0.0.1:18789";
 const CONNECT_TIMEOUT_MS = 5000;
@@ -60,11 +63,12 @@ export type OpenClawChatHandlers = {
 export async function streamOpenClawChat(params: {
   userId: string;
   message: string;
+  sessionKey?: string;
   signal?: AbortSignal;
   handlers?: OpenClawChatHandlers;
 }): Promise<{ text: string; runId: string; sessionKey: string }> {
   const agentId = normalizeOpenClawAgentId(process.env.OPENCLAW_AGENT_ID ?? "main");
-  const sessionKey = buildOpenClawSessionKey(params.userId, agentId);
+  const sessionKey = params.sessionKey ?? buildOpenClawSessionKey(params.userId, agentId);
   const runId = randomUUID();
   let accumulatedText = "";
   let settled = false;
@@ -257,26 +261,138 @@ async function connectGateway(params: {
 }
 
 function buildConnectParams(nonce: string) {
-  const token = process.env.OPENCLAW_GATEWAY_TOKEN?.trim() || undefined;
+  const token = process.env.OPENCLAW_GATEWAY_TOKEN?.trim() || loadConfiguredGatewayToken() || undefined;
   const password = process.env.OPENCLAW_GATEWAY_PASSWORD?.trim() || undefined;
   const auth = token || password ? { token, password } : undefined;
+  const role = process.env.OPENCLAW_GATEWAY_ROLE ?? "operator";
+  const scopes = ["operator.admin"];
+  const clientId = "gateway-client";
+  const clientMode = "backend";
+  const platform = process.platform;
+  const deviceIdentity = loadOpenClawDeviceIdentity();
+  const signedAtMs = Date.now();
 
   return {
     minProtocol: 4,
     maxProtocol: 4,
     client: {
-      id: "gateway-client",
+      id: clientId,
       displayName: "Jarvis assistant",
       version: "jarvis-web",
-      platform: process.platform,
-      mode: "backend",
+      platform,
+      mode: clientMode,
     },
     caps: [],
     auth,
-    role: process.env.OPENCLAW_GATEWAY_ROLE ?? "operator",
-    scopes: ["operator.admin"],
-    nonce,
+    role,
+    scopes,
+    ...(deviceIdentity
+      ? {
+          device: buildDeviceConnectParams({
+            identity: deviceIdentity,
+            clientId,
+            clientMode,
+            role,
+            scopes,
+            signedAtMs,
+            signatureToken: token,
+            nonce,
+            platform,
+          }),
+        }
+      : {}),
   };
+}
+
+type OpenClawDeviceIdentity = {
+  deviceId: string;
+  publicKeyPem: string;
+  privateKeyPem: string;
+};
+
+function loadConfiguredGatewayToken() {
+  try {
+    const configuredPath = process.env.OPENCLAW_CONFIG_PATH?.trim();
+    const stateDir = process.env.OPENCLAW_STATE_DIR?.trim() || path.join(homedir(), ".openclaw");
+    const configPath = configuredPath || path.join(stateDir, "openclaw.json");
+    const parsed = JSON.parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
+    const gateway = parsed.gateway && typeof parsed.gateway === "object" ? parsed.gateway as Record<string, unknown> : null;
+    const auth = gateway?.auth && typeof gateway.auth === "object" ? gateway.auth as Record<string, unknown> : null;
+    return typeof auth?.token === "string" && auth.token.trim() ? auth.token.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function loadOpenClawDeviceIdentity(): OpenClawDeviceIdentity | null {
+  try {
+    const configuredPath = process.env.OPENCLAW_DEVICE_IDENTITY_PATH?.trim();
+    const stateDir = process.env.OPENCLAW_STATE_DIR?.trim() || path.join(homedir(), ".openclaw");
+    const identityPath = configuredPath || path.join(stateDir, "identity", "device.json");
+    const parsed = JSON.parse(readFileSync(identityPath, "utf8")) as Record<string, unknown>;
+    if (
+      parsed.version !== 1 ||
+      typeof parsed.deviceId !== "string" ||
+      typeof parsed.publicKeyPem !== "string" ||
+      typeof parsed.privateKeyPem !== "string"
+    ) {
+      return null;
+    }
+    return {
+      deviceId: parsed.deviceId,
+      publicKeyPem: parsed.publicKeyPem,
+      privateKeyPem: parsed.privateKeyPem,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildDeviceConnectParams(params: {
+  identity: OpenClawDeviceIdentity;
+  clientId: string;
+  clientMode: string;
+  role: string;
+  scopes: string[];
+  signedAtMs: number;
+  signatureToken?: string;
+  nonce: string;
+  platform: string;
+}) {
+  const payload = [
+    "v3",
+    params.identity.deviceId,
+    params.clientId,
+    params.clientMode,
+    params.role,
+    params.scopes.join(","),
+    String(params.signedAtMs),
+    params.signatureToken ?? "",
+    params.nonce,
+    params.platform,
+    "",
+  ].join("|");
+
+  return {
+    id: params.identity.deviceId,
+    publicKey: publicKeyRawBase64UrlFromPem(params.identity.publicKeyPem),
+    signature: base64UrlEncode(sign(null, Buffer.from(payload, "utf8"), createPrivateKey(params.identity.privateKeyPem))),
+    signedAt: params.signedAtMs,
+    nonce: params.nonce,
+  };
+}
+
+function publicKeyRawBase64UrlFromPem(publicKeyPem: string) {
+  const der = createPublicKey(publicKeyPem).export({ type: "spki", format: "der" });
+  const prefix = Buffer.from("302a300506032b6570032100", "hex");
+  const raw = der.length === prefix.length + 32 && der.subarray(0, prefix.length).equals(prefix)
+    ? der.subarray(prefix.length)
+    : der;
+  return base64UrlEncode(raw);
+}
+
+function base64UrlEncode(buffer: Buffer) {
+  return buffer.toString("base64").replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
 }
 
 function resolveGatewayUrl() {

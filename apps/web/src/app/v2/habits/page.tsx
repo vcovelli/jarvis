@@ -315,8 +315,8 @@ export default function HabitsPage() {
   });
 
   return (
-    <div className="fixed inset-0 z-30 h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_top_right,rgba(129,140,248,0.14),transparent_26%),#060912] text-zinc-50 lg:relative lg:inset-auto lg:z-auto lg:h-[calc(100dvh-5rem)] lg:rounded-[28px]">
-      <div className="mx-auto grid h-full max-h-full max-w-7xl gap-4 px-3 pb-0 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pb-0 sm:pt-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="fixed inset-0 z-30 h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_top_right,rgba(129,140,248,0.14),transparent_26%),#060912] text-zinc-50 lg:relative lg:inset-auto lg:z-auto lg:h-full lg:rounded-[28px]">
+      <div className="grid h-full max-h-full w-full min-w-0 gap-4 px-3 pb-0 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pb-0 sm:pt-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <section
           className={
             "relative flex h-full min-h-0 touch-pan-y flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/74 shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl transition-[transform] " +

@@ -27,7 +27,7 @@ export default function AccountPage() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex w-full min-w-0 flex-col gap-8">
       <header>
         <p className="text-xs uppercase tracking-[0.4em] text-cyan-200/80">Account</p>
         <h1 className="mt-3 text-4xl font-semibold text-white">Security & access</h1>

@@ -134,7 +134,7 @@ export default function JournalPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex w-full min-w-0 flex-col gap-8">
       <header className="hidden lg:block">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Journal</p>
       </header>
