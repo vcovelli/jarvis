@@ -357,7 +357,7 @@ function buildAttentionItems({
       title: `${inactiveServices.length} expected service${inactiveServices.length === 1 ? "" : "s"} not active`,
       detail: inactiveServices.map((service) => service.name).join(", "),
       severity: "critical",
-      href: "/v2/services",
+      href: "/v2/homelab",
     });
   }
 
@@ -409,7 +409,7 @@ function buildAttentionItems({
       title: "No failed service units",
       detail: "Generated docs show the expected application services active.",
       severity: "info",
-      href: "/v2/services",
+      href: "/v2/homelab",
     });
   }
   return items;

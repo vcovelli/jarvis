@@ -32,6 +32,41 @@ type Message = {
   text: string;
 };
 
+type AssistantConversationListItem = {
+  id: string;
+  title: string;
+  domain: string;
+  summary: string | null;
+  description: string | null;
+  pinned: boolean;
+  archivedAt: string | null;
+  lastMessageAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messageCount?: number;
+};
+
+type AssistantStoredMessage = {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  source: string;
+  createdAt: string;
+};
+
+type AssistantMemoryItem = {
+  id: string;
+  domain: string;
+  key: string;
+  value: string;
+  source: string;
+  confidence: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AssistantMemoryScope = "global" | "project" | "topic";
+
 type TodoActionTarget = AssistantIntentTodoTarget;
 
 type TodoUpdatePayload = {
@@ -167,6 +202,83 @@ const durationPresets: Timeblock[] = [15, 30, 45, 60, 90, 120];
 const CLOCK_SIZE = 340;
 const CLOCK_RADIUS = 130;
 const timeblockOptions = buildStartTimeOptions(15);
+type AssistantTopic = {
+  key: string;
+  label: string;
+  detail: string;
+};
+
+type AssistantProject = {
+  id: string;
+  label: string;
+  detail: string;
+  accent: string;
+  topics: AssistantTopic[];
+};
+
+const assistantProjects: AssistantProject[] = [
+  {
+    id: "general",
+    label: "General Command",
+    detail: "Catch-all planning, search, and daily Jarvis work.",
+    accent: "text-cyan-200 border-cyan-300/25 bg-cyan-300/10",
+    topics: [
+      { key: "general", label: "General", detail: "Open context" },
+      { key: "daily", label: "Daily Ops", detail: "Today, tasks, check-ins" },
+    ],
+  },
+  {
+    id: "career-finances",
+    label: "Career & Finances",
+    detail: "Money, work moves, assets, vehicles, and long-term plans.",
+    accent: "text-emerald-200 border-emerald-300/25 bg-emerald-300/10",
+    topics: [
+      { key: "finance", label: "Financial Plan", detail: "Budget, investing, debt" },
+      { key: "career", label: "Career", detail: "Jobs, goals, applications" },
+      { key: "work", label: "Work Area", detail: "Current work execution" },
+      { key: "car", label: "Car", detail: "Vehicle issues and plans" },
+      { key: "real-estate", label: "Real Estate", detail: "Property analysis" },
+      { key: "crypto", label: "Crypto", detail: "Digital assets" },
+      { key: "stock-strategy", label: "Stock Strategy", detail: "Equities and watchlists" },
+    ],
+  },
+  {
+    id: "robotics-machining",
+    label: "Robotics & Machining",
+    detail: "Servers, coding projects, machines, parts, and build logs.",
+    accent: "text-orange-200 border-orange-300/25 bg-orange-300/10",
+    topics: [
+      { key: "coding", label: "Coding Projects", detail: "Apps, repos, architecture" },
+      { key: "laptop", label: "Laptop", detail: "Local machine setup" },
+      { key: "server", label: "Server", detail: "Homelab and services" },
+      { key: "enterprise-engineering", label: "Enterprise Engineering", detail: "Manufacturing systems" },
+      { key: "robot-arm", label: "Robot Arm", detail: "Automation build" },
+      { key: "raspberry-pi", label: "Raspberry Pi", detail: "Edge devices" },
+      { key: "cnc", label: "CNC", detail: "Machining workflows" },
+    ],
+  },
+  {
+    id: "health",
+    label: "Health",
+    detail: "Sleep, fitness, recovery, mood, and personal systems.",
+    accent: "text-rose-200 border-rose-300/25 bg-rose-300/10",
+    topics: [
+      { key: "health", label: "Health", detail: "General health context" },
+      { key: "sleep", label: "Sleep", detail: "Sleep and recovery" },
+      { key: "fitness", label: "Fitness", detail: "Training and body metrics" },
+    ],
+  },
+];
+
+const defaultAssistantProject = assistantProjects[0];
+const defaultAssistantTopic = defaultAssistantProject.topics[0];
+const assistantTopicSettingsStorageKey = "jarvis-assistant-topic-settings-v1";
+const assistantConversationOrderStorageKey = "jarvis-assistant-conversation-order-v1";
+
+type AssistantTopicSettings = Record<string, { label?: string; hidden?: boolean }>;
+type AssistantTopicOrder = Record<string, string[]>;
+type AssistantConversationOrder = Record<string, string[]>;
+
 const blockColors = [
   "#f472b6",
   "#f97316",
@@ -220,6 +332,21 @@ const assistantExamplePrompts = [
   "log mood 7 calm note: steady day",
   "how am I doing this week?",
 ];
+
+type AssistantQuickAction = {
+  action: "mood" | "journal" | "sleep" | "todo";
+  label: string;
+  detail: string;
+  tone: string;
+};
+
+const assistantQuickActions: AssistantQuickAction[] = [
+  { action: "mood", label: "Mood", detail: "Score + note", tone: "from-rose-400/20 via-amber-300/10 to-transparent" },
+  { action: "journal", label: "Journal", detail: "Capture thought", tone: "from-sky-400/20 via-cyan-300/10 to-transparent" },
+  { action: "sleep", label: "Sleep", detail: "Duration + recovery", tone: "from-indigo-400/20 via-violet-300/10 to-transparent" },
+  { action: "todo", label: "Task", detail: "Schedule work", tone: "from-emerald-400/20 via-lime-300/10 to-transparent" },
+];
+
 type RepeatType = "none" | "weekly" | "monthly";
 
 export default function AssistantPage() {
@@ -239,9 +366,30 @@ export default function AssistantPage() {
   const { showToast } = useToast();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<AssistantConversationListItem[]>([]);
+  const [activeConversation, setActiveConversation] = useState<AssistantConversationListItem | null>(null);
+  const [activeDomain, setActiveDomain] = useState(defaultAssistantTopic.key);
+  const [activeProjectId, setActiveProjectId] = useState(defaultAssistantProject.id);
+  const [projectHomeOpen, setProjectHomeOpen] = useState(true);
+  const [memoryScope, setMemoryScope] = useState<AssistantMemoryScope>("project");
+  const [contextPanelOpen, setContextPanelOpen] = useState(false);
+  const [topicSettings, setTopicSettings] = useState<AssistantTopicSettings>({});
+  const [topicOrder, setTopicOrder] = useState<AssistantTopicOrder>({});
+  const [topicSettingsLoaded, setTopicSettingsLoaded] = useState(false);
+  const [conversationPanelOpen, setConversationPanelOpen] = useState(false);
+  const [newChatMenuOpen, setNewChatMenuOpen] = useState(false);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [memories, setMemories] = useState<AssistantMemoryItem[]>([]);
+  const [memoryKey, setMemoryKey] = useState("");
+  const [memoryValue, setMemoryValue] = useState("");
+  const [detailsEditorOpen, setDetailsEditorOpen] = useState(false);
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [conversationTitleDraft, setConversationTitleDraft] = useState("");
+  const [conversationDescriptionDraft, setConversationDescriptionDraft] = useState("");
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [draft, setDraft] = useState<PendingAction | null>(null);
   const conversationRef = useRef<HTMLDivElement | null>(null);
+  const conversationLoadRequestRef = useRef(0);
   const dayOptions = useMemo(() => buildDayOptions(14), []);
   const sleepDefaultDay = useMemo(() => getDefaultSleepDay(), []);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
@@ -284,6 +432,69 @@ export default function AssistantPage() {
     [moodTagOptions],
   );
   const assistantContext = useMemo(() => buildAssistantContext(state), [state]);
+  const configuredProjects = useMemo(
+    () => applyAssistantProjectSettings(assistantProjects, topicSettings, topicOrder),
+    [topicOrder, topicSettings],
+  );
+  const activeProject = useMemo(
+    () => getAssistantProjectById(activeProjectId, configuredProjects) ?? getAssistantProjectForDomain(activeDomain, configuredProjects),
+    [activeDomain, activeProjectId, configuredProjects],
+  );
+  const activeTopic = useMemo(() => getAssistantTopicForDomain(activeDomain, configuredProjects), [activeDomain, configuredProjects]);
+  const activeProjectMemoryDomain = useMemo(() => getAssistantProjectMemoryDomain(activeProject.id), [activeProject.id]);
+  const projectConversations = useMemo(
+    () => conversations.filter((conversation) => getAssistantProjectForDomain(conversation.domain, configuredProjects).id === activeProject.id),
+    [activeProject.id, configuredProjects, conversations],
+  );
+  const activeChatTitle = useMemo(() => {
+    if (projectHomeOpen) return activeProject.label;
+    const title = activeConversation?.title?.trim();
+    if (!title || title === "New conversation") return activeTopic.label;
+    if ((activeConversation?.messageCount ?? 0) === 0 && title.toLowerCase().endsWith(" chat")) return activeTopic.label;
+    return title;
+  }, [activeConversation?.messageCount, activeConversation?.title, activeProject.label, activeTopic.label, projectHomeOpen]);
+  const activeChatDescription = useMemo(() => {
+    if (projectHomeOpen) return activeProject.detail;
+    return activeConversation?.description?.trim() || activeTopic.detail;
+  }, [activeConversation?.description, activeProject.detail, activeTopic.detail, projectHomeOpen]);
+  const chatSurfaceKey = projectHomeOpen ? `project:${activeProject.id}` : activeConversation?.id ?? `topic:${activeDomain}`;
+  const composerContextLabel = projectHomeOpen ? "Project overview" : activeTopic.label;
+  const composerPlaceholder = projectHomeOpen
+    ? `Ask across ${activeProject.label} or start a focused chat...`
+    : `Message ${activeTopic.label}...`;
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(assistantTopicSettingsStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { settings?: AssistantTopicSettings; order?: AssistantTopicOrder };
+        setTopicSettings(parsed.settings ?? {});
+        setTopicOrder(parsed.order ?? {});
+      }
+    } catch {
+      setTopicSettings({});
+      setTopicOrder({});
+    } finally {
+      setTopicSettingsLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!topicSettingsLoaded) return;
+    window.localStorage.setItem(assistantTopicSettingsStorageKey, JSON.stringify({ settings: topicSettings, order: topicOrder }));
+  }, [topicOrder, topicSettings, topicSettingsLoaded]);
+
+  useEffect(() => {
+    if (detailsEditorOpen) return;
+    setConversationTitleDraft(activeChatTitle);
+    setConversationDescriptionDraft(activeChatDescription);
+  }, [activeChatDescription, activeChatTitle, detailsEditorOpen]);
+
+  useEffect(() => {
+    const node = conversationRef.current;
+    if (!node) return;
+    node.scrollTo({ top: 0, behavior: "smooth" });
+  }, [chatSurfaceKey]);
 
   useEffect(() => {
     const node = conversationRef.current;
@@ -307,6 +518,352 @@ export default function AssistantPage() {
       ),
     );
   }, []);
+
+  const loadConversation = useCallback(async (conversationId: string) => {
+    const requestId = conversationLoadRequestRef.current + 1;
+    conversationLoadRequestRef.current = requestId;
+    const requestIsCurrent = () => conversationLoadRequestRef.current === requestId;
+    const preview = conversations.find((conversation) => conversation.id === conversationId);
+    if (preview) {
+      const project = getAssistantProjectForDomain(preview.domain, configuredProjects);
+      setActiveConversation(preview);
+      setActiveProjectId(project.id);
+      setActiveDomain(preview.domain);
+      setProjectHomeOpen(false);
+      setMessages([]);
+    }
+    setPending(null);
+    setDraft(null);
+    setDetailsEditorOpen(false);
+    setConversationPanelOpen(false);
+    setNewChatMenuOpen(false);
+    setConversationLoading(true);
+    try {
+      const response = await fetch(`/api/assistant/conversations/${conversationId}`, { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? `Conversation load failed with ${response.status}`);
+      const conversation = data?.conversation as AssistantConversationListItem | undefined;
+      const storedMessages = Array.isArray(data?.messages) ? data.messages as AssistantStoredMessage[] : [];
+      if (!conversation) return;
+      if (!requestIsCurrent()) return;
+      const project = getAssistantProjectForDomain(conversation.domain, configuredProjects);
+      setActiveConversation(conversation);
+      setActiveProjectId(project.id);
+      setActiveDomain(conversation.domain);
+      setProjectHomeOpen(false);
+      setMessages(
+        storedMessages
+          .filter((message) => message.role === "user" || message.role === "assistant")
+          .map((message) => ({ id: message.id, role: message.role as Message["role"], text: message.content })),
+      );
+    } catch (error) {
+      if (requestIsCurrent()) {
+        appendMessage("assistant", getIntentErrorMessage(error));
+      }
+    } finally {
+      if (requestIsCurrent()) {
+        setConversationLoading(false);
+      }
+    }
+  }, [appendMessage, configuredProjects, conversations]);
+
+  const refreshConversations = useCallback(async () => {
+    const response = await fetch("/api/assistant/conversations", { cache: "no-store" });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.error ?? `Conversation list failed with ${response.status}`);
+    const next = Array.isArray(data?.conversations) ? data.conversations as AssistantConversationListItem[] : [];
+    setConversations(next);
+    return next;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void refreshConversations()
+      .then((next) => {
+        if (cancelled || activeConversation || !next[0]) return;
+        const project = getAssistantProjectForDomain(next[0].domain, configuredProjects);
+        setActiveProjectId(project.id);
+        setActiveDomain(next[0].domain);
+      })
+      .catch((error) => {
+        if (!cancelled) appendMessage("assistant", getIntentErrorMessage(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConversation, appendMessage, configuredProjects, refreshConversations]);
+
+  const refreshMemories = useCallback(async (domain: string, projectDomain: string) => {
+    const params = new URLSearchParams({ domain, project: projectDomain });
+    const response = await fetch(`/api/assistant/memory?${params.toString()}`, { cache: "no-store" });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.error ?? `Memory load failed with ${response.status}`);
+    setMemories(Array.isArray(data?.memories) ? data.memories as AssistantMemoryItem[] : []);
+  }, []);
+
+  useEffect(() => {
+    void refreshMemories(activeDomain, activeProjectMemoryDomain).catch((error) => appendMessage("assistant", getIntentErrorMessage(error)));
+  }, [activeDomain, activeProjectMemoryDomain, appendMessage, refreshMemories]);
+
+  const selectAssistantProject = useCallback((projectId: string) => {
+    conversationLoadRequestRef.current += 1;
+    const project = getAssistantProjectById(projectId, configuredProjects) ?? defaultAssistantProject;
+    setActiveProjectId(project.id);
+    setActiveDomain(project.topics[0]?.key ?? defaultAssistantTopic.key);
+    setActiveConversation(null);
+    setMessages([]);
+    setPending(null);
+    setDraft(null);
+    setConversationLoading(false);
+    setProjectHomeOpen(true);
+    setDetailsEditorOpen(false);
+    setConversationPanelOpen(false);
+    setNewChatMenuOpen(false);
+  }, [configuredProjects]);
+
+  const selectAssistantTopic = useCallback((domain: string) => {
+    const project = getAssistantProjectForDomain(domain, configuredProjects);
+    const latestTopicConversation = conversations.find((conversation) => conversation.domain === domain);
+    setActiveProjectId(project.id);
+    setActiveDomain(domain);
+    setPending(null);
+    setDraft(null);
+    setConversationPanelOpen(false);
+    setNewChatMenuOpen(false);
+    setDetailsEditorOpen(false);
+    setProjectHomeOpen(false);
+    if (latestTopicConversation) {
+      void loadConversation(latestTopicConversation.id);
+      return;
+    }
+    conversationLoadRequestRef.current += 1;
+    setActiveConversation(null);
+    setMessages([]);
+    setConversationLoading(false);
+  }, [configuredProjects, conversations, loadConversation]);
+
+  const renameAssistantTopic = useCallback((_projectId: string, topicKey: string, currentLabel: string) => {
+    const next = window.prompt("Rename topic", currentLabel);
+    if (!next) return;
+    const label = next.trim();
+    if (!label || label === currentLabel) return;
+    setTopicSettings((current) => ({
+      ...current,
+      [topicKey]: { ...current[topicKey], label },
+    }));
+  }, []);
+
+  const moveAssistantTopic = useCallback((projectId: string, topicKey: string, direction: -1 | 1) => {
+    const baseProject = assistantProjects.find((project) => project.id === projectId);
+    if (!baseProject) return;
+    setTopicOrder((current) => {
+      const order = current[projectId] ?? baseProject.topics.map((topic) => topic.key);
+      const index = order.indexOf(topicKey);
+      const nextIndex = index + direction;
+      if (index === -1 || nextIndex < 0 || nextIndex >= order.length) return current;
+      const next = [...order];
+      const [item] = next.splice(index, 1);
+      next.splice(nextIndex, 0, item);
+      return { ...current, [projectId]: next };
+    });
+  }, []);
+
+  const deleteAssistantTopic = useCallback((projectId: string, topicKey: string) => {
+    const confirmed = window.confirm("Delete this topic from the assistant menu? Existing chats stay searchable in recent history.");
+    if (!confirmed) return;
+    setTopicSettings((current) => ({
+      ...current,
+      [topicKey]: { ...current[topicKey], hidden: true },
+    }));
+    if (activeDomain === topicKey) {
+      const project = configuredProjects.find((item) => item.id === projectId) ?? defaultAssistantProject;
+      const fallback = project.topics.find((topic) => topic.key !== topicKey) ?? defaultAssistantTopic;
+      setActiveDomain(fallback.key);
+      setActiveProjectId(project.id);
+      setActiveConversation(null);
+      setMessages([]);
+      setDetailsEditorOpen(false);
+      setProjectHomeOpen(false);
+    }
+  }, [activeDomain, configuredProjects]);
+
+  const startNewConversation = useCallback(async (domain = activeDomain) => {
+    const requestId = conversationLoadRequestRef.current + 1;
+    conversationLoadRequestRef.current = requestId;
+    const requestIsCurrent = () => conversationLoadRequestRef.current === requestId;
+    const project = getAssistantProjectForDomain(domain, configuredProjects);
+    setActiveProjectId(project.id);
+    setActiveDomain(domain);
+    setActiveConversation(null);
+    setMessages([]);
+    setPending(null);
+    setDraft(null);
+    setDetailsEditorOpen(false);
+    setProjectHomeOpen(false);
+    setConversationPanelOpen(false);
+    setNewChatMenuOpen(false);
+    setConversationLoading(true);
+    try {
+      const response = await fetch("/api/assistant/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? `Conversation create failed with ${response.status}`);
+      const conversation = data?.conversation as AssistantConversationListItem | undefined;
+      if (!conversation) throw new Error("Conversation create did not return a conversation.");
+      if (!requestIsCurrent()) return;
+      const createdProject = getAssistantProjectForDomain(conversation.domain, configuredProjects);
+      setActiveConversation(conversation);
+      setActiveProjectId(createdProject.id);
+      setActiveDomain(conversation.domain);
+      setProjectHomeOpen(false);
+      setMessages([]);
+      await refreshConversations();
+    } catch (error) {
+      if (requestIsCurrent()) {
+        appendMessage("assistant", getIntentErrorMessage(error));
+      }
+    } finally {
+      if (requestIsCurrent()) {
+        setConversationLoading(false);
+      }
+    }
+  }, [activeDomain, appendMessage, configuredProjects, refreshConversations]);
+
+  const requestNewConversation = useCallback((domain?: string) => {
+    if (domain) {
+      setNewChatMenuOpen(false);
+      void startNewConversation(domain);
+      return;
+    }
+    if (projectHomeOpen) {
+      setNewChatMenuOpen((current) => !current);
+      return;
+    }
+    setNewChatMenuOpen(false);
+    void startNewConversation(activeDomain);
+  }, [activeDomain, projectHomeOpen, startNewConversation]);
+
+  const reconcileConversation = useCallback((conversation: AssistantConversationListItem | undefined) => {
+    if (!conversation) return;
+    const project = getAssistantProjectForDomain(conversation.domain, configuredProjects);
+    setActiveConversation(conversation);
+    setActiveProjectId(project.id);
+    setActiveDomain(conversation.domain);
+    setProjectHomeOpen(false);
+    void refreshConversations().catch(() => undefined);
+  }, [configuredProjects, refreshConversations]);
+
+  const openConversationDetailsEditor = useCallback(() => {
+    setConversationTitleDraft(activeChatTitle);
+    setConversationDescriptionDraft(activeChatDescription);
+    setDetailsEditorOpen(true);
+  }, [activeChatDescription, activeChatTitle]);
+
+  const saveConversationDetails = useCallback(async () => {
+    const title = conversationTitleDraft.trim() || activeTopic.label;
+    const description = conversationDescriptionDraft.trim();
+    setDetailsSaving(true);
+    try {
+      let conversation: AssistantConversationListItem | undefined = activeConversation ?? undefined;
+      if (!conversation) {
+        const createResponse = await fetch("/api/assistant/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: activeDomain, title, description }),
+        });
+        const createData = await createResponse.json().catch(() => null);
+        if (!createResponse.ok) throw new Error(createData?.error ?? `Conversation create failed with ${createResponse.status}`);
+        conversation = createData?.conversation as AssistantConversationListItem | undefined;
+        if (!conversation) throw new Error("Conversation create did not return a conversation.");
+      }
+
+      const response = await fetch(`/api/assistant/conversations/${conversation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? `Conversation update failed with ${response.status}`);
+      const savedConversation = data?.conversation as AssistantConversationListItem | undefined;
+      if (savedConversation) {
+        setActiveConversation(savedConversation);
+        setConversations((current) => {
+          const exists = current.some((item) => item.id === savedConversation.id);
+          if (!exists) return [savedConversation, ...current];
+          return current.map((item) => (item.id === savedConversation.id ? savedConversation : item));
+        });
+        setConversationTitleDraft(savedConversation.title);
+        setConversationDescriptionDraft(savedConversation.description ?? "");
+        reconcileConversation(savedConversation);
+      }
+      await refreshConversations();
+      setDetailsEditorOpen(false);
+      showToast("Chat details saved");
+    } catch (error) {
+      appendMessage("assistant", getIntentErrorMessage(error));
+    } finally {
+      setDetailsSaving(false);
+    }
+  }, [activeConversation, activeDomain, activeTopic.label, appendMessage, conversationDescriptionDraft, conversationTitleDraft, reconcileConversation, refreshConversations, showToast]);
+
+  const saveMemory = useCallback(async () => {
+    const key = memoryKey.trim();
+    const value = memoryValue.trim();
+    if (!key || !value) return;
+    try {
+      const response = await fetch("/api/assistant/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          domain: memoryScope === "global" ? "general" : memoryScope === "project" ? activeProjectMemoryDomain : activeDomain,
+          key,
+          value,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? `Memory save failed with ${response.status}`);
+      setMemoryKey("");
+      setMemoryValue("");
+      await refreshMemories(activeDomain, activeProjectMemoryDomain);
+      showToast("Memory saved");
+    } catch (error) {
+      appendMessage("assistant", getIntentErrorMessage(error));
+    }
+  }, [activeDomain, activeProjectMemoryDomain, appendMessage, memoryKey, memoryScope, memoryValue, refreshMemories, showToast]);
+
+  const archiveConversation = useCallback(async (conversationId: string) => {
+    const target = conversations.find((conversation) => conversation.id === conversationId);
+    const confirmed = window.confirm(`Remove "${target?.title ?? "this chat"}" from this project?`);
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`/api/assistant/conversations/${conversationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: true }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? `Conversation archive failed with ${response.status}`);
+      const next = (await refreshConversations()).filter((conversation) => conversation.id !== conversationId);
+      if (activeConversation?.id === conversationId) {
+        const replacement =
+          next.find((conversation) => conversation.domain === activeDomain) ??
+          next.find((conversation) => getAssistantProjectForDomain(conversation.domain, configuredProjects).id === activeProject.id);
+        if (replacement) {
+          void loadConversation(replacement.id);
+        } else {
+          setActiveConversation(null);
+          setMessages([]);
+          setProjectHomeOpen(false);
+        }
+      }
+      showToast("Chat removed");
+    } catch (error) {
+      appendMessage("assistant", getIntentErrorMessage(error));
+    }
+  }, [activeConversation?.id, activeDomain, activeProject.id, appendMessage, configuredProjects, conversations, loadConversation, refreshConversations, showToast]);
 
   const applyIntentResult = useCallback(
     (result: AssistantIntentResult) => {
@@ -347,7 +904,12 @@ export default function AssistantPage() {
         const response = await fetch("/api/assistant/message", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: trimmed, context: assistantContext }),
+          body: JSON.stringify({
+            input: trimmed,
+            context: assistantContext,
+            conversationId: activeConversation?.id,
+            domain: activeDomain,
+          }),
         });
         const contentType = response.headers.get("content-type") ?? "";
 
@@ -357,6 +919,7 @@ export default function AssistantPage() {
           }
           const messageId = appendMessage("assistant", "");
           await readAssistantEventStream(response, {
+            onConversation: (conversation) => reconcileConversation(conversation),
             onDelta: ({ text, replace }) => {
               updateMessage(messageId, (current) => (replace ? text : `${current}${text}`));
             },
@@ -374,6 +937,7 @@ export default function AssistantPage() {
         if (!response.ok) {
           throw new Error(data?.error ?? `Assistant request failed with ${response.status}`);
         }
+        if (data?.conversation) reconcileConversation(data.conversation as AssistantConversationListItem);
         if (data?.mode === "intent" && data.result) {
           applyIntentResult(data.result as AssistantIntentResult);
           return true;
@@ -394,7 +958,7 @@ export default function AssistantPage() {
         setIntentStatus("idle");
       }
     },
-    [appendMessage, applyIntentResult, assistantContext, updateMessage],
+    [activeConversation?.id, activeDomain, appendMessage, applyIntentResult, assistantContext, reconcileConversation, updateMessage],
   );
 
   const submitCommand = useCallback(
@@ -422,16 +986,11 @@ export default function AssistantPage() {
         return;
       }
 
-      if (options?.preferIntent) {
-        const handled = await requestFuzzyIntent(trimmed);
-        if (handled) return;
-      }
+      const handled = await requestFuzzyIntent(trimmed);
+      if (handled) return;
 
       const parsed = parseCommand(trimmed, knownMoodTags);
-      if (!parsed) {
-        await requestFuzzyIntent(trimmed);
-        return;
-      }
+      if (!parsed) return;
 
       if (parsed.missing.length) {
         if (parsed.type === "mood" && !options?.preferIntent) {
@@ -451,8 +1010,12 @@ export default function AssistantPage() {
   );
 
   const handleSubmit = useCallback(() => {
+    if (projectHomeOpen && !activeConversation) {
+      setNewChatMenuOpen(true);
+      return;
+    }
     void submitCommand(input);
-  }, [input, submitCommand]);
+  }, [activeConversation, input, projectHomeOpen, submitCommand]);
 
   const clearVoiceTimers = useCallback(() => {
     if (voiceStopTimerRef.current !== null) {
@@ -753,6 +1316,93 @@ export default function AssistantPage() {
     }, 250);
   }, [startVoiceCapture, voiceAutoPrompted]);
 
+  useEffect(() => {
+    if (!conversationPanelOpen && !contextPanelOpen) return;
+    const scrollY = window.scrollY;
+    document.body.classList.add("scroll-locked");
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+    return () => {
+      document.body.classList.remove("scroll-locked");
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      document.body.style.width = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, [contextPanelOpen, conversationPanelOpen]);
+
+  const openQuickAction = useCallback((action: AssistantQuickAction["action"]) => {
+    if (action === "mood") {
+      setDraft({
+        type: "mood",
+        payload: { mood: 5, note: "", tags: [] },
+        missing: [],
+      });
+      setTagManagerOpen(false);
+      setNewTagValue("");
+    }
+    if (action === "journal") {
+      setDraft({
+        type: "journal",
+        payload: { text: "", prompt: "free" },
+        missing: ["text"],
+      });
+    }
+    if (action === "sleep") {
+      setDraft({
+        type: "sleep",
+        payload: {
+          durationMins: DEFAULT_DURATION,
+          quality: 3,
+          recoveryScore: 3,
+          day: sleepDefaultDay,
+          startMinutes: 23 * 60,
+          endMinutes: 7 * 60,
+        },
+        missing: [],
+      });
+    }
+    if (action === "todo") {
+      setDraft({
+        type: "todo",
+        payload: {
+          text: "",
+          day: getDayKey(),
+          timeblockMins: 30,
+          startTime: "",
+          endTime: "",
+          priority: 2,
+          color: defaultBlockColor,
+          icon: defaultTaskIcon,
+          repeatType: "none",
+          repeatWeekdays: [],
+          repeatMonthDay: dayKeyToDate(getDayKey()).getDate(),
+        },
+        missing: ["text"],
+      });
+    }
+    setPending(null);
+  }, [sleepDefaultDay]);
+
+  const workspaceMetrics = useMemo(() => ({
+    status: intentStatus === "thinking" ? "Thinking" : voiceStatus === "listening" ? "Listening" : "Ready",
+  }), [intentStatus, voiceStatus]);
+  const headerContextLabel = projectHomeOpen ? "Project overview" : `${activeProject.label} / ${activeTopic.label}`;
+  const headerAttentionLabel = draft
+    ? "Action pending"
+    : pending
+      ? "Needs detail"
+      : intentStatus === "thinking"
+        ? "Agent running"
+        : voiceStatus === "listening"
+          ? "Voice active"
+          : "Agents idle";
+
   const runAction = useCallback(
     (action: PendingAction) => {
       const summary = buildActionSummary(action);
@@ -957,201 +1607,334 @@ export default function AssistantPage() {
 
   return (
     <div
-      className={`grid gap-5 ${
+      className={`-mx-3 grid h-full min-h-0 flex-1 gap-0 overflow-hidden sm:mx-0 md:grid-cols-[280px_minmax(0,1fr)] md:gap-3 ${
         draft
-          ? "lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.78fr)] xl:grid-cols-[minmax(0,0.9fr)_minmax(460px,0.72fr)]"
-          : "xl:grid-cols-[minmax(0,1fr)_360px]"
+          ? "lg:grid-cols-[300px_minmax(0,1fr)_minmax(420px,0.68fr)] xl:grid-cols-[300px_minmax(0,1fr)_minmax(460px,0.58fr)]"
+          : contextPanelOpen
+            ? "lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_340px]"
+            : "lg:grid-cols-[300px_minmax(0,1fr)]"
       }`}
     >
+      <AssistantConversationRail
+        key={activeProject.id}
+        projects={configuredProjects}
+        conversations={conversations}
+        activeConversationId={projectHomeOpen ? undefined : activeConversation?.id}
+        activeProjectId={activeProject.id}
+        activeDomain={activeDomain}
+        projectHomeOpen={projectHomeOpen}
+        loading={conversationLoading}
+        className="hidden h-full md:flex"
+        onProjectSelect={selectAssistantProject}
+        onTopicMove={moveAssistantTopic}
+        onSelect={(id) => void loadConversation(id)}
+        onNew={(domain) => void startNewConversation(domain)}
+        onConversationArchive={(id) => void archiveConversation(id)}
+      />
+
+      <div
+        className={`fixed inset-0 z-50 flex bg-black/70 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md transition-[opacity,backdrop-filter] duration-200 sm:p-2 md:hidden ${
+          conversationPanelOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        data-no-pull-refresh="true"
+        aria-hidden={!conversationPanelOpen}
+      >
+        <button
+          type="button"
+          aria-label="Close conversations"
+          className="absolute inset-0 h-full w-full cursor-default"
+          onClick={() => setConversationPanelOpen(false)}
+        />
+        <div className={`relative h-full min-h-0 w-full max-w-none transition-transform duration-300 ease-out sm:max-w-[420px] ${conversationPanelOpen ? "translate-x-0" : "-translate-x-[110%]"}`}>
+          <AssistantConversationRail
+            key={activeProject.id}
+            projects={configuredProjects}
+            conversations={conversations}
+            activeConversationId={projectHomeOpen ? undefined : activeConversation?.id}
+            activeProjectId={activeProject.id}
+            activeDomain={activeDomain}
+            projectHomeOpen={projectHomeOpen}
+            loading={conversationLoading}
+            className="flex h-full min-h-0 w-full shadow-[0_28px_90px_rgba(0,0,0,0.55)]"
+            onProjectSelect={selectAssistantProject}
+            onTopicMove={moveAssistantTopic}
+            onSelect={(id) => void loadConversation(id)}
+            onNew={(domain) => void startNewConversation(domain)}
+            onConversationArchive={(id) => void archiveConversation(id)}
+            onClose={() => setConversationPanelOpen(false)}
+          />
+        </div>
+      </div>
+
       <section
-        className={`glass-panel rounded-[28px] border border-white/10 bg-white/[0.055] p-4 backdrop-blur-xl sm:p-5 lg:p-6 ${
-          draft ? "hidden lg:block" : "block"
+        className={`relative isolate flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-none border-y border-white/10 bg-[#050b14]/92 shadow-none backdrop-blur-xl sm:rounded-[22px] sm:border sm:shadow-[0_18px_70px_rgba(0,0,0,0.28)] ${
+          draft ? "hidden lg:flex" : "flex"
         }`}
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Assistant</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Command Chat</h2>
-            <p className="mt-2 text-sm text-zinc-300">
-              Type a quick command to log mood, journal, sleep, or schedule todos.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => appendMessage("assistant", buildHelpText())}
-            className="rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
-          >
-            Examples
-          </button>
-        </div>
-
-        <VoiceActionPanel
-          status={voiceStatus}
-          intentStatus={intentStatus}
-          transcript={voiceTranscript}
-          error={voiceError}
-          onStart={() => void startVoiceCapture()}
-          onStop={stopVoiceCapture}
-        />
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {[
-            { label: "Log mood", action: "mood" },
-            { label: "Log journal", action: "journal" },
-            { label: "Log sleep", action: "sleep" },
-            { label: "Add todo", action: "todo" },
-          ].map((item) => (
-            <button
-              key={item.action}
-              type="button"
-              onClick={() => {
-                if (item.action === "mood") {
-                  setDraft({
-                    type: "mood",
-                    payload: { mood: 5, note: "", tags: [] },
-                    missing: [],
-                  });
-                  setTagManagerOpen(false);
-                  setNewTagValue("");
-                }
-                if (item.action === "journal") {
-                  setDraft({
-                    type: "journal",
-                    payload: { text: "", prompt: "free" },
-                    missing: ["text"],
-                  });
-                }
-                if (item.action === "sleep") {
-                  setDraft({
-                    type: "sleep",
-                    payload: {
-                      durationMins: DEFAULT_DURATION,
-                      quality: 3,
-                      recoveryScore: 3,
-                      day: sleepDefaultDay,
-                      startMinutes: 23 * 60,
-                      endMinutes: 7 * 60,
-                    },
-                    missing: [],
-                  });
-                }
-                if (item.action === "todo") {
-                  setDraft({
-                    type: "todo",
-                    payload: {
-                      text: "",
-                      day: getDayKey(),
-                      timeblockMins: 30,
-                      startTime: "",
-                      endTime: "",
-                      priority: 2,
-                      color: defaultBlockColor,
-                      icon: defaultTaskIcon,
-                      repeatType: "none",
-                      repeatWeekdays: [],
-                      repeatMonthDay: dayKeyToDate(getDayKey()).getDate(),
-                    },
-                    missing: ["text"],
-                  });
-                }
-                setPending(null);
-              }}
-              className="rounded-full border border-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 hover:text-white"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {assistantExamplePrompts.map((prompt) => (
-            <button
-              key={prompt}
-              type="button"
-              onClick={() => setInput(prompt)}
-              className="shrink-0 rounded-full border border-cyan-300/20 bg-cyan-300/8 px-3 py-2 text-[11px] font-semibold text-cyan-50/80 transition hover:border-cyan-200/50 hover:text-white"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
-
-        <div
-          ref={conversationRef}
-          className="mt-6 max-h-[420px] space-y-3 overflow-y-auto pr-2"
-        >
-          {messages.length === 0 ? (
-            <p className="text-sm text-zinc-400">
-              Start with a command. I’ll ask clarifying questions if needed.
-            </p>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[520px] rounded-2xl px-4 py-3 text-sm shadow-lg ${
-                    message.role === "user"
-                      ? "bg-gradient-to-br from-cyan-400/30 to-emerald-400/20 text-white"
-                      : "bg-black/40 text-zinc-100"
-                  }`}
-                >
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">
-                    {message.role === "user" ? "You" : "Assistant"}
-                  </p>
-                  <p className="mt-1 whitespace-pre-line">{message.text}</p>
-                </div>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
+        <div className="shrink-0 border-b border-white/10 bg-[#080f1b]/92 px-3 py-2.5 sm:px-5 sm:py-3 lg:px-6">
+          <div className={`flex gap-2 ${detailsEditorOpen && !projectHomeOpen ? "flex-col sm:flex-row sm:items-start sm:justify-between" : "items-start justify-between"}`}>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-zinc-500 sm:gap-2 sm:text-xs">
+                <span
+                  aria-hidden="true"
+                  className={`h-2 w-2 shrink-0 rounded-full ${workspaceMetrics.status === "Ready" ? "bg-emerald-300" : "bg-cyan-300 animate-pulse"}`}
+                />
+                <span className="shrink-0 text-zinc-400">{workspaceMetrics.status}</span>
+                <span className="hidden text-zinc-700 sm:inline">/</span>
+                <span className="hidden min-w-0 truncate sm:inline">{headerContextLabel}</span>
+                <span className="hidden text-zinc-700 sm:inline">/</span>
+                <span className="hidden shrink-0 text-cyan-100/70 sm:inline">{headerAttentionLabel}</span>
+                <span className="hidden text-zinc-700 md:inline">/</span>
+                <span className="hidden shrink-0 text-amber-200/70 md:inline">Approval gate on</span>
               </div>
-            ))
-          )}
-        </div>
 
-        {pending && (
-          <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-200">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">
-              Pending {pending.type}
-            </p>
-            <p className="mt-1">{buildPendingSummary(pending)}</p>
-          </div>
-        )}
-        {!draft && (
-          <form
-            className="mt-6 flex flex-col gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleSubmit();
-            }}
-          >
-            <input
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
-              placeholder="e.g. log mood 7 stressed note: long day"
-            />
-            <div className="flex flex-wrap items-center gap-3">
+              {detailsEditorOpen && !projectHomeOpen ? (
+                <div className="mt-3 max-w-3xl space-y-2">
+                  <input
+                    value={conversationTitleDraft}
+                    onChange={(event) => setConversationTitleDraft(event.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-xl font-semibold text-white outline-none transition focus:border-cyan-300/55 sm:text-2xl"
+                    placeholder={activeTopic.label}
+                  />
+                  <textarea
+                    value={conversationDescriptionDraft}
+                    onChange={(event) => setConversationDescriptionDraft(event.target.value)}
+                    rows={2}
+                    className="w-full resize-none rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm leading-5 text-zinc-200 outline-none transition placeholder:text-zinc-600 focus:border-cyan-300/55"
+                    placeholder={`What is this ${activeTopic.label} chat for?`}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void saveConversationDetails()}
+                      disabled={detailsSaving}
+                      className="rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold text-zinc-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {detailsSaving ? "Saving" : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDetailsEditorOpen(false)}
+                      className="rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-white/65 transition hover:border-white/20 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-1 flex min-w-0 items-center gap-2 sm:mt-2">
+                    <h1 className="min-w-0 truncate text-[1.45rem] font-semibold leading-tight text-white sm:text-3xl">{activeChatTitle}</h1>
+                    {!projectHomeOpen && (
+                      <button
+                        type="button"
+                        onClick={openConversationDetailsEditor}
+                        className="shrink-0 rounded-full border border-white/10 px-2 py-1 text-[11px] font-semibold text-white/50 transition hover:border-cyan-200/35 hover:text-white sm:px-3 sm:text-xs"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-0.5 max-w-3xl truncate text-xs leading-5 text-zinc-500 sm:text-sm sm:text-zinc-400">{activeChatDescription}</p>
+                </>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1.5 pb-0.5 sm:gap-2 sm:justify-end">
               <button
-                type="submit"
-                className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
+                type="button"
+                onClick={() => setConversationPanelOpen(true)}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-cyan-200/35 hover:text-white sm:px-4 sm:text-sm md:hidden"
               >
-                Send
+                Chats
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setMessages([]);
-                  setPending(null);
-                  setDraft(null);
-                  setTagManagerOpen(false);
-                  setNewTagValue("");
-                }}
-                className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white/70 hover:text-white"
+                onClick={() => setContextPanelOpen((current) => !current)}
+                className={`rounded-full border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm ${contextPanelOpen ? "border-cyan-200/40 bg-cyan-300/10 text-cyan-50" : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white"}`}
               >
-                Clear
+                Context
+              </button>
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => requestNewConversation()}
+                  className="rounded-full bg-cyan-300 px-3 py-2 text-sm font-semibold text-zinc-950 shadow-[0_10px_30px_rgba(34,211,238,0.18)] transition hover:bg-cyan-200 sm:px-4"
+                  aria-expanded={newChatMenuOpen}
+                >
+                  <span className="sm:hidden">+</span>
+                  <span className="hidden sm:inline">New</span>
+                </button>
+                {newChatMenuOpen && projectHomeOpen && (
+                  <NewConversationTopicMenu
+                    project={activeProject}
+                    conversations={projectConversations}
+                    onSelect={requestNewConversation}
+                    onClose={() => setNewChatMenuOpen(false)}
+                    className="absolute right-0 top-12 z-40 w-[min(21rem,calc(100vw-2rem))]"
+                  />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => appendMessage("assistant", buildHelpText())}
+                className="hidden h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-sm font-semibold text-white/55 transition hover:border-white/20 hover:text-white sm:grid"
+                aria-label="Assistant help"
+              >
+                ?
               </button>
             </div>
-          </form>
-        )}
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col px-0 pb-1 sm:px-4 sm:pb-4 lg:px-5">
+          {(voiceStatus !== "idle" || voiceError || voiceTranscript) && (
+            <VoiceActionPanel
+              status={voiceStatus}
+              intentStatus={intentStatus}
+              transcript={voiceTranscript}
+              error={voiceError}
+              onStart={() => void startVoiceCapture()}
+              onStop={stopVoiceCapture}
+            />
+          )}
+
+
+          <div
+            ref={conversationRef}
+            className={`mt-0 min-h-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth px-3 py-3 transition-opacity duration-200 sm:mt-2 sm:space-y-3 sm:px-2 ${conversationLoading && messages.length ? "opacity-65" : "opacity-100"}`}
+          >
+            <div key={chatSurfaceKey} className="min-h-full jarvis-chat-enter">
+              {conversationLoading && !projectHomeOpen && messages.length === 0 ? (
+              <AssistantChatLoadingState title={activeChatTitle} />
+            ) : projectHomeOpen ? (
+              <AssistantProjectHome
+                project={activeProject}
+                activeTopicKey={undefined}
+                conversations={projectConversations}
+                memories={memories}
+                onTopicSelect={selectAssistantTopic}
+                onTopicRename={renameAssistantTopic}
+                onTopicMove={moveAssistantTopic}
+                onTopicDelete={deleteAssistantTopic}
+                onConversationSelect={(id) => void loadConversation(id)}
+                onNew={requestNewConversation}
+                onConversationArchive={(id) => void archiveConversation(id)}
+                onPrompt={setInput}
+              />
+            ) : messages.length === 0 ? (
+              <AssistantEmptyState
+                topic={activeTopic}
+                project={activeProject}
+                onPrompt={setInput}
+                onAction={openQuickAction}
+                showQuickActions={activeDomain === "general"}
+              />
+            ) : (
+              messages.map((message) => {
+                const isUser = message.role === "user";
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex items-end gap-2 ${isUser ? "justify-end" : "justify-start"}`}
+                  >
+                    {!isUser && (
+                      <div className="hidden h-8 w-8 shrink-0 place-items-center rounded-full border border-cyan-200/20 bg-cyan-300/10 text-xs font-bold text-cyan-100 sm:grid">
+                        J
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[92%] rounded-[21px] px-3.5 py-2.5 text-[15px] shadow-lg sm:max-w-[680px] sm:rounded-[22px] sm:px-4 sm:py-3 sm:text-sm ${
+                        isUser
+                          ? "bg-cyan-300 text-zinc-950 shadow-cyan-950/20"
+                          : "border border-white/10 bg-[#0b1220]/95 text-zinc-100"
+                      }`}
+                    >
+                      <div className={`mb-1 flex items-center gap-2 text-xs font-semibold ${isUser ? "text-zinc-900/60" : "text-white/40"}`}>
+                        <span>{isUser ? "You" : "Jarvis"}</span>
+                        {!message.text && !isUser && <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 animate-pulse" />}
+                      </div>
+                      <p className={`whitespace-pre-line leading-6 ${!message.text ? "animate-pulse text-zinc-400" : ""}`}>
+                        {message.text || "Thinking..."}
+                      </p>
+                    </div>
+                    {isUser && (
+                      <div className="hidden h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.08] text-xs font-bold text-white/70 sm:grid">
+                        Y
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+            </div>
+          </div>
+
+          {pending && (
+            <div className="mt-3 shrink-0 rounded-2xl border border-amber-200/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-50">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-semibold">Pending {pending.type}</p>
+                <span className="rounded-full bg-black/20 px-2 py-1 text-xs text-amber-100/70">Needs detail</span>
+              </div>
+              <p className="mt-1 text-amber-50/80">{buildPendingSummary(pending)}</p>
+            </div>
+          )}
+
+          {!draft && (
+            <form
+              className="mx-2 mt-1 shrink-0 rounded-[22px] border border-white/10 bg-[#060b13]/95 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.28)] sm:mx-0 sm:mt-3 sm:rounded-[24px]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleSubmit();
+              }}
+            >
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    handleSubmit();
+                  }
+                }}
+                rows={1}
+                className="min-h-[46px] max-h-28 w-full resize-none bg-transparent px-3 py-2.5 text-[16px] leading-6 text-white placeholder:text-zinc-500 focus:outline-none sm:min-h-[54px] sm:max-h-36 sm:py-3 sm:text-[15px]"
+                placeholder={composerPlaceholder}
+              />
+              <div className="flex items-center justify-between gap-2 border-t border-white/5 px-1 pt-2">
+                <div className="hide-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto text-xs text-zinc-500">
+                  <span className="min-w-0 max-w-[12rem] truncate rounded-full border border-white/10 px-3 py-1 text-zinc-300 sm:max-w-none">{composerContextLabel}</span>
+                  <span className="hidden shrink-0 sm:inline">Enter sends</span>
+                  <span className="hidden shrink-0 sm:inline">Shift+Enter newline</span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => (voiceStatus === "listening" ? stopVoiceCapture() : void startVoiceCapture())}
+                    className={`hidden rounded-2xl border px-4 py-2 text-sm font-semibold transition sm:inline-flex ${voiceStatus === "listening" ? "border-cyan-200/50 bg-cyan-300/10 text-cyan-50" : "border-white/10 text-white/70 hover:border-white/20 hover:text-white"}`}
+                  >
+                    {voiceStatus === "listening" ? "Stop" : "Voice"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => requestNewConversation()}
+                    className="hidden rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/70 transition hover:border-white/20 hover:text-white sm:inline-flex"
+                  >
+                    New Chat
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!input.trim()}
+                    className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-300 px-4 py-2 text-sm font-semibold text-zinc-950 shadow-[0_12px_30px_rgba(45,212,191,0.18)] transition hover:from-emerald-200 hover:to-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+        </div>
       </section>
 
       {draft && (
@@ -1733,33 +2516,1078 @@ export default function AssistantPage() {
         </section>
       )}
 
-      {!draft && (
-        <aside className="hidden min-w-0 xl:block">
-          <div className="glass-panel rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">Ready actions</p>
-            <div className="mt-4 space-y-3 text-sm text-zinc-300">
-              <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                <p className="font-semibold text-white">Capture</p>
-                <p className="mt-1 text-xs leading-5 text-zinc-400">Tasks, mood, sleep, journal notes, and quick updates.</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                <p className="font-semibold text-white">Adjust</p>
-                <p className="mt-1 text-xs leading-5 text-zinc-400">Move tasks, change priorities, complete items, and reschedule blocks.</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                <p className="font-semibold text-white">Review</p>
-                <p className="mt-1 text-xs leading-5 text-zinc-400">Ask for patterns across mood, sleep, tasks, and recent planner data.</p>
-              </div>
-            </div>
+      {!draft && contextPanelOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 p-3 backdrop-blur-md xl:static xl:z-auto xl:bg-transparent xl:p-0 xl:backdrop-blur-0">
+          <button
+            type="button"
+            aria-label="Close context"
+            className="absolute inset-0 h-full w-full cursor-default xl:hidden"
+            onClick={() => setContextPanelOpen(false)}
+          />
+          <div className="relative h-full max-w-[420px] xl:max-w-none">
+            <AssistantMemoryPanel
+              project={activeProject}
+              topic={activeTopic}
+              projectMemoryDomain={activeProjectMemoryDomain}
+              conversation={activeConversation}
+              memories={memories}
+              memoryScope={memoryScope}
+              memoryKey={memoryKey}
+              memoryValue={memoryValue}
+              onClose={() => setContextPanelOpen(false)}
+              onMemoryScopeChange={setMemoryScope}
+              onMemoryKeyChange={setMemoryKey}
+              onMemoryValueChange={setMemoryValue}
+              onSaveMemory={() => void saveMemory()}
+            />
           </div>
-        </aside>
+        </div>
       )}
     </div>
   );
 }
 
 
+function AssistantChatLoadingState({ title }: { title: string }) {
+  return (
+    <div className="flex min-h-full flex-col justify-end px-0 py-4 sm:px-2 sm:py-5">
+      <div className="w-full max-w-3xl space-y-3">
+        <div className="inline-flex rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+          Opening {title}
+        </div>
+        <div className="h-16 max-w-lg animate-pulse rounded-[22px] border border-white/10 bg-white/[0.055]" />
+        <div className="ml-auto h-14 max-w-md animate-pulse rounded-[22px] bg-cyan-300/20" />
+      </div>
+    </div>
+  );
+}
+
+type AssistantEmptyStateProps = {
+  project: AssistantProject;
+  topic: AssistantTopic;
+  onPrompt: (prompt: string) => void;
+  onAction: (action: AssistantQuickAction["action"]) => void;
+  showQuickActions: boolean;
+};
+
+function AssistantEmptyState({ project, topic, onPrompt, onAction, showQuickActions }: AssistantEmptyStateProps) {
+  const promptOptions = showQuickActions
+    ? assistantExamplePrompts.slice(0, 3)
+    : [
+        `What matters most in ${topic.label} right now?`,
+        `Turn my ${topic.label} thoughts into a plan`,
+        `What should I do next for ${topic.label}?`,
+      ];
+
+  return (
+    <div className="flex min-h-full flex-col justify-end px-0 py-4 sm:px-2 sm:py-5">
+      <div className="w-full max-w-4xl">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+          <span className={`rounded-full border px-3 py-1 ${project.accent}`}>{project.label}</span>
+          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-white/60">{topic.label}</span>
+        </div>
+        <h2 className="mt-3 text-xl font-semibold text-white sm:text-2xl">What are we moving forward?</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-5 text-zinc-400 sm:leading-6">{topic.detail}</p>
+        {showQuickActions && (
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {assistantQuickActions.map((item) => (
+              <button
+                key={item.action}
+                type="button"
+                onClick={() => onAction(item.action)}
+                className={`rounded-2xl border border-white/10 bg-gradient-to-br ${item.tone} p-3 text-left transition hover:-translate-y-0.5 hover:border-white/25`}
+              >
+                <span className="block text-sm font-semibold text-white">{item.label}</span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-400">{item.detail}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="hide-scrollbar mt-3 flex max-w-full gap-2 overflow-x-auto pb-1">
+          {promptOptions.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => onPrompt(prompt)}
+              className="max-w-[82vw] shrink-0 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-left text-sm text-zinc-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-white sm:max-w-none sm:px-4"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type TopicActionsMenuProps = {
+  projectId: string;
+  topic: AssistantTopic;
+  onRename: (projectId: string, topicKey: string, currentLabel: string) => void;
+  onMove: (projectId: string, topicKey: string, direction: -1 | 1) => void;
+  onDelete: (projectId: string, topicKey: string) => void;
+  className?: string;
+};
+
+function TopicActionsMenu({ projectId, topic, onRename, onMove, onDelete, className }: TopicActionsMenuProps) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+
+  const positionMenu = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = 152;
+    const menuHeight = 174;
+    const gap = 8;
+    const canOpenRight = window.innerWidth - rect.right >= menuWidth + gap + 12;
+    const left = canOpenRight
+      ? rect.right + gap
+      : Math.min(window.innerWidth - menuWidth - 12, Math.max(12, rect.right - menuWidth));
+    const below = rect.bottom + gap;
+    const above = rect.top - menuHeight - gap;
+    const verticalTop = canOpenRight
+      ? rect.top
+      : below + menuHeight > window.innerHeight - 12 && above > 12
+        ? above
+        : Math.min(below, window.innerHeight - menuHeight - 12);
+    const maxTop = Math.max(12, window.innerHeight - menuHeight - 12);
+    const top = Math.min(Math.max(12, verticalTop), maxTop);
+    setPosition({ top, left });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target && (triggerRef.current?.contains(target) || menuRef.current?.contains(target))) return;
+      setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+    };
+  }, [open, positionMenu]);
+
+  const toggleMenu = useCallback(() => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    positionMenu();
+    setOpen(true);
+  }, [open, positionMenu]);
+
+  const runAction = useCallback((action: () => void) => {
+    setOpen(false);
+    action();
+  }, []);
+
+  return (
+    <div className={className ?? ""}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`${topic.label} settings`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={toggleMenu}
+        className="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-black/25 text-sm font-semibold leading-none text-white/55 transition hover:border-cyan-200/35 hover:text-white"
+      >
+        ...
+      </button>
+      {open && (
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ top: position.top, left: position.left }}
+          className="fixed z-[80] w-[152px] overflow-hidden rounded-2xl border border-white/10 bg-[#07111f]/98 p-1 text-sm shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-2xl"
+        >
+          <button type="button" role="menuitem" onClick={() => runAction(() => onRename(projectId, topic.key, topic.label))} className="block w-full rounded-xl px-3 py-2 text-left text-white/75 hover:bg-white/[0.06] hover:text-white">Rename</button>
+          <button type="button" role="menuitem" onClick={() => runAction(() => onMove(projectId, topic.key, -1))} className="block w-full rounded-xl px-3 py-2 text-left text-white/75 hover:bg-white/[0.06] hover:text-white">Move up</button>
+          <button type="button" role="menuitem" onClick={() => runAction(() => onMove(projectId, topic.key, 1))} className="block w-full rounded-xl px-3 py-2 text-left text-white/75 hover:bg-white/[0.06] hover:text-white">Move down</button>
+          <button type="button" role="menuitem" onClick={() => runAction(() => onDelete(projectId, topic.key))} className="block w-full rounded-xl px-3 py-2 text-left text-rose-200 hover:bg-rose-300/10 hover:text-rose-100">Delete</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type NewConversationTopicMenuProps = {
+  project: AssistantProject;
+  conversations: AssistantConversationListItem[];
+  className?: string;
+  onSelect: (domain: string) => void;
+  onClose: () => void;
+};
+
+function NewConversationTopicMenu({ project, conversations, className, onSelect, onClose }: NewConversationTopicMenuProps) {
+  const topicCounts = useMemo(() => {
+    return conversations.reduce<Record<string, number>>((counts, conversation) => {
+      counts[conversation.domain] = (counts[conversation.domain] ?? 0) + 1;
+      return counts;
+    }, {});
+  }, [conversations]);
+
+  return (
+    <div className={`overflow-hidden rounded-[22px] border border-white/10 bg-[#07111f]/98 p-2 text-left shadow-[0_24px_70px_rgba(0,0,0,0.42)] backdrop-blur-2xl ${className ?? ""}`}>
+      <div className="px-3 py-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white">Start focused chat</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">Project context stays shared; each topic gets its own thread.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white/10 text-sm text-white/45 transition hover:border-white/20 hover:text-white"
+            aria-label="Close new chat menu"
+          >
+            x
+          </button>
+        </div>
+      </div>
+      <div className="grid gap-1">
+        {project.topics.map((topic) => (
+          <button
+            key={topic.key}
+            type="button"
+            onClick={() => onSelect(topic.key)}
+            className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-white/90 group-hover:text-white">{topic.label}</span>
+              <span className="mt-0.5 block truncate text-xs text-zinc-500">{topic.detail}</span>
+            </span>
+            <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/45">{topicCounts[topic.key] ?? 0}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type AssistantProjectHomeProps = {
+  project: AssistantProject;
+  activeTopicKey?: string;
+  conversations: AssistantConversationListItem[];
+  memories: AssistantMemoryItem[];
+  onTopicSelect: (domain: string) => void;
+  onTopicRename: (projectId: string, topicKey: string, currentLabel: string) => void;
+  onTopicMove: (projectId: string, topicKey: string, direction: -1 | 1) => void;
+  onTopicDelete: (projectId: string, topicKey: string) => void;
+  onConversationSelect: (conversationId: string) => void;
+  onConversationArchive: (conversationId: string) => void;
+  onNew: (domain?: string) => void;
+  onPrompt: (prompt: string) => void;
+};
+
+function AssistantProjectHome({
+  project,
+  activeTopicKey,
+  conversations,
+  onTopicSelect,
+  onTopicRename,
+  onTopicMove,
+  onTopicDelete,
+  onConversationSelect,
+  onConversationArchive,
+  onNew,
+  onPrompt,
+}: AssistantProjectHomeProps) {
+  const topicCounts = useMemo(() => {
+    return conversations.reduce<Record<string, number>>((counts, conversation) => {
+      counts[conversation.domain] = (counts[conversation.domain] ?? 0) + 1;
+      return counts;
+    }, {});
+  }, [conversations]);
+  const selectedTopic = activeTopicKey ? project.topics.find((topic) => topic.key === activeTopicKey) ?? null : null;
+  const displayTitle = selectedTopic?.label ?? project.label;
+  const displayDetail = selectedTopic?.detail ?? project.detail;
+  const recentConversations = conversations.slice(0, 12);
+
+  return (
+    <div className="min-h-full px-0 py-3 sm:px-2 sm:py-5">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-6">
+        <div className="flex items-start justify-between gap-3 sm:items-end">
+          <div className="min-w-0">
+            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${project.accent}`}>{project.label}</span>
+            <h2 className="mt-2 text-xl font-semibold text-white sm:mt-3 sm:text-3xl">{displayTitle}</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-5 text-zinc-400 sm:leading-6">{displayDetail}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNew(selectedTopic?.key)}
+            className="shrink-0 rounded-2xl bg-cyan-300 px-3 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200 sm:px-4"
+          >
+            <span className="sm:hidden">+</span>
+            <span className="hidden sm:inline">New Chat</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {project.topics.map((topic) => {
+            const active = selectedTopic?.key === topic.key;
+            return (
+              <div key={topic.key} className="relative">
+                <button
+                  type="button"
+                  onClick={() => onTopicSelect(topic.key)}
+                  className={`min-h-[74px] w-full rounded-2xl border p-3 pr-9 text-left transition sm:min-h-[86px] sm:pr-11 ${
+                    active
+                      ? "border-cyan-200/40 bg-cyan-300/10 shadow-[0_16px_45px_rgba(34,211,238,0.10)]"
+                      : "border-white/10 bg-black/[0.18] hover:border-white/20 hover:bg-white/[0.045]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate text-sm font-semibold text-white">{topic.label}</p>
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/40">{topicCounts[topic.key] ?? 0}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-1 text-xs leading-5 text-zinc-500 sm:line-clamp-2">{topic.detail}</p>
+                </button>
+                {active && (
+                  <TopicActionsMenu
+                    projectId={project.id}
+                    topic={topic}
+                    onRename={onTopicRename}
+                    onMove={onTopicMove}
+                    onDelete={onTopicDelete}
+                    className="absolute right-2 top-2"
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <section className="min-w-0 rounded-[22px] border border-white/10 bg-black/[0.18] p-1.5 sm:p-2">
+          <div className="flex items-center justify-between gap-3 px-2 py-2">
+            <div className="flex rounded-full border border-white/10 bg-black/25 p-1 text-sm font-semibold">
+              <span className="rounded-full bg-white/10 px-4 py-2 text-white">Chats</span>
+            </div>
+            <span className="text-sm text-zinc-500">{conversations.length} total</span>
+          </div>
+          <div className="mt-1 divide-y divide-white/10">
+            {recentConversations.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => onPrompt(`Start a ${displayTitle.toLowerCase()} plan`)}
+                className="w-full rounded-2xl px-4 py-6 text-left text-sm text-zinc-400 transition hover:bg-white/[0.04] hover:text-white"
+              >
+                No chats in this project yet.
+              </button>
+            ) : (
+              recentConversations.map((conversation) => (
+                <div key={conversation.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-2xl transition hover:bg-white/[0.045]">
+                  <button
+                    type="button"
+                    onClick={() => onConversationSelect(conversation.id)}
+                    className="min-w-0 px-3 py-3 text-left sm:px-4 sm:py-4"
+                  >
+                    <span className="block truncate text-sm font-semibold text-white">{conversation.title}</span>
+                    <span className="mt-1 block truncate text-sm text-zinc-500">{getAssistantConversationPreview(conversation)}</span>
+                  </button>
+                  <div className="flex items-center gap-2 pr-3">
+                    <span className="hidden text-sm text-zinc-500 sm:inline">{formatAssistantDate(conversation.lastMessageAt ?? conversation.updatedAt)}</span>
+                    <button
+                      type="button"
+                      onClick={() => onConversationArchive(conversation.id)}
+                      className="grid h-8 w-8 place-items-center rounded-full border border-white/10 text-sm font-semibold text-white/45 transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100"
+                      aria-label={`Remove ${conversation.title}`}
+                    >
+                      x
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+type AssistantConversationRailProps = {
+  projects: AssistantProject[];
+  conversations: AssistantConversationListItem[];
+  activeConversationId?: string;
+  activeProjectId: string;
+  activeDomain: string;
+  projectHomeOpen: boolean;
+  loading: boolean;
+  className?: string;
+  onProjectSelect: (projectId: string) => void;
+  onTopicMove: (projectId: string, topicKey: string, direction: -1 | 1) => void;
+  onSelect: (conversationId: string) => void;
+  onNew: (domain: string) => void;
+  onConversationArchive: (conversationId: string) => void;
+  onClose?: () => void;
+};
+
+function AssistantConversationRail({
+  projects,
+  conversations,
+  activeConversationId,
+  activeProjectId,
+  activeDomain,
+  projectHomeOpen,
+  loading,
+  className,
+  onProjectSelect,
+  onTopicMove,
+  onSelect,
+  onNew,
+  onConversationArchive,
+  onClose,
+}: AssistantConversationRailProps) {
+  const [query, setQuery] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const [browseProjectId, setBrowseProjectId] = useState(activeProjectId);
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Record<string, boolean>>(() => ({ [activeProjectId]: true }));
+  const [expandedTopicIds, setExpandedTopicIds] = useState<Record<string, boolean>>({});
+  const [conversationOrder, setConversationOrder] = useState<AssistantConversationOrder>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem(assistantConversationOrderStorageKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as AssistantConversationOrder;
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(assistantConversationOrderStorageKey, JSON.stringify(conversationOrder));
+  }, [conversationOrder]);
+
+  const openTopicForSelection = useCallback((topicKey: string) => {
+    setExpandedTopicIds((current) => ({
+      ...current,
+      ...(activeDomain !== topicKey ? { [activeDomain]: false } : {}),
+      [topicKey]: true,
+    }));
+  }, [activeDomain]);
+
+  const toggleProject = useCallback((projectId: string) => {
+    setBrowseProjectId(projectId);
+    setExpandedProjectIds((current) => ({ ...current, [projectId]: !current[projectId] }));
+  }, []);
+
+  const toggleTopic = useCallback((topicKey: string) => {
+    setExpandedTopicIds((current) => ({ ...current, [topicKey]: !current[topicKey] }));
+  }, []);
+
+  const moveConversation = useCallback((topicKey: string, conversationId: string, direction: -1 | 1) => {
+    const topicConversationIds = conversations
+      .filter((conversation) => conversation.domain === topicKey)
+      .map((conversation) => conversation.id);
+    setConversationOrder((current) => {
+      const savedOrder = current[topicKey] ?? [];
+      const orderedIds = [
+        ...savedOrder.filter((id) => topicConversationIds.includes(id)),
+        ...topicConversationIds.filter((id) => !savedOrder.includes(id)),
+      ];
+      const currentIndex = orderedIds.indexOf(conversationId);
+      const nextIndex = currentIndex + direction;
+      if (currentIndex === -1 || nextIndex < 0 || nextIndex >= orderedIds.length) return current;
+      const nextOrder = [...orderedIds];
+      const [item] = nextOrder.splice(currentIndex, 1);
+      nextOrder.splice(nextIndex, 0, item);
+      return { ...current, [topicKey]: nextOrder };
+    });
+  }, [conversations]);
+
+  const projectForConversationList = getAssistantProjectById(browseProjectId, projects) ?? getAssistantProjectById(activeProjectId, projects) ?? defaultAssistantProject;
+
+  const projectCounts = useMemo(() => {
+    return conversations.reduce<Record<string, number>>((counts, conversation) => {
+      const project = getAssistantProjectForDomain(conversation.domain, projects);
+      counts[project.id] = (counts[project.id] ?? 0) + 1;
+      return counts;
+    }, {});
+  }, [conversations, projects]);
+  const topicCounts = useMemo(() => {
+    return conversations.reduce<Record<string, number>>((counts, conversation) => {
+      counts[conversation.domain] = (counts[conversation.domain] ?? 0) + 1;
+      return counts;
+    }, {});
+  }, [conversations]);
+  const activeProjectConversations = useMemo(
+    () => conversations.filter((conversation) => getAssistantProjectForDomain(conversation.domain, projects).id === projectForConversationList.id),
+    [projectForConversationList.id, conversations, projects],
+  );
+  const visibleConversations = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return activeProjectConversations
+      .filter((conversation) => {
+        if (!needle) return true;
+        return [
+          conversation.title,
+          conversation.description ?? "",
+          conversation.summary ?? "",
+          getAssistantTopicForDomain(conversation.domain, projects).label,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(needle);
+      })
+      .slice(0, 40);
+  }, [activeProjectConversations, projects, query]);
+  const visibleConversationsByTopic = useMemo(() => {
+    const groups = visibleConversations.reduce<Record<string, AssistantConversationListItem[]>>((nextGroups, conversation) => {
+      const list = nextGroups[conversation.domain] ?? [];
+      nextGroups[conversation.domain] = [...list, conversation];
+      return nextGroups;
+    }, {});
+    Object.entries(groups).forEach(([topicKey, list]) => {
+      const order = conversationOrder[topicKey] ?? [];
+      if (!order.length) return;
+      const rank = new Map(order.map((id, index) => [id, index]));
+      groups[topicKey] = [...list].sort((left, right) => {
+        const leftRank = rank.get(left.id) ?? Number.MAX_SAFE_INTEGER;
+        const rightRank = rank.get(right.id) ?? Number.MAX_SAFE_INTEGER;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        return list.indexOf(left) - list.indexOf(right);
+      });
+    });
+    return groups;
+  }, [conversationOrder, visibleConversations]);
+
+  return (
+    <aside
+      className={`assistant-conversation-rail glass-panel min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#07111f]/92 shadow-[0_18px_64px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[22px] ${className ?? ""}`}
+      data-no-pull-refresh="true"
+    >
+      <div className="shrink-0 border-b border-white/10 px-4 pb-3 pt-4 sm:py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-cyan-200/75">Jarvis</p>
+            <h2 className="mt-0.5 truncate text-xl font-semibold text-white sm:mt-1">Projects</h2>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setEditMode((current) => !current)}
+              className={`rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
+                editMode
+                  ? "border-cyan-200/35 bg-cyan-300/10 text-cyan-50"
+                  : "border-white/10 bg-white/[0.035] text-white/70 hover:border-white/20 hover:text-white"
+              }`}
+            >
+              {editMode ? "Done" : "Edit"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onNew(activeDomain);
+                onClose?.();
+              }}
+              className="rounded-2xl bg-cyan-300 px-3 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
+            >
+              <span className="sm:hidden">+</span>
+              <span className="hidden sm:inline">New</span>
+            </button>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 text-sm font-semibold text-white/70 transition hover:text-white sm:w-auto sm:px-3 sm:py-2"
+                aria-label="Close conversations"
+              >
+                <span className="sm:hidden">x</span>
+                <span className="hidden sm:inline">Close</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <label className="mt-3 block sm:mt-4">
+          <span className="sr-only">Search chats</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-cyan-300/60 focus:outline-none sm:py-3"
+            placeholder="Search this project"
+          />
+        </label>
+      </div>
+
+      <div
+        className="assistant-rail-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 py-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+1.15rem)] sm:py-3 sm:pb-3"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="space-y-1">
+          {projects.map((project) => {
+            const selectedProject = project.id === activeProjectId;
+            const overviewActive = selectedProject && projectHomeOpen;
+            const expanded = expandedProjectIds[project.id] === true;
+            return (
+              <div key={project.id} className="rounded-2xl">
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => toggleProject(project.id)}
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left transition ${
+                    selectedProject ? "bg-white/[0.075] text-white" : "text-zinc-300 hover:bg-white/[0.045] hover:text-white"
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className={`mb-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] ${project.accent}`}>{projectCounts[project.id] ?? 0} chats</span>
+                    <span className="block truncate text-sm font-semibold">{project.label}</span>
+                  </span>
+                  <span className={`text-lg text-white/35 transition-transform ${expanded ? "rotate-45" : ""}`}>+</span>
+                </button>
+                <div className={`grid ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+                  <div className="min-h-0 overflow-hidden">
+                    <div className="mt-1 space-y-1 pl-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onProjectSelect(project.id);
+                          onClose?.();
+                        }}
+                        className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
+                          overviewActive ? "bg-cyan-300/10 text-cyan-50" : "text-zinc-500 hover:bg-white/[0.045] hover:text-white"
+                        }`}
+                      >
+                        <span className="truncate">Project overview</span>
+                        <span className="shrink-0 text-xs text-white/30">open</span>
+                      </button>
+                      {project.topics.map((topic, topicIndex) => {
+                        const activeTopic = !projectHomeOpen && topic.key === activeDomain;
+                        const topicConversations = visibleConversationsByTopic[topic.key] ?? [];
+                        const topicChatCount = topicCounts[topic.key] ?? 0;
+                        const queryActive = query.trim().length > 0;
+                        const topicOpen = queryActive ? topicConversations.length > 0 : expandedTopicIds[topic.key] ?? activeTopic;
+                        return (
+                          <div key={topic.key} className="rounded-xl">
+                            <div
+                              className={`group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-xl transition ${
+                                activeTopic
+                                  ? "bg-cyan-300/10"
+                                  : topicOpen
+                                    ? "bg-white/[0.035]"
+                                    : "hover:bg-white/[0.045]"
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                aria-expanded={topicOpen}
+                                onClick={() => toggleTopic(topic.key)}
+                                className={`flex min-w-0 items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
+                                  activeTopic ? "text-cyan-50" : "text-zinc-400 group-hover:text-white"
+                                }`}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate">{topic.label}</span>
+                                </span>
+                                <span className="flex shrink-0 items-center gap-1 text-[11px] text-white/45">
+                                  <span>{topicChatCount}</span>
+                                  <span className={`transition-transform ${topicOpen ? "rotate-90" : ""}`}>{">"}</span>
+                                </span>
+                              </button>
+                              {editMode && (
+                                <div className="mr-1 flex shrink-0 items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => onTopicMove(project.id, topic.key, -1)}
+                                    disabled={topicIndex === 0}
+                                    className="rounded-full border border-white/10 px-2 py-1 text-[11px] font-semibold text-white/55 transition hover:border-cyan-200/35 hover:text-white disabled:cursor-default disabled:opacity-30"
+                                  >
+                                    Up
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onTopicMove(project.id, topic.key, 1)}
+                                    disabled={topicIndex === project.topics.length - 1}
+                                    className="rounded-full border border-white/10 px-2 py-1 text-[11px] font-semibold text-white/55 transition hover:border-cyan-200/35 hover:text-white disabled:cursor-default disabled:opacity-30"
+                                  >
+                                    Down
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            <div className={`grid ${topicOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+                              <div className="min-h-0 overflow-hidden">
+                                <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-2">
+                                  {topicConversations.length > 0 ? (
+                                    topicConversations.map((conversation, conversationIndex) => {
+                                      const activeConversation = conversation.id === activeConversationId;
+                                      return (
+                                        <div
+                                          key={conversation.id}
+                                          className={`group/chat grid grid-cols-[minmax(0,1fr)_auto] items-center rounded-xl transition ${
+                                            activeConversation ? "bg-emerald-300/10 text-white" : "text-zinc-500 hover:bg-white/[0.045] hover:text-white"
+                                          }`}
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (editMode) return;
+                                              openTopicForSelection(topic.key);
+                                              onSelect(conversation.id);
+                                              onClose?.();
+                                            }}
+                                            aria-disabled={editMode}
+                                            className={`min-w-0 px-3 py-2 text-left ${editMode ? "cursor-default" : ""}`}
+                                          >
+                                            <span className="block truncate text-xs font-semibold">{conversation.title}</span>
+                                            <span className="mt-0.5 block truncate text-[11px] text-zinc-500">
+                                              {getAssistantConversationPreview(conversation, projects)}
+                                            </span>
+                                          </button>
+                                          {editMode && (
+                                            <div className="mr-1 flex shrink-0 items-center gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => moveConversation(topic.key, conversation.id, -1)}
+                                                disabled={conversationIndex === 0}
+                                                className="rounded-full border border-white/10 px-2 py-1 text-[11px] font-semibold text-white/55 transition hover:border-cyan-200/35 hover:text-white disabled:cursor-default disabled:opacity-30"
+                                              >
+                                                Up
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => moveConversation(topic.key, conversation.id, 1)}
+                                                disabled={conversationIndex === topicConversations.length - 1}
+                                                className="rounded-full border border-white/10 px-2 py-1 text-[11px] font-semibold text-white/55 transition hover:border-cyan-200/35 hover:text-white disabled:cursor-default disabled:opacity-30"
+                                              >
+                                                Down
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => onConversationArchive(conversation.id)}
+                                                className="rounded-full border border-rose-200/20 px-2 py-1 text-[11px] font-semibold text-rose-100/65 transition hover:bg-rose-300/10 hover:text-rose-100"
+                                              >
+                                                Del
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-3 text-xs text-zinc-500">
+                                      <p>No chats in {topic.label} yet.</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          openTopicForSelection(topic.key);
+                                          onNew(topic.key);
+                                          onClose?.();
+                                        }}
+                                        className="mt-2 rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/65 transition hover:border-cyan-200/35 hover:text-white"
+                                      >
+                                        New chat
+                                      </button>
+                                    </div>
+                                  )}
+                                  {topicConversations.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        openTopicForSelection(topic.key);
+                                        onNew(topic.key);
+                                        onClose?.();
+                                      }}
+                                      className="w-full rounded-xl border border-dashed border-white/10 px-3 py-2 text-left text-xs font-semibold text-white/45 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-white"
+                                    >
+                                      New chat in {topic.label}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 border-t border-white/10 pt-3">
+          {loading ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-xs font-semibold text-cyan-100/70">
+              Opening chat...
+            </div>
+          ) : activeProjectConversations.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-5 text-sm text-zinc-400">
+              <p className="font-semibold text-white/80">No chats here yet</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">Open a topic above and start one.</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+type AssistantMemoryPanelProps = {
+  project: AssistantProject;
+  topic: AssistantTopic;
+  projectMemoryDomain: string;
+  conversation: AssistantConversationListItem | null;
+  memories: AssistantMemoryItem[];
+  memoryScope: AssistantMemoryScope;
+  memoryKey: string;
+  memoryValue: string;
+  onClose: () => void;
+  onMemoryScopeChange: (scope: AssistantMemoryScope) => void;
+  onMemoryKeyChange: (value: string) => void;
+  onMemoryValueChange: (value: string) => void;
+  onSaveMemory: () => void;
+};
+
+function AssistantMemoryPanel({
+  project,
+  topic,
+  projectMemoryDomain,
+  conversation,
+  memories,
+  memoryScope,
+  memoryKey,
+  memoryValue,
+  onClose,
+  onMemoryScopeChange,
+  onMemoryKeyChange,
+  onMemoryValueChange,
+  onSaveMemory,
+}: AssistantMemoryPanelProps) {
+  const projectMemories = memories.filter((memory) => memory.domain === projectMemoryDomain);
+  const topicMemories = memories.filter((memory) => memory.domain === topic.key);
+  const generalMemories = memories.filter((memory) => memory.domain === "general");
+  const visibleMemories = [...projectMemories, ...topicMemories, ...generalMemories].slice(0, 9);
+
+  return (
+    <aside className="flex h-full min-w-0">
+      <div className="glass-panel flex min-h-0 w-full flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#07111f]/90 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+        <div className="shrink-0 border-b border-white/10 px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-cyan-200/75">Context</p>
+              <h2 className="mt-1 truncate text-xl font-semibold text-white">{project.label}</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-400">
+                {memories.length} saved
+              </span>
+              <button type="button" onClick={onClose} className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-white/60 transition hover:text-white">Close</button>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-3 rounded-2xl border border-white/10 bg-black/25 p-1 text-sm font-semibold">
+            <button
+              type="button"
+              onClick={() => onMemoryScopeChange("global")}
+              className={`rounded-xl px-3 py-2 transition ${memoryScope === "global" ? "bg-white/10 text-white" : "text-zinc-500 hover:text-white"}`}
+            >
+              Shared
+            </button>
+            <button
+              type="button"
+              onClick={() => onMemoryScopeChange("project")}
+              className={`rounded-xl px-3 py-2 transition ${memoryScope === "project" ? "bg-white/10 text-white" : "text-zinc-500 hover:text-white"}`}
+            >
+              Project
+            </button>
+            <button
+              type="button"
+              onClick={() => onMemoryScopeChange("topic")}
+              className={`rounded-xl px-3 py-2 transition ${memoryScope === "topic" ? "bg-white/10 text-white" : "text-zinc-500 hover:text-white"}`}
+            >
+              Topic
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-white">Thread brief</p>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/40">
+                {conversation?.messageCount ?? 0} msgs
+              </span>
+            </div>
+            <p className="mt-2 max-h-28 overflow-hidden text-xs leading-5 text-zinc-400">
+              {conversation?.summary || topic.detail}
+            </p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+              <p className="text-2xl font-semibold text-white">{generalMemories.length}</p>
+              <p className="mt-1 text-xs text-zinc-500">Shared</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+              <p className="text-2xl font-semibold text-white">{projectMemories.length}</p>
+              <p className="mt-1 text-xs text-zinc-500">Project</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+              <p className="text-2xl font-semibold text-white">{topicMemories.length}</p>
+              <p className="mt-1 text-xs text-zinc-500">Topic</p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-white">Memory Stack</p>
+            <span className="text-xs text-zinc-500">shared + project + topic</span>
+          </div>
+
+          <div className="mt-2 space-y-2">
+            {visibleMemories.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-5 text-sm text-zinc-400">
+                No saved context yet.
+              </div>
+            ) : (
+              visibleMemories.map((memory) => (
+                <div key={memory.id} className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 transition hover:border-white/20 hover:bg-white/[0.04]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-white">{memory.key}</p>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${memory.domain === projectMemoryDomain ? project.accent : memory.domain === topic.key ? "bg-cyan-300/10 text-cyan-100" : "bg-white/10 text-white/40"}`}>
+                      {memory.domain === projectMemoryDomain ? "project" : memory.domain === topic.key ? "topic" : memory.domain}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-zinc-400">{memory.value}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <form
+          className="shrink-0 border-t border-white/10 bg-black/15 px-4 py-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSaveMemory();
+          }}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-white">Save {memoryScope === "global" ? "shared" : memoryScope} context</p>
+            <span className="text-xs text-zinc-500">{memoryScope === "global" ? "All assistants" : memoryScope === "project" ? project.label : topic.label}</span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            <label className="block">
+              <span className="sr-only">Memory key</span>
+              <input
+                value={memoryKey}
+                onChange={(event) => onMemoryKeyChange(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-cyan-300/60 focus:outline-none"
+                placeholder="Key, e.g. server"
+              />
+            </label>
+            <label className="block">
+              <span className="sr-only">Memory detail</span>
+              <textarea
+                value={memoryValue}
+                onChange={(event) => onMemoryValueChange(event.target.value)}
+                rows={3}
+                className="w-full resize-none rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm leading-5 text-white placeholder:text-zinc-600 focus:border-cyan-300/60 focus:outline-none"
+                placeholder="Stable detail Jarvis should reuse"
+              />
+            </label>
+          </div>
+          <button
+            type="submit"
+            className="mt-3 w-full rounded-2xl bg-emerald-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!memoryKey.trim() || !memoryValue.trim()}
+          >
+            Save Memory
+          </button>
+        </form>
+      </div>
+    </aside>
+  );
+}
+
+function applyAssistantProjectSettings(
+  projects: AssistantProject[],
+  settings: AssistantTopicSettings,
+  order: AssistantTopicOrder,
+) {
+  return projects.map((project) => {
+    const baseTopicKeys = project.topics.map((topic) => topic.key);
+    const orderedKeys = Array.from(new Set(order[project.id] ?? baseTopicKeys))
+      .filter((key) => baseTopicKeys.includes(key));
+    const orderedTopics = orderedKeys
+      .map((key) => project.topics.find((topic) => topic.key === key))
+      .filter((topic): topic is AssistantTopic => Boolean(topic));
+    const missingTopics = project.topics.filter((topic) => !orderedKeys.includes(topic.key));
+    const topics = [...orderedTopics, ...missingTopics]
+      .filter((topic) => !settings[topic.key]?.hidden)
+      .map((topic) => ({
+        ...topic,
+        label: settings[topic.key]?.label?.trim() || topic.label,
+      }));
+    return { ...project, topics: topics.length ? topics : project.topics.slice(0, 1) };
+  });
+}
+
+function getAssistantProjectById(projectId: string, projects: AssistantProject[] = assistantProjects) {
+  return projects.find((project) => project.id === projectId) ?? null;
+}
+
+function getAssistantProjectForDomain(domain: string, projects: AssistantProject[] = assistantProjects) {
+  return (
+    projects.find((project) => project.topics.some((topic) => topic.key === domain)) ??
+    assistantProjects.find((project) => project.topics.some((topic) => topic.key === domain)) ??
+    defaultAssistantProject
+  );
+}
+
+function getAssistantTopicForDomain(domain: string, projects: AssistantProject[] = assistantProjects) {
+  const project = getAssistantProjectForDomain(domain, projects);
+  return (
+    project.topics.find((topic) => topic.key === domain) ??
+    assistantProjects.flatMap((item) => item.topics).find((topic) => topic.key === domain) ??
+    defaultAssistantTopic
+  );
+}
+
+function getAssistantProjectMemoryDomain(projectId: string) {
+  return `project-${projectId}`;
+}
+
+function formatAssistantDate(value: string | null) {
+  if (!value) return "new";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "new";
+  const now = Date.now();
+  const ageMs = now - date.getTime();
+  if (ageMs < 60 * 60 * 1000) return "now";
+  if (ageMs < 24 * 60 * 60 * 1000) return `${Math.max(1, Math.round(ageMs / (60 * 60 * 1000)))}h`;
+  if (ageMs < 7 * 24 * 60 * 60 * 1000) return `${Math.max(1, Math.round(ageMs / (24 * 60 * 60 * 1000)))}d`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function getAssistantConversationPreview(
+  conversation: AssistantConversationListItem,
+  projects: AssistantProject[] = assistantProjects,
+) {
+  return (
+    conversation.description?.trim() ||
+    conversation.summary?.trim() ||
+    getAssistantTopicForDomain(conversation.domain, projects).detail
+  );
+}
+
 type AssistantStreamHandlers = {
+  onConversation: (conversation: AssistantConversationListItem) => void;
   onDelta: (payload: { text: string; replace?: boolean }) => void;
   onFinal: (payload: { text?: string }) => void;
   onError: (message: string) => void;
@@ -1802,6 +3630,14 @@ function handleAssistantStreamChunk(chunk: string, handlers: AssistantStreamHand
   if (!dataLines.length) return;
   const payload = parseAssistantStreamPayload(dataLines.join("\n"));
   if (!payload) return;
+
+  if (event === "conversation") {
+    const conversation = payload.conversation;
+    if (conversation && typeof conversation === "object" && !Array.isArray(conversation)) {
+      handlers.onConversation(conversation as AssistantConversationListItem);
+    }
+    return;
+  }
 
   if (event === "delta") {
     const text = typeof payload.text === "string" ? payload.text : "";

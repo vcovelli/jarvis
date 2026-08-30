@@ -28,7 +28,7 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
   const query = params?.q?.trim() ?? "";
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex w-full min-w-0 flex-col gap-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Documentation</p>
@@ -73,7 +73,7 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
         </section>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[20rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
         <aside className="glass-panel h-fit rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg lg:sticky lg:top-10">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Categories</p>
           <nav className="mt-4 max-h-[70dvh] space-y-5 overflow-y-auto pr-1">

@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { signOut, useSession } from "next-auth/react";
 
 import { applyTheme, getStoredTheme, onThemeChange, type ThemeMode } from "@/lib/theme";
 import { useJarvisState, type StateSyncStatus } from "@/lib/jarvisStore";
-import { assistantVoiceToggleEvent } from "@/lib/assistantVoiceEvents";
 import { mobileSidebarOpenEvent } from "@/lib/shellEvents";
 
 type NavLink = {
@@ -17,33 +16,33 @@ type NavLink = {
   activeFor?: string[];
 };
 
-const coreLinks: NavLink[] = [
+const commandLinks: NavLink[] = [
   { href: "/", label: "Home", description: "State" },
+  { href: "/finance", label: "Finances", description: "Money" },
+  { href: "/assistant", label: "Assistant", description: "Agent" },
   { href: "/daily", label: "Daily", description: "Planner", activeFor: ["/daily", "/todos"] },
-  { href: "/journal", label: "Journal", description: "Notes" },
+  { href: "/habits", label: "Habits", description: "Chains" },
   { href: "/sleep", label: "Sleep", description: "Recovery" },
-  { href: "/objectives", label: "Objectives", description: "Outcomes" },
+  { href: "/?focus=mood", label: "Mood", description: "Check-in" },
+  { href: "/homelab", label: "Homelab", description: "Server" },
 ];
 
-const systemLinks: NavLink[] = [
-  { href: "/homelab", label: "Homelab", description: "Server" },
-  { href: "/services", label: "Services", description: "Catalog" },
-  { href: "/documentation", label: "Docs", description: "Markdown" },
+const planningLinks: NavLink[] = [
+  { href: "/journal", label: "Journal", description: "Notes" },
+  { href: "/focus", label: "Focus", description: "Discipline" },
+  { href: "/objectives", label: "Objectives", description: "Outcomes" },
   { href: "/review", label: "Review", description: "Trends" },
 ];
 
-const growthLinks: NavLink[] = [
-  { href: "/habits", label: "Habits", description: "Chains" },
-  { href: "/focus", label: "Focus", description: "Discipline" },
+const systemLinks: NavLink[] = [
+  { href: "/documentation", label: "Docs", description: "Markdown" },
   { href: "/career", label: "Career", description: "Skills" },
   { href: "/manufacturing", label: "Manufacturing", description: "CNC" },
-  { href: "/finance", label: "Finance", description: "Goals" },
   { href: "/real-estate", label: "Real Estate", description: "Deals" },
   { href: "/fitness", label: "Fitness", description: "Health" },
 ];
 
-const utilityLinks: NavLink[] = [
-  { href: "/assistant", label: "Assistant", description: "Future agent" },
+const adminLinks: NavLink[] = [
   { href: "/settings", label: "Settings", description: "Platform" },
   { href: "/account", label: "Account", description: "Security" },
 ];
@@ -54,21 +53,52 @@ const mobileLinks: NavLink[] = [
   { href: "/finance", label: "Finances", description: "Goals" },
 ];
 
+const desktopSidebarStorageKey = "jarvis-desktop-sidebar-open";
+const shellControlsStorageKey = "jarvis-shell-controls-expanded";
+
+function getStoredDesktopSidebarOpen() {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(desktopSidebarStorageKey) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+function getStoredShellControlsExpanded() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(shellControlsStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
 type SidebarProps = {
   basePath?: string;
 };
 
 export function Sidebar({ basePath = "/" }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { syncStatus, refreshRemoteState } = useJarvisState();
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopOpen, setDesktopOpen] = useState(true);
+  const [desktopOpen, setDesktopOpen] = useState(() => getStoredDesktopSidebarOpen());
 
   useEffect(() => {
     return onThemeChange(setTheme);
   }, []);
+
+  function updateDesktopOpen(next: boolean) {
+    setDesktopOpen(next);
+    try {
+      window.localStorage.setItem(desktopSidebarStorageKey, String(next));
+    } catch {
+      // Keep the current session usable even if browser storage is blocked.
+    }
+  }
 
   useEffect(() => {
     function openMobileSidebar() {
@@ -97,19 +127,30 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   }
 
   function isActive(item: NavLink) {
-    const pathOnly = item.href.split("?")[0] || "/";
-    return item.activeFor?.includes(activeRoot) ?? activeRoot === pathOnly;
+    const [pathOnly = "/", query = ""] = item.href.split("?");
+    const focusTarget = new URLSearchParams(query).get("focus");
+    const activeFocus = searchParams?.get("focus") ?? null;
+
+    if (focusTarget) {
+      return activeRoot === (pathOnly || "/") && activeFocus === focusTarget;
+    }
+    if ((pathOnly || "/") === "/" && activeRoot === "/" && activeFocus) {
+      return false;
+    }
+    return item.activeFor?.includes(activeRoot) ?? activeRoot === (pathOnly || "/");
   }
 
   const onAssistantPage = activeRoot === "/assistant";
   const habitsImmersive = activeRoot === "/habits";
-  const mobileVoiceClass = "flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold text-cyan-100 transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-200/70";
-  const mobileVoiceContent = (
+  const mobileAssistantClass =
+    "flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-200/70 " +
+    (onAssistantPage ? "text-cyan-50" : "text-cyan-100");
+  const mobileAssistantContent = (
     <>
       <span className="flex h-14 w-14 items-center justify-center rounded-full border border-cyan-200/60 bg-cyan-300 text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.32)]">
-        <MicrophoneIcon className="h-6 w-6" />
+        <AssistantNavIcon className="h-7 w-7" />
       </span>
-      <span className="truncate">Voice</span>
+      <span className="truncate">Assistant</span>
     </>
   );
 
@@ -145,15 +186,21 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   return (
     <>
       {!desktopOpen && (
-        <button
-          type="button"
-          className="fixed left-4 z-30 hidden rounded-full border border-white/10 bg-white/10 p-3 text-sm font-semibold text-white shadow-lg backdrop-blur-xl lg:block"
-          style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
-          aria-label="Expand sidebar"
-          onClick={() => setDesktopOpen(true)}
+        <div
+          className="group fixed inset-y-0 left-0 z-30 hidden w-12 lg:block"
+          aria-label="Collapsed sidebar reveal zone"
         >
-          Menu
-        </button>
+          <button
+            type="button"
+            className="absolute left-3 top-1/2 flex -translate-x-[calc(100%+1rem)] -translate-y-1/2 items-center gap-2 rounded-full border border-cyan-200/20 bg-[#08111f]/90 px-3 py-2 text-sm font-semibold text-cyan-50 opacity-0 shadow-[0_16px_48px_rgba(2,6,23,0.32)] backdrop-blur-2xl transition-all duration-200 ease-out hover:border-cyan-200/45 hover:bg-cyan-300/10 focus:translate-x-0 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-cyan-200/70 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100"
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+            onClick={() => updateDesktopOpen(true)}
+          >
+            <SidebarExpandIcon className="h-4 w-4" />
+            <span>Nav</span>
+          </button>
+        </div>
       )}
 
       <aside
@@ -164,16 +211,29 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       >
         <div className="flex w-full flex-col gap-5 rounded-[32px] border border-white/10 bg-white/[0.05] p-4 shadow-[0_24px_80px_rgba(2,6,23,0.25)] backdrop-blur-2xl">
           <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-cyan-400/12 via-white/6 to-indigo-400/10 p-4">
-            <p className="text-[10px] uppercase tracking-[0.45em] text-cyan-200/80">Jarvis OS</p>
-            <h1 className="mt-2 text-2xl font-semibold text-white">Console</h1>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.45em] text-cyan-200/80">Jarvis OS</p>
+                <h1 className="mt-2 text-2xl font-semibold text-white">Console</h1>
+              </div>
+              <button
+                type="button"
+                onClick={() => updateDesktopOpen(false)}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/60 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50"
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+              >
+                <SidebarCollapseIcon className="h-4 w-4" />
+              </button>
+            </div>
             <p className="mt-2 text-sm leading-6 text-zinc-400">Smooth daily planning, reflection, and review from anywhere.</p>
           </div>
 
-          <nav className="flex flex-1 flex-col gap-4 overflow-y-auto pr-1">
-            <NavGroup title="Core">{navItems(coreLinks)}</NavGroup>
+          <nav className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pr-1">
+            <NavGroup title="Command">{navItems(commandLinks)}</NavGroup>
+            <NavGroup title="Plan">{navItems(planningLinks)}</NavGroup>
             <NavGroup title="Systems">{navItems(systemLinks)}</NavGroup>
-            <NavGroup title="Growth">{navItems(growthLinks)}</NavGroup>
-            <NavGroup title="Tools">{navItems(utilityLinks)}</NavGroup>
+            <NavGroup title="Admin">{navItems(adminLinks)}</NavGroup>
           </nav>
 
           <ShellControls
@@ -195,24 +255,14 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
           <div className="mx-auto grid h-[4.45rem] max-w-xl grid-cols-5 items-end gap-1">
             <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
             <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
-            {onAssistantPage ? (
-              <button
-                type="button"
-                aria-label="Toggle voice action"
-                onClick={() => window.dispatchEvent(new Event(assistantVoiceToggleEvent))}
-                className={mobileVoiceClass}
-              >
-                {mobileVoiceContent}
-              </button>
-            ) : (
-              <Link
-                href={buildHref("/assistant?voice=1")}
-                aria-label="Start voice action"
-                className={mobileVoiceClass}
-              >
-                {mobileVoiceContent}
-              </Link>
-            )}
+            <Link
+              href={buildHref("/assistant")}
+              aria-label="Open assistant"
+              aria-current={onAssistantPage ? "page" : undefined}
+              className={mobileAssistantClass}
+            >
+              {mobileAssistantContent}
+            </Link>
             <MobileBarLink item={mobileLinks[2]} active={isActive(mobileLinks[2])} href={buildHref(mobileLinks[2].href)} />
             <button
               type="button"
@@ -247,11 +297,11 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
                 Close
               </button>
             </div>
-            <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
-              <NavGroup title="Core">{navItems(coreLinks, true, () => setMobileOpen(false))}</NavGroup>
+            <nav className="flex flex-1 flex-col gap-5 overflow-y-auto overscroll-contain">
+              <NavGroup title="Command">{navItems(commandLinks, true, () => setMobileOpen(false))}</NavGroup>
+              <NavGroup title="Plan">{navItems(planningLinks, true, () => setMobileOpen(false))}</NavGroup>
               <NavGroup title="Systems">{navItems(systemLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Growth">{navItems(growthLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Tools">{navItems(utilityLinks, true, () => setMobileOpen(false))}</NavGroup>
+              <NavGroup title="Admin">{navItems(adminLinks, true, () => setMobileOpen(false))}</NavGroup>
             </nav>
             <ShellControls
               sessionEmail={session?.user?.email}
@@ -287,7 +337,7 @@ function MobileBarLink({ item, active, href }: { item: NavLink; active: boolean;
   );
 }
 
-function MicrophoneIcon({ className }: { className?: string }) {
+function AssistantNavIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -300,10 +350,92 @@ function MicrophoneIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-      <path d="M12 19v3" />
-      <path d="M8 22h8" />
+      <path d="M12 4v3" />
+      <rect x="5" y="7" width="14" height="11" rx="4" />
+      <path d="M8.5 12h.01" />
+      <path d="M15.5 12h.01" />
+      <path d="M9.5 15h5" />
+      <path d="M5 12H3" />
+      <path d="M21 12h-2" />
+    </svg>
+  );
+}
+
+function SidebarCollapseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+      <path d="M9 4v16" />
+      <path d="m15 9-3 3 3 3" />
+    </svg>
+  );
+}
+
+function SidebarExpandIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+      <path d="M9 4v16" />
+      <path d="m12 9 3 3-3 3" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 0 1-15.5 6.2" />
+      <path d="M3 12A9 9 0 0 1 18.5 5.8" />
+      <path d="M18 2v4h4" />
+      <path d="M6 22v-4H2" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m6 9 6 6 6-6" />
     </svg>
   );
 }
@@ -380,56 +512,98 @@ function ShellControls({
   syncStatus: StateSyncStatus;
   onRefresh: () => Promise<boolean>;
 }) {
+  const [expanded, setExpanded] = useState(() => getStoredShellControlsExpanded());
+  const status = getSaveStatusDisplay(syncStatus);
   const refreshDisabled =
     syncStatus.local === "loading" ||
     syncStatus.remote === "saving" ||
     syncStatus.remote === "refreshing";
 
+  function updateExpanded(next: boolean) {
+    setExpanded(next);
+    try {
+      window.localStorage.setItem(shellControlsStorageKey, String(next));
+    } catch {
+      // Keep the current session usable even if browser storage is blocked.
+    }
+  }
+
   return (
-    <div className="mt-auto space-y-3 rounded-[24px] border border-white/10 bg-white/5 p-4 text-xs text-zinc-300">
-      <StateSaveStatus syncStatus={syncStatus} />
-      {sessionEmail && (
-        <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Signed in</p>
-          <p className="mt-1 truncate text-xs text-white/80">{sessionEmail}</p>
+    <div className="mt-auto rounded-[24px] border border-white/10 bg-white/5 p-2 text-xs text-zinc-300">
+      <div className="flex items-stretch gap-2">
+        <button
+          type="button"
+          onClick={() => updateExpanded(!expanded)}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-[18px] border border-white/10 bg-black/25 px-3 py-2 text-left transition hover:border-cyan-200/30 hover:bg-white/[0.06]"
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse shell controls" : "Expand shell controls"}
+        >
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${status.toneClass}`} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-semibold text-white/85">{status.label}</span>
+            {status.detail && <span className="mt-0.5 block truncate text-[11px] text-zinc-500">{status.detail}</span>}
+          </span>
+          <ChevronDownIcon className={`h-4 w-4 shrink-0 text-white/45 transition ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        <button
+          type="button"
+          onClick={() => void onRefresh()}
+          disabled={refreshDisabled}
+          className="grid h-auto w-11 shrink-0 place-items-center rounded-[18px] border border-cyan-200/25 bg-cyan-300/10 text-cyan-100 transition hover:border-cyan-200/55 hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Refresh state"
+          title={syncStatus.remote === "refreshing" ? "Refreshing state" : "Refresh state"}
+        >
+          <RefreshIcon className={`h-4 w-4 ${syncStatus.remote === "refreshing" ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="mt-2 space-y-2 border-t border-white/10 pt-2">
+          <StateSaveStatus syncStatus={syncStatus} />
+          {sessionEmail && (
+            <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Signed in</p>
+              <p className="mt-1 truncate text-xs text-white/80">{sessionEmail}</p>
+            </div>
+          )}
+          <div className="inline-flex w-full rounded-full border border-white/10 bg-white/5 p-1 text-[10px] uppercase tracking-[0.3em]">
+            {(["dark", "light"] as const).map((option) => {
+              const active = theme === option;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    setTheme(option);
+                    applyTheme(option);
+                  }}
+                  className={
+                    "flex-1 rounded-full px-3 py-2 font-semibold transition " +
+                    (active ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-300 hover:text-white")
+                  }
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => void onRefresh()}
+            disabled={refreshDisabled}
+            className="w-full rounded-full border border-cyan-200/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-100 transition hover:border-cyan-200/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {syncStatus.remote === "refreshing" ? "Refreshing" : "Refresh state"}
+          </button>
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/20 hover:text-white"
+          >
+            Sign out
+          </button>
         </div>
       )}
-      <div className="inline-flex w-full rounded-full border border-white/10 bg-white/5 p-1 text-[10px] uppercase tracking-[0.3em]">
-        {(["dark", "light"] as const).map((option) => {
-          const active = theme === option;
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                setTheme(option);
-                applyTheme(option);
-              }}
-              className={
-                "flex-1 rounded-full px-3 py-2 font-semibold transition " +
-                (active ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-300 hover:text-white")
-              }
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        onClick={() => void onRefresh()}
-        disabled={refreshDisabled}
-        className="w-full rounded-full border border-cyan-200/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-100 transition hover:border-cyan-200/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {syncStatus.remote === "refreshing" ? "Refreshing" : "Refresh state"}
-      </button>
-      <button
-        type="button"
-        onClick={() => signOut({ callbackUrl: "/login" })}
-        className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/20 hover:text-white"
-      >
-        Sign out
-      </button>
     </div>
   );
 }

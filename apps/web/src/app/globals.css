@@ -10,6 +10,11 @@
   --accent: #67e8f9;
   --accent-strong: #818cf8;
   --shadow: 0 24px 80px rgba(2, 6, 23, 0.35);
+  --scrollbar-track: rgba(8, 13, 27, 0.7);
+  --scrollbar-thumb: rgba(103, 232, 249, 0.36);
+  --scrollbar-thumb-hover: rgba(103, 232, 249, 0.58);
+  --scrollbar-thumb-accent: rgba(129, 140, 248, 0.32);
+  --scrollbar-corner: rgba(6, 8, 22, 0.94);
   --jarvis-mobile-nav-height: calc(env(safe-area-inset-bottom, 0px) + 6rem);
 }
 
@@ -44,6 +49,12 @@ html[data-theme="light"] {
   --accent: #0f766e;
   --accent-strong: #4f46e5;
   --shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+  --scrollbar-track: rgba(226, 232, 240, 0.72);
+  --scrollbar-thumb: rgba(15, 118, 110, 0.38);
+  --scrollbar-thumb-hover: rgba(15, 118, 110, 0.62);
+  --scrollbar-thumb-accent: rgba(79, 70, 229, 0.26);
+  --scrollbar-corner: rgba(248, 250, 252, 0.96);
+  color-scheme: light;
 }
 
 body {
@@ -70,7 +81,15 @@ body::before {
 }
 
 html {
+  color-scheme: dark;
+  max-width: 100%;
+  overflow-x: hidden;
   scroll-behavior: smooth;
+}
+
+body {
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 ::selection {
@@ -436,6 +455,43 @@ html[data-theme="light"] .slider-emphasis {
 
 * {
   box-sizing: border-box;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+html,
+body {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--scrollbar-thumb), var(--scrollbar-thumb-accent));
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--scrollbar-thumb-hover), var(--scrollbar-thumb-accent));
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--scrollbar-corner);
 }
 
 button,
@@ -447,6 +503,36 @@ select {
 
 button:active {
   transform: translateY(1px);
+}
+
+.assistant-conversation-rail {
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+}
+
+.assistant-conversation-rail * {
+  overflow-anchor: none;
+}
+
+.assistant-conversation-rail button:active {
+  transform: none;
+}
+
+.assistant-rail-scroll {
+  scroll-padding-block: 0.75rem 1.25rem;
+  scrollbar-width: thin;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%);
+}
+
+@media (max-width: 767px) {
+  .assistant-conversation-rail {
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.5rem);
+  }
+
+  .assistant-rail-scroll {
+    scrollbar-gutter: auto;
+  }
 }
 
 button:focus-visible,
@@ -481,4 +567,29 @@ body.scroll-locked {
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+
+@keyframes jarvis-chat-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.995);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.jarvis-chat-enter {
+  animation: jarvis-chat-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-chat-enter {
+    animation: none;
+  }
 }

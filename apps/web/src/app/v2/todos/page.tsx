@@ -634,7 +634,7 @@ export default function TodosPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex w-full min-w-0 flex-col gap-6 pb-6 lg:h-full lg:min-h-0 lg:gap-0 lg:overflow-hidden lg:pb-0">
         <DayTimeline
           todos={todosForDay}
           selectedDay={selectedDay}
@@ -651,7 +651,7 @@ export default function TodosPage() {
           onShiftDay={handleShiftDay}
           onJumpToday={jumpToToday}
         />
-        <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="hidden lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-5 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
           <TimeBlockingBoard
             todos={todosForDay}
             selectedDay={selectedDay}
@@ -785,7 +785,7 @@ function DesktopPlannerRail({
   const completionLabel = todos.length ? `${Math.round((completedCount / todos.length) * 100)}%` : "0%";
 
   return (
-    <aside className="hidden min-w-0 flex-col gap-5 lg:sticky lg:top-8 lg:flex lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:pr-1">
+    <aside className="hidden min-h-0 min-w-0 flex-col gap-5 lg:flex lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
       <section className="rounded-[24px] border border-white/10 bg-[#0b1224]/85 p-4 text-white shadow-[0_24px_70px_rgba(2,6,23,0.24)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -1999,8 +1999,8 @@ function TimeBlockingBoard({
   };
 
   return (
-    <div className="min-w-0 rounded-[28px] border border-white/10 bg-[#08101f]/85 p-5 text-white shadow-[0_24px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
-      <div className="flex flex-col gap-5">
+    <div className="flex min-h-0 min-w-0 flex-col rounded-[28px] border border-white/10 bg-[#08101f]/85 p-5 text-white shadow-[0_24px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
+      <div className="flex shrink-0 flex-col gap-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Day planner</p>
@@ -2089,7 +2089,7 @@ function TimeBlockingBoard({
       </div>
       <div
         ref={boardScrollRef}
-        className={`planner-board-scroll mt-5 max-h-[calc(100dvh-17rem)] overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40 ${
+        className={`planner-board-scroll mt-5 min-h-[320px] flex-1 overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40 ${
           dragState ? "planner-board-dragging" : ""
         }`}
       >
