@@ -352,6 +352,7 @@ type RepeatType = "none" | "weekly" | "monthly";
 export default function AssistantPage() {
   const {
     state,
+    demoMode,
     logMood,
     addJournal,
     addTodo,
@@ -431,7 +432,25 @@ export default function AssistantPage() {
     () => moodTagOptions.map((tag) => tag.toLowerCase()),
     [moodTagOptions],
   );
-  const assistantContext = useMemo(() => buildAssistantContext(state), [state]);
+  const assistantContext = useMemo(() => buildAssistantContext(state, demoMode), [demoMode, state]);
+  useEffect(() => {
+    if (!demoMode) return;
+    setConversations([]);
+    setActiveConversation(null);
+    setProjectHomeOpen(true);
+    setMessages([
+      {
+        id: "demo-assistant-intro",
+        role: "assistant",
+        text: "Demo mode is active. I am using generated showcase state and will avoid live finance data.",
+      },
+    ]);
+    setPending(null);
+    setDraft(null);
+    setConversationLoading(false);
+    setMemories([]);
+  }, [demoMode]);
+
   const configuredProjects = useMemo(
     () => applyAssistantProjectSettings(assistantProjects, topicSettings, topicOrder),
     [topicOrder, topicSettings],
@@ -520,6 +539,11 @@ export default function AssistantPage() {
   }, []);
 
   const loadConversation = useCallback(async (conversationId: string) => {
+    if (demoMode) {
+      setConversationPanelOpen(false);
+      setProjectHomeOpen(true);
+      return;
+    }
     const requestId = conversationLoadRequestRef.current + 1;
     conversationLoadRequestRef.current = requestId;
     const requestIsCurrent = () => conversationLoadRequestRef.current === requestId;
@@ -565,16 +589,20 @@ export default function AssistantPage() {
         setConversationLoading(false);
       }
     }
-  }, [appendMessage, configuredProjects, conversations]);
+  }, [appendMessage, configuredProjects, conversations, demoMode]);
 
   const refreshConversations = useCallback(async () => {
+    if (demoMode) {
+      setConversations([]);
+      return [];
+    }
     const response = await fetch("/api/assistant/conversations", { cache: "no-store" });
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(data?.error ?? `Conversation list failed with ${response.status}`);
     const next = Array.isArray(data?.conversations) ? data.conversations as AssistantConversationListItem[] : [];
     setConversations(next);
     return next;
-  }, []);
+  }, [demoMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -594,12 +622,16 @@ export default function AssistantPage() {
   }, [activeConversation, appendMessage, configuredProjects, refreshConversations]);
 
   const refreshMemories = useCallback(async (domain: string, projectDomain: string) => {
+    if (demoMode) {
+      setMemories([]);
+      return;
+    }
     const params = new URLSearchParams({ domain, project: projectDomain });
     const response = await fetch(`/api/assistant/memory?${params.toString()}`, { cache: "no-store" });
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(data?.error ?? `Memory load failed with ${response.status}`);
     setMemories(Array.isArray(data?.memories) ? data.memories as AssistantMemoryItem[] : []);
-  }, []);
+  }, [demoMode]);
 
   useEffect(() => {
     void refreshMemories(activeDomain, activeProjectMemoryDomain).catch((error) => appendMessage("assistant", getIntentErrorMessage(error)));
@@ -3664,7 +3696,7 @@ function parseAssistantStreamPayload(value: string): Record<string, unknown> | n
   }
 }
 
-function buildAssistantContext(state: JarvisState): AssistantContextPayload {
+function buildAssistantContext(state: JarvisState, demoMode = false): AssistantContextPayload {
   const today = getDayKey();
   const now = Date.now();
   const minDay = offsetDayKey(today, -14);
@@ -3712,6 +3744,7 @@ function buildAssistantContext(state: JarvisState): AssistantContextPayload {
     mood,
     sleep,
     moodTags: Array.from(new Set([...defaultMoodTags, ...(state.moodTags ?? [])])),
+    demoMode,
   };
 }
 

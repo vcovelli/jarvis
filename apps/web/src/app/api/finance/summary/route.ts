@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getFinanceAnalytics } from "@/lib/finance/analytics";
 import { prisma } from "@/lib/prisma";
 import { getPlaidSetup } from "@/lib/plaid";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) {
@@ -13,7 +14,11 @@ export async function GET() {
   }
 
   const setup = getPlaidSetup();
-  const [connections, accounts, transactions, holdings] = await Promise.all([
+  const url = new URL(request.url);
+  const rangeDays = Number(url.searchParams.get("rangeDays") ?? 60);
+  const includePending = url.searchParams.get("includePending") === "true";
+
+  const [connections, accounts, transactions, holdings, analytics] = await Promise.all([
     prisma.financialConnection.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -42,13 +47,15 @@ export async function GET() {
         availableBalance: true,
         isoCurrencyCode: true,
         unofficialCurrencyCode: true,
+        canonicalRole: true,
+        roleOverride: true,
         updatedAt: true,
       },
     }),
     prisma.financialTransaction.findMany({
       where: { userId },
       orderBy: { date: "desc" },
-      take: 80,
+      take: 240,
       select: {
         id: true,
         accountId: true,
@@ -59,12 +66,16 @@ export async function GET() {
         category: true,
         pending: true,
         isoCurrencyCode: true,
+        pendingTransactionId: true,
+        personalFinanceCategoryPrimary: true,
+        personalFinanceCategoryDetailed: true,
+        personalFinanceCategoryConfidence: true,
       },
     }),
     prisma.investmentHolding.findMany({
       where: { userId },
       orderBy: [{ institutionValue: "desc" }, { securityName: "asc" }],
-      take: 80,
+      take: 240,
       select: {
         id: true,
         accountId: true,
@@ -78,6 +89,7 @@ export async function GET() {
         updatedAt: true,
       },
     }),
+    getFinanceAnalytics(userId, { rangeDays, includePending }),
   ]);
 
   return NextResponse.json({
@@ -86,6 +98,9 @@ export async function GET() {
     accounts,
     transactions,
     holdings,
+    events: analytics.recentEvents,
+    manualPositions: analytics.manualPositions,
+    analytics,
     updatedAt: Date.now(),
   });
 }

@@ -8,24 +8,30 @@ datasource db {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  name         String?
-  email        String?    @unique
-  emailVerified DateTime?
-  image        String?
-  passwordHash String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  accounts              Account[]
-  sessions              Session[]
-  userState             UserState?
-  financialConnections  FinancialConnection[]
-  financialAccounts     FinancialAccount[]
-  financialTransactions FinancialTransaction[]
-  investmentHoldings    InvestmentHolding[]
-  assistantConversations AssistantConversation[]
-  assistantMessages      AssistantMessage[]
-  assistantMemories      AssistantMemory[]
+  id                                String                             @id @default(cuid())
+  name                              String?
+  email                             String?                            @unique
+  emailVerified                     DateTime?
+  image                             String?
+  passwordHash                      String?
+  createdAt                         DateTime                           @default(now())
+  updatedAt                         DateTime                           @updatedAt
+  accounts                          Account[]
+  sessions                          Session[]
+  userState                         UserState?
+  financialConnections              FinancialConnection[]
+  financialAccounts                 FinancialAccount[]
+  financialTransactions             FinancialTransaction[]
+  investmentHoldings                InvestmentHolding[]
+  financialEvents                   FinancialEvent[]
+  financialClassificationRules      FinancialClassificationRule[]
+  manualFinancialPositions          ManualFinancialPosition[]
+  manualFinancialPositionValuations ManualFinancialPositionValuation[]
+  financialAccountBalanceSnapshots  FinancialAccountBalanceSnapshot[]
+  financialNetWorthSnapshots        FinancialNetWorthSnapshot[]
+  assistantConversations            AssistantConversation[]
+  assistantMessages                 AssistantMessage[]
+  assistantMemories                 AssistantMemory[]
 }
 
 model UserState {
@@ -38,30 +44,32 @@ model UserState {
 }
 
 model FinancialConnection {
-  id                   String                 @id @default(cuid())
+  id                   String                            @id @default(cuid())
   userId               String
-  provider             String                 @default("plaid")
+  provider             String                            @default("plaid")
   itemId               String
   accessTokenEncrypted String
   institutionId        String?
   institutionName      String?
   products             String[]
   cursor               String?
-  status               String                 @default("active")
+  status               String                            @default("active")
   lastSyncedAt         DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime                          @default(now())
+  updatedAt            DateTime                          @updatedAt
+  user                 User                              @relation(fields: [userId], references: [id], onDelete: Cascade)
   accounts             FinancialAccount[]
   transactions         FinancialTransaction[]
   holdings             InvestmentHolding[]
+  events               FinancialEvent[]
+  balanceSnapshots     FinancialAccountBalanceSnapshot[]
 
   @@unique([userId, provider, itemId])
   @@index([userId])
 }
 
 model FinancialAccount {
-  id                     String                 @id @default(cuid())
+  id                     String                            @id @default(cuid())
   userId                 String
   connectionId           String
   providerAccountId      String
@@ -74,43 +82,53 @@ model FinancialAccount {
   availableBalance       Float?
   isoCurrencyCode        String?
   unofficialCurrencyCode String?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
-  user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  connection             FinancialConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  canonicalRole          String?
+  roleOverride           String?
+  createdAt              DateTime                          @default(now())
+  updatedAt              DateTime                          @updatedAt
+  user                   User                              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection             FinancialConnection               @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   transactions           FinancialTransaction[]
   holdings               InvestmentHolding[]
+  events                 FinancialEvent[]
+  balanceSnapshots       FinancialAccountBalanceSnapshot[]
 
   @@unique([connectionId, providerAccountId])
   @@index([userId, type])
 }
 
 model FinancialTransaction {
-  id                     String              @id @default(cuid())
-  userId                 String
-  connectionId           String
-  accountId              String?
-  providerTransactionId  String
-  providerAccountId      String
-  date                   DateTime
-  authorizedDate         DateTime?
-  name                   String
-  merchantName           String?
-  amount                 Float
-  isoCurrencyCode        String?
-  unofficialCurrencyCode String?
-  category               String[]
-  pending                Boolean             @default(false)
-  paymentChannel         String?
-  raw                    Json?
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  connection             FinancialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  account                FinancialAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  id                                String              @id @default(cuid())
+  userId                            String
+  connectionId                      String
+  accountId                         String?
+  providerTransactionId             String
+  providerAccountId                 String
+  date                              DateTime
+  authorizedDate                    DateTime?
+  name                              String
+  merchantName                      String?
+  amount                            Float
+  isoCurrencyCode                   String?
+  unofficialCurrencyCode            String?
+  category                          String[]
+  pending                           Boolean             @default(false)
+  pendingTransactionId              String?
+  personalFinanceCategoryPrimary    String?
+  personalFinanceCategoryDetailed   String?
+  personalFinanceCategoryConfidence String?
+  paymentChannel                    String?
+  raw                               Json?
+  createdAt                         DateTime            @default(now())
+  updatedAt                         DateTime            @updatedAt
+  user                              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection                        FinancialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  account                           FinancialAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  financialEvent                    FinancialEvent?
 
   @@unique([connectionId, providerTransactionId])
   @@index([userId, date])
+  @@index([userId, pending, pendingTransactionId])
   @@index([accountId])
 }
 
@@ -142,6 +160,175 @@ model InvestmentHolding {
   @@index([accountId])
 }
 
+model FinancialEvent {
+  id                             String                @id @default(cuid())
+  userId                         String
+  source                         String                @default("plaid_transaction")
+  sourceId                       String?
+  transactionId                  String?               @unique
+  connectionId                   String?
+  accountId                      String?
+  relatedEventId                 String?
+  transferGroupId                String?
+  eventType                      String
+  primaryCategory                String
+  subcategory                    String?
+  normalizedMerchant             String?
+  displayName                    String
+  amount                         Float
+  cashFlowAmount                 Float
+  date                           DateTime
+  authorizedDate                 DateTime?
+  pending                        Boolean               @default(false)
+  countsAsIncome                 Boolean               @default(false)
+  countsAsSpend                  Boolean               @default(false)
+  countsAsSavings                Boolean               @default(false)
+  countsAsInvestmentContribution Boolean               @default(false)
+  countsAsTransfer               Boolean               @default(false)
+  internalTransfer               Boolean               @default(false)
+  investmentIncome               Boolean               @default(false)
+  affectsNetWorth                Boolean               @default(true)
+  needsReview                    Boolean               @default(false)
+  confidence                     Float                 @default(0)
+  classificationSource           String                @default("heuristic")
+  classificationReason           String?
+  userReviewedAt                 DateTime?
+  reviewedByRuleId               String?
+  metadata                       Json?
+  createdAt                      DateTime              @default(now())
+  updatedAt                      DateTime              @updatedAt
+  user                           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction                    FinancialTransaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  connection                     FinancialConnection?  @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  account                        FinancialAccount?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, source, sourceId])
+  @@index([userId, date])
+  @@index([userId, eventType, date])
+  @@index([userId, transferGroupId])
+  @@index([userId, needsReview])
+  @@index([accountId, date])
+}
+
+model FinancialClassificationRule {
+  id                   String   @id @default(cuid())
+  userId               String
+  name                 String
+  enabled              Boolean  @default(true)
+  priority             Int      @default(100)
+  matchType            String
+  matchValue           String
+  matchValueNormalized String?
+  institutionId        String?
+  connectionId         String?
+  accountId            String?
+  amount               Float?
+  eventType            String
+  primaryCategory      String
+  subcategory          String?
+  normalizedMerchant   String?
+  confidence           Float    @default(0.98)
+  source               String   @default("user_rule")
+  metadata             Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled, priority])
+  @@index([userId, matchType])
+  @@index([accountId])
+  @@index([connectionId])
+}
+
+model ManualFinancialPosition {
+  id                String                             @id @default(cuid())
+  userId            String
+  kind              String
+  type              String
+  role              String
+  name              String
+  value             Float
+  isoCurrencyCode   String?
+  valuationDate     DateTime                           @default(now())
+  valuationMethod   String                             @default("manual")
+  notes             String?
+  acquisitionCost   Float?
+  acquisitionDate   DateTime?
+  linkedLiabilityId String?
+  active            Boolean                            @default(true)
+  metadata          Json?
+  createdAt         DateTime                           @default(now())
+  updatedAt         DateTime                           @updatedAt
+  user              User                               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valuations        ManualFinancialPositionValuation[]
+
+  @@index([userId, active, kind, type])
+  @@index([userId, role])
+}
+
+model ManualFinancialPositionValuation {
+  id              String                  @id @default(cuid())
+  userId          String
+  positionId      String
+  value           Float
+  valuationDate   DateTime                @default(now())
+  valuationMethod String                  @default("manual")
+  source          String                  @default("manual")
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime                @default(now())
+  user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  position        ManualFinancialPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, valuationDate])
+  @@index([positionId, valuationDate])
+}
+
+model FinancialAccountBalanceSnapshot {
+  id               String               @id @default(cuid())
+  userId           String
+  connectionId     String?
+  accountId        String
+  snapshotDate     DateTime
+  currentBalance   Float?
+  availableBalance Float?
+  isoCurrencyCode  String?
+  source           String               @default("sync")
+  createdAt        DateTime             @default(now())
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account          FinancialAccount     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  connection       FinancialConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@unique([accountId, snapshotDate])
+  @@index([userId, snapshotDate])
+  @@index([connectionId])
+}
+
+model FinancialNetWorthSnapshot {
+  id                  String   @id @default(cuid())
+  userId              String
+  snapshotDate        DateTime
+  totalAssets         Float
+  totalLiabilities    Float
+  totalNetWorth       Float
+  liquidNetWorth      Float
+  cash                Float
+  investableAssets    Float
+  retirementAssets    Float
+  manualAssets        Float
+  propertyAssets      Float
+  vehicleAssets       Float
+  creditLiabilities   Float
+  loanLiabilities     Float
+  mortgageLiabilities Float
+  source              String   @default("sync")
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, snapshotDate, source])
+  @@index([userId, snapshotDate])
+}
 
 model AssistantConversation {
   id                 String             @id @default(cuid())
@@ -198,7 +385,7 @@ model AssistantMemory {
 }
 
 model Account {
-  id                 String   @id @default(cuid())
+  id                 String  @id @default(cuid())
   userId             String
   type               String
   provider           String
@@ -212,7 +399,7 @@ model Account {
   session_state      String?
   oauth_token_secret String?
   oauth_token        String?
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }

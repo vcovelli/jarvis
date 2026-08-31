@@ -1,5 +1,8 @@
 import type { Prisma } from "@prisma/client";
 
+import { snapshotNetWorth } from "@/lib/finance/analytics";
+import { inferAccountRole } from "@/lib/finance/classification";
+import { normalizeFinancialTransactions, snapshotAccountBalances } from "@/lib/finance/normalization";
 import { prisma } from "@/lib/prisma";
 import { callPlaid } from "@/lib/plaid";
 import { decryptSecret } from "@/lib/serverCrypto";
@@ -36,6 +39,12 @@ type PlaidTransaction = {
   category?: string[] | null;
   pending?: boolean | null;
   payment_channel?: string | null;
+  pending_transaction_id?: string | null;
+  personal_finance_category?: {
+    primary?: string | null;
+    detailed?: string | null;
+    confidence_level?: string | null;
+  } | null;
 };
 
 type PlaidRemovedTransaction = {
@@ -78,6 +87,9 @@ export type FinanceSyncResult = {
   transactionsAddedOrUpdated: number;
   transactionsRemoved: number;
   holdings: number;
+  canonicalEvents: number;
+  transferMatches: number;
+  balanceSnapshots: number;
 };
 
 export async function syncAllFinancialConnections(userId: string) {
@@ -104,7 +116,7 @@ export async function syncFinancialConnection(userId: string, connectionId: stri
   const accountIdByProvider = await syncAccounts(userId, connection.id, accessToken);
   const transactions = connection.products.includes("transactions")
     ? await syncTransactions(userId, connection.id, accessToken, connection.cursor, accountIdByProvider)
-    : { cursor: connection.cursor ?? undefined, upserted: 0, removed: 0 };
+    : { cursor: connection.cursor ?? undefined, upserted: 0, removed: 0, transactionIds: [] as string[] };
   const holdings = connection.products.includes("investments")
     ? await syncHoldings(userId, connection.id, accessToken, accountIdByProvider)
     : 0;
@@ -117,12 +129,25 @@ export async function syncFinancialConnection(userId: string, connectionId: stri
     },
   });
 
+  const balanceSnapshots = await snapshotAccountBalances(userId, connection.id, Array.from(accountIdByProvider.values()));
+  const normalization = connection.products.includes("transactions")
+    ? await normalizeFinancialTransactions(userId, {
+        all: true,
+        connectionId: connection.id,
+        limit: 5000,
+      })
+    : { events: 0, transferMatches: 0 };
+  await snapshotNetWorth(userId);
+
   return {
     connectionId: connection.id,
     accounts: accountIdByProvider.size,
     transactionsAddedOrUpdated: transactions.upserted,
     transactionsRemoved: transactions.removed,
     holdings,
+    canonicalEvents: normalization.events,
+    transferMatches: normalization.transferMatches,
+    balanceSnapshots,
   };
 }
 
@@ -133,6 +158,12 @@ async function syncAccounts(userId: string, connectionId: string, accessToken: s
   const accountIdByProvider = new Map<string, string>();
 
   for (const account of response.accounts ?? []) {
+    const canonicalRole = inferAccountRole({
+      name: account.name,
+      officialName: account.official_name,
+      type: account.type,
+      subtype: account.subtype,
+    });
     const saved = await prisma.financialAccount.upsert({
       where: {
         connectionId_providerAccountId: {
@@ -153,6 +184,7 @@ async function syncAccounts(userId: string, connectionId: string, accessToken: s
         availableBalance: account.balances?.available ?? undefined,
         isoCurrencyCode: account.balances?.iso_currency_code ?? undefined,
         unofficialCurrencyCode: account.balances?.unofficial_currency_code ?? undefined,
+        canonicalRole,
       },
       update: {
         name: account.name,
@@ -164,6 +196,7 @@ async function syncAccounts(userId: string, connectionId: string, accessToken: s
         availableBalance: account.balances?.available ?? undefined,
         isoCurrencyCode: account.balances?.iso_currency_code ?? undefined,
         unofficialCurrencyCode: account.balances?.unofficial_currency_code ?? undefined,
+        canonicalRole,
       },
     });
     accountIdByProvider.set(account.account_id, saved.id);
@@ -183,6 +216,7 @@ async function syncTransactions(
   let hasMore = true;
   let upserted = 0;
   let removed = 0;
+  const transactionIds: string[] = [];
 
   while (hasMore) {
     const response = await callPlaid<PlaidTransactionsSyncResponse>("/transactions/sync", {
@@ -192,7 +226,8 @@ async function syncTransactions(
     });
 
     for (const transaction of [...(response.added ?? []), ...(response.modified ?? [])]) {
-      await upsertTransaction(userId, connectionId, transaction, accountIdByProvider);
+      const id = await upsertTransaction(userId, connectionId, transaction, accountIdByProvider);
+      transactionIds.push(id);
       upserted += 1;
     }
 
@@ -213,7 +248,7 @@ async function syncTransactions(
     hasMore = response.has_more === true;
   }
 
-  return { cursor, upserted, removed };
+  return { cursor, upserted, removed, transactionIds };
 }
 
 async function upsertTransaction(
@@ -237,11 +272,15 @@ async function upsertTransaction(
     unofficialCurrencyCode: transaction.unofficial_currency_code ?? undefined,
     category: transaction.category ?? [],
     pending: Boolean(transaction.pending),
+    pendingTransactionId: transaction.pending_transaction_id ?? undefined,
+    personalFinanceCategoryPrimary: transaction.personal_finance_category?.primary ?? undefined,
+    personalFinanceCategoryDetailed: transaction.personal_finance_category?.detailed ?? undefined,
+    personalFinanceCategoryConfidence: transaction.personal_finance_category?.confidence_level ?? undefined,
     paymentChannel: transaction.payment_channel ?? undefined,
     raw: transaction as unknown as Prisma.InputJsonValue,
   };
 
-  await prisma.financialTransaction.upsert({
+  const saved = await prisma.financialTransaction.upsert({
     where: {
       connectionId_providerTransactionId: {
         connectionId,
@@ -251,6 +290,7 @@ async function upsertTransaction(
     create: data,
     update: data,
   });
+  return saved.id;
 }
 
 async function syncHoldings(

@@ -47,6 +47,7 @@ export type AssistantContextPayload = {
   sleep: AssistantSleepContext[];
   moodTags?: string[];
   finance?: AssistantFinanceContext;
+  demoMode?: boolean;
 };
 
 export type AssistantIntentKind =

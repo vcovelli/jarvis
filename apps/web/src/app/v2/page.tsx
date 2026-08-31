@@ -77,6 +77,7 @@ export default function Home() {
   const {
     state,
     hydrated,
+    demoMode,
     logMood,
     updateMood,
     deleteMood,
@@ -342,6 +343,25 @@ export default function Home() {
   }, [timelineFilter]);
 
   useEffect(() => {
+    if (demoMode) {
+      setHomelabSummary({
+        generatedAt: new Date().toISOString(),
+        services: { active: 12, total: 12 },
+        storage: "68% free across demo volumes",
+        attention: [
+          {
+            id: "demo-homelab-attention",
+            title: "Demo stack ready",
+            detail: "All showcase services are healthy and safe to present.",
+            severity: "info",
+          },
+        ],
+      });
+      setHomelabSummaryUpdatedAt(Date.now());
+      setHomelabSummaryError(null);
+      return;
+    }
+
     let cancelled = false;
     async function loadHomelabSummary() {
       try {
@@ -369,7 +389,7 @@ export default function Home() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [demoMode]);
 
   useEffect(() => {
     if (!focusKey) return;
