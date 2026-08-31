@@ -209,6 +209,7 @@ export type JarvisState = {
 
 const STORAGE_KEY = "jarvis-state-v1";
 const STORAGE_META_KEY = "jarvis-state-meta-v1";
+const DEMO_MODE_KEY = "jarvis-demo-mode-v1";
 const MAX_HOMELAB_ACTIONS = 100;
 
 export type LocalSaveStatus = "loading" | "saved" | "error";
@@ -296,6 +297,28 @@ function writeStoredMeta(key: string, meta: StoredMeta) {
   } catch (error) {
     console.warn("Jarvis state meta save failed", error);
     return false;
+  }
+}
+
+function readStoredDemoMode() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(DEMO_MODE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeStoredDemoMode(enabled: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    if (enabled) {
+      window.localStorage.setItem(DEMO_MODE_KEY, "true");
+    } else {
+      window.localStorage.removeItem(DEMO_MODE_KEY);
+    }
+  } catch (error) {
+    console.warn("Jarvis demo mode save failed", error);
   }
 }
 
@@ -446,6 +469,353 @@ const initialState: JarvisState = {
   objectives: [],
   homelabActions: [],
 };
+
+function buildDemoJarvisState(baseDate = new Date()): JarvisState {
+  const today = getDayKey(baseDate);
+  const yesterday = getDemoDayKey(baseDate, -1);
+  const twoDaysAgo = getDemoDayKey(baseDate, -2);
+  const tomorrow = getDemoDayKey(baseDate, 1);
+  const weekKey = getDemoWeekKey(baseDate);
+  const days = Array.from({ length: 7 }, (_, index) => getDemoDayKey(baseDate, index - 6));
+  const habitLog = (pattern: HabitLogStatus[]) => {
+    return days.reduce((acc, day, index) => {
+      acc[day] = pattern[index] ?? "empty";
+      return acc;
+    }, {} as Record<DayKey, HabitLogStatus>);
+  };
+
+  return {
+    mood: {
+      [today]: [
+        {
+          id: "demo-mood-today",
+          ts: getDemoTimestamp(baseDate, 0, 8, 15),
+          mood: 8,
+          note: "Clear morning, strong focus window available.",
+          tags: ["energy", "focus", "product"],
+        },
+      ],
+      [yesterday]: [
+        {
+          id: "demo-mood-yesterday",
+          ts: getDemoTimestamp(baseDate, -1, 18, 20),
+          mood: 7,
+          note: "Good execution day, slightly overloaded after lunch.",
+          tags: ["stress", "workout"],
+        },
+      ],
+      [twoDaysAgo]: [
+        {
+          id: "demo-mood-two-days",
+          ts: getDemoTimestamp(baseDate, -2, 19, 5),
+          mood: 6,
+          note: "Energy dipped after a short night.",
+          tags: ["sleep", "recovery"],
+        },
+      ],
+    },
+    journal: {
+      [today]: [
+        {
+          id: "demo-journal-today",
+          ts: getDemoTimestamp(baseDate, 0, 7, 45),
+          prompt: "priority",
+          text: "Anchor the day around the demo narrative: open dashboard, show finance intelligence, then close with assistant follow-through.",
+        },
+      ],
+      [yesterday]: [
+        {
+          id: "demo-journal-yesterday",
+          ts: getDemoTimestamp(baseDate, -1, 21, 15),
+          prompt: "free",
+          text: "The clearest product moments are the ones where Jarvis turns scattered personal signals into the next obvious action.",
+        },
+      ],
+    },
+    todos: {
+      [today]: [
+        {
+          id: "demo-todo-1",
+          createdTs: getDemoTimestamp(baseDate, 0, 7, 30),
+          day: today,
+          text: "Run Jarvis elevator pitch",
+          done: false,
+          priority: 1,
+          startTime: "09:00",
+          timeblockMins: 45,
+          order: 0,
+          color: "#67e8f9",
+        },
+        {
+          id: "demo-todo-2",
+          createdTs: getDemoTimestamp(baseDate, 0, 7, 35),
+          day: today,
+          text: "Review finance classification queue",
+          done: false,
+          priority: 1,
+          startTime: "10:00",
+          timeblockMins: 30,
+          order: 1,
+          color: "#34d399",
+        },
+        {
+          id: "demo-todo-3",
+          createdTs: getDemoTimestamp(baseDate, 0, 7, 40),
+          day: today,
+          text: "Draft investor follow-up notes",
+          done: true,
+          priority: 2,
+          startTime: "11:00",
+          timeblockMins: 40,
+          completedTs: getDemoTimestamp(baseDate, 0, 11, 42),
+          order: 2,
+          color: "#fbbf24",
+        },
+        {
+          id: "demo-todo-4",
+          createdTs: getDemoTimestamp(baseDate, 0, 8, 0),
+          day: today,
+          text: "Thirty minute recovery walk",
+          done: false,
+          priority: 3,
+          startTime: "17:30",
+          timeblockMins: 30,
+          order: 3,
+          color: "#a78bfa",
+        },
+      ],
+      [tomorrow]: [
+        {
+          id: "demo-todo-tomorrow-1",
+          createdTs: getDemoTimestamp(baseDate, 0, 12, 10),
+          day: tomorrow,
+          text: "Package demo feedback into release notes",
+          done: false,
+          priority: 2,
+          startTime: "08:30",
+          timeblockMins: 60,
+          order: 0,
+          color: "#38bdf8",
+        },
+      ],
+    },
+    deletedTodoIds: [],
+    sleep: {
+      [today]: [
+        {
+          id: "demo-sleep-today",
+          ts: getDemoTimestamp(baseDate, 0, 6, 50),
+          day: today,
+          durationMins: 455,
+          quality: 4,
+          startMinutes: 23 * 60 + 5,
+          endMinutes: 6 * 60 + 40,
+          recoveryScore: 86,
+          notes: "Solid night with one short wake-up.",
+        },
+      ],
+      [yesterday]: [
+        {
+          id: "demo-sleep-yesterday",
+          ts: getDemoTimestamp(baseDate, -1, 7, 5),
+          day: yesterday,
+          durationMins: 420,
+          quality: 3,
+          startMinutes: 23 * 60 + 45,
+          endMinutes: 6 * 60 + 45,
+          recoveryScore: 72,
+          notes: "Shorter night, protected afternoon workload.",
+        },
+      ],
+      [twoDaysAgo]: [
+        {
+          id: "demo-sleep-two-days",
+          ts: getDemoTimestamp(baseDate, -2, 7, 10),
+          day: twoDaysAgo,
+          durationMins: 490,
+          quality: 5,
+          startMinutes: 22 * 60 + 40,
+          endMinutes: 6 * 60 + 50,
+          recoveryScore: 91,
+        },
+      ],
+    },
+    moodTags: ["focus", "product", "recovery", "demo"],
+    sleepSchedule: {
+      ...defaultSchedule,
+      daily: { lightsOut: "23:00", wake: "06:45" },
+      weekdays: { lightsOut: "22:45", wake: "06:30" },
+      weekends: { lightsOut: "00:00", wake: "08:00" },
+    },
+    operatingMode: {
+      [today]: { mode: "deep-work", suggestedMode: "execution", ts: getDemoTimestamp(baseDate, 0, 7, 50) },
+      [yesterday]: { mode: "execution", ts: getDemoTimestamp(baseDate, -1, 8, 5) },
+    },
+    mustWin: {
+      [today]: {
+        text: "Make the Jarvis demo feel private, polished, and obvious in under five minutes.",
+        timeBound: "Before 10:00",
+        done: false,
+        ts: getDemoTimestamp(baseDate, 0, 7, 55),
+      },
+      [yesterday]: {
+        text: "Ship finance classification fixes and validate the build.",
+        timeBound: "Before end of day",
+        done: true,
+        ts: getDemoTimestamp(baseDate, -1, 8, 0),
+        completedTs: getDemoTimestamp(baseDate, -1, 16, 20),
+      },
+    },
+    habits: [
+      {
+        id: "demo-habit-focus",
+        title: "Protect first deep-work block",
+        icons: "DW",
+        intent: "build",
+        category: "Work",
+        createdTs: getDemoTimestamp(baseDate, -21, 9, 0),
+        updatedTs: getDemoTimestamp(baseDate, 0, 7, 30),
+        order: 0,
+        logs: habitLog(["yes", "yes", "skip", "yes", "yes", "yes", "yes"]),
+      },
+      {
+        id: "demo-habit-sleep",
+        title: "Lights out before 11:15",
+        icons: "SL",
+        intent: "build",
+        category: "Recovery",
+        createdTs: getDemoTimestamp(baseDate, -18, 9, 0),
+        updatedTs: getDemoTimestamp(baseDate, 0, 7, 30),
+        order: 1,
+        logs: habitLog(["yes", "no", "yes", "yes", "yes", "skip", "yes"]),
+      },
+      {
+        id: "demo-habit-finance",
+        title: "Daily money review",
+        icons: "FI",
+        intent: "build",
+        category: "Finance",
+        createdTs: getDemoTimestamp(baseDate, -10, 9, 0),
+        updatedTs: getDemoTimestamp(baseDate, 0, 7, 30),
+        order: 2,
+        logs: habitLog(["yes", "yes", "yes", "empty", "yes", "yes", "yes"]),
+      },
+    ],
+    dailyReview: {
+      [yesterday]: {
+        day: yesterday,
+        ts: getDemoTimestamp(baseDate, -1, 20, 45),
+        expected: true,
+        tomorrow: "Keep the demo tight: dashboard, finance, assistant, then next action.",
+      },
+      [twoDaysAgo]: {
+        day: twoDaysAgo,
+        ts: getDemoTimestamp(baseDate, -2, 20, 30),
+        expected: false,
+        reason: "overplanned",
+        tomorrow: "Reduce commitments and preserve a clean morning block.",
+      },
+    },
+    weeklyReview: {
+      [weekKey]: {
+        weekKey,
+        ts: getDemoTimestamp(baseDate, 0, 8, 20),
+        stop: "Letting admin tasks interrupt the first work block.",
+        doubleDown: "Using Jarvis to turn reviews into the next calendar-ready action.",
+        experiment: "Run every external demo from showcase mode first.",
+      },
+    },
+    objectives: [
+      {
+        id: "demo-objective-product",
+        title: "Launch Jarvis personal command center",
+        area: "Product",
+        target: "Demo-ready private workspace with finance, routines, and assistant workflows.",
+        nextAction: "Record a five minute guided walkthrough.",
+        status: "active",
+        ts: getDemoTimestamp(baseDate, -30, 9, 0),
+        updatedTs: getDemoTimestamp(baseDate, 0, 8, 0),
+        projects: [
+          {
+            id: "demo-project-finance",
+            title: "Finance intelligence dashboard",
+            milestone: "Classification queue and Plaid insights",
+            done: true,
+            ts: getDemoTimestamp(baseDate, -14, 10, 0),
+            completedTs: getDemoTimestamp(baseDate, -1, 15, 30),
+          },
+          {
+            id: "demo-project-demo-mode",
+            title: "Privacy-safe showcase mode",
+            milestone: "Settings toggle with dummy data",
+            done: false,
+            ts: getDemoTimestamp(baseDate, -2, 11, 0),
+          },
+        ],
+      },
+      {
+        id: "demo-objective-health",
+        title: "Raise baseline energy",
+        area: "Health",
+        target: "Average 7.5 hours sleep and four workouts per week.",
+        nextAction: "Keep tonight's wind-down block protected.",
+        status: "active",
+        ts: getDemoTimestamp(baseDate, -45, 9, 0),
+        updatedTs: getDemoTimestamp(baseDate, -1, 18, 0),
+        projects: [
+          {
+            id: "demo-project-sleep",
+            title: "Stabilize wake time",
+            milestone: "Two-week sleep consistency streak",
+            done: false,
+            ts: getDemoTimestamp(baseDate, -12, 9, 0),
+          },
+        ],
+      },
+    ],
+    homelabActions: [
+      {
+        id: "demo-homelab-1",
+        ts: getDemoTimestamp(baseDate, 0, 7, 20),
+        action: "refresh-snapshot",
+        label: "Refreshed service snapshot",
+        target: "jarvis-stack",
+        status: "completed",
+        risk: "low",
+        note: "All core services healthy for demo.",
+      },
+      {
+        id: "demo-homelab-2",
+        ts: getDemoTimestamp(baseDate, -1, 18, 10),
+        action: "docs-review",
+        label: "Reviewed deployment notes",
+        target: "finance-sync",
+        status: "recorded",
+        risk: "low",
+      },
+    ],
+  };
+}
+
+function getDemoDayKey(baseDate: Date, offset: number): DayKey {
+  const date = new Date(baseDate);
+  date.setDate(date.getDate() + offset);
+  return getDayKey(date);
+}
+
+function getDemoTimestamp(baseDate: Date, offset: number, hour: number, minute: number) {
+  const date = new Date(baseDate);
+  date.setDate(date.getDate() + offset);
+  date.setHours(hour, minute, 0, 0);
+  return date.getTime();
+}
+
+function getDemoWeekKey(baseDate: Date) {
+  const date = new Date(baseDate);
+  const mondayOffset = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - mondayOffset);
+  return getDayKey(date);
+}
 
 type Action =
   | { type: "HYDRATE"; payload: JarvisState }
@@ -1329,6 +1699,9 @@ function reducer(state: JarvisState, action: Action): JarvisState {
 
 function useJarvisStoreInternal() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [demoSeed] = useState(() => buildDemoJarvisState());
+  const [demoState, demoDispatch] = useReducer(reducer, demoSeed);
+  const [demoMode, setDemoMode] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const { status, data: session } = useSession();
   const readyRef = useRef(false);
@@ -1349,6 +1722,27 @@ function useJarvisStoreInternal() {
     },
     [],
   );
+  const activeState = demoMode ? demoState : state;
+  const visibleSyncStatus: StateSyncStatus = demoMode
+    ? {
+        local: "saved",
+        remote: "idle",
+        error: undefined,
+      }
+    : syncStatus;
+  const dispatchUserAction = useCallback((action: Action) => {
+    if (demoMode) {
+      demoDispatch(action);
+      return;
+    }
+    dispatch(action);
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (!readStoredDemoMode()) return;
+    demoDispatch({ type: "HYDRATE", payload: buildDemoJarvisState() });
+    setDemoMode(true);
+  }, []);
 
   useEffect(() => {
     stateRef.current = state;
@@ -1867,6 +2261,31 @@ function useJarvisStoreInternal() {
     [handleSaveConflict, hydrated, scheduleSyncStatus, session?.user?.id, status],
   );
 
+  const enableDemoMode = useCallback(() => {
+    demoDispatch({ type: "HYDRATE", payload: buildDemoJarvisState() });
+    setDemoMode(true);
+    writeStoredDemoMode(true);
+  }, []);
+
+  const disableDemoMode = useCallback(() => {
+    setDemoMode(false);
+    writeStoredDemoMode(false);
+  }, []);
+
+  const resetDemoMode = useCallback(() => {
+    demoDispatch({ type: "HYDRATE", payload: buildDemoJarvisState() });
+    setDemoMode(true);
+    writeStoredDemoMode(true);
+  }, []);
+
+  const refreshVisibleState = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      if (demoMode) return false;
+      return refreshRemoteState(options);
+    },
+    [demoMode, refreshRemoteState],
+  );
+
   useEffect(() => {
     if (!hydrated || !readyRef.current) return;
 
@@ -1924,71 +2343,71 @@ function useJarvisStoreInternal() {
 
   const logMood = useCallback(
     (payload: { mood: number; note?: string; tags: MoodTag[]; day?: DayKey }) => {
-      dispatch({ type: "LOG_MOOD", payload });
+      dispatchUserAction({ type: "LOG_MOOD", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const updateMood = useCallback(
     (payload: { day: DayKey; id: string; updates: Partial<Pick<MoodLog, "mood" | "note" | "tags">> }) => {
-      dispatch({ type: "UPDATE_MOOD", payload });
+      dispatchUserAction({ type: "UPDATE_MOOD", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const deleteMood = useCallback((payload: { day: DayKey; id: string }) => {
-    dispatch({ type: "DELETE_MOOD", payload });
-  }, []);
+    dispatchUserAction({ type: "DELETE_MOOD", payload });
+  }, [dispatchUserAction]);
 
   const addMoodTagToLibrary = useCallback((payload: { tag: string }) => {
-    dispatch({ type: "ADD_MOOD_TAG", payload });
-  }, []);
+    dispatchUserAction({ type: "ADD_MOOD_TAG", payload });
+  }, [dispatchUserAction]);
 
   const renameMoodTag = useCallback((payload: { from: string; to: string }) => {
-    dispatch({ type: "RENAME_MOOD_TAG", payload });
-  }, []);
+    dispatchUserAction({ type: "RENAME_MOOD_TAG", payload });
+  }, [dispatchUserAction]);
 
   const deleteMoodTagFromLibrary = useCallback((payload: { tag: string }) => {
-    dispatch({ type: "DELETE_MOOD_TAG", payload });
-  }, []);
+    dispatchUserAction({ type: "DELETE_MOOD_TAG", payload });
+  }, [dispatchUserAction]);
 
   const addJournal = useCallback(
     (payload: { text: string; prompt?: JournalPrompt; day?: DayKey }) => {
-      dispatch({ type: "ADD_JOURNAL", payload });
+      dispatchUserAction({ type: "ADD_JOURNAL", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const setOperatingMode = useCallback(
     (payload: { day?: DayKey; mode: OperatingMode; suggestedMode?: OperatingMode }) => {
-      dispatch({ type: "SET_OPERATING_MODE", payload });
+      dispatchUserAction({ type: "SET_OPERATING_MODE", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const setMustWin = useCallback(
     (payload: { day?: DayKey; text: string; timeBound?: string }) => {
-      dispatch({ type: "SET_MUST_WIN", payload });
+      dispatchUserAction({ type: "SET_MUST_WIN", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const toggleMustWin = useCallback((payload: { day: DayKey }) => {
-    dispatch({ type: "TOGGLE_MUST_WIN", payload });
-  }, []);
+    dispatchUserAction({ type: "TOGGLE_MUST_WIN", payload });
+  }, [dispatchUserAction]);
 
   const logDailyReview = useCallback(
     (payload: { day?: DayKey; expected: boolean; reason?: DailyReviewReason; tomorrow?: string }) => {
-      dispatch({ type: "LOG_DAILY_REVIEW", payload });
+      dispatchUserAction({ type: "LOG_DAILY_REVIEW", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const addHabit = useCallback(
     (payload: { title: string; icons?: string; intent?: HabitIntent; category?: string }) => {
-      dispatch({ type: "ADD_HABIT", payload });
+      dispatchUserAction({ type: "ADD_HABIT", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const updateHabit = useCallback(
@@ -1996,42 +2415,42 @@ function useJarvisStoreInternal() {
       id: string;
       updates: Partial<Pick<HabitEntry, "title" | "icons" | "intent" | "category" | "order" | "archivedTs">>;
     }) => {
-      dispatch({ type: "UPDATE_HABIT", payload });
+      dispatchUserAction({ type: "UPDATE_HABIT", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const deleteHabit = useCallback((payload: { id: string }) => {
-    dispatch({ type: "DELETE_HABIT", payload });
-  }, []);
+    dispatchUserAction({ type: "DELETE_HABIT", payload });
+  }, [dispatchUserAction]);
 
   const recordHabit = useCallback(
     (payload: { id: string; day?: DayKey; status: HabitLogStatus }) => {
-      dispatch({ type: "RECORD_HABIT", payload });
+      dispatchUserAction({ type: "RECORD_HABIT", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const eraseHabitLog = useCallback((payload: { id: string; day?: DayKey }) => {
-    dispatch({ type: "ERASE_HABIT_LOG", payload });
-  }, []);
+    dispatchUserAction({ type: "ERASE_HABIT_LOG", payload });
+  }, [dispatchUserAction]);
 
   const reorderHabits = useCallback((payload: { orderedIds: string[] }) => {
-    dispatch({ type: "REORDER_HABITS", payload });
-  }, []);
+    dispatchUserAction({ type: "REORDER_HABITS", payload });
+  }, [dispatchUserAction]);
 
   const saveWeeklyReview = useCallback(
     (payload: { weekKey: string; stop: string; doubleDown: string; experiment: string }) => {
-      dispatch({ type: "SAVE_WEEKLY_REVIEW", payload });
+      dispatchUserAction({ type: "SAVE_WEEKLY_REVIEW", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const addObjective = useCallback(
     (payload: { title: string; area?: string; target?: string; nextAction?: string }) => {
-      dispatch({ type: "ADD_OBJECTIVE", payload });
+      dispatchUserAction({ type: "ADD_OBJECTIVE", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const updateObjective = useCallback(
@@ -2039,39 +2458,39 @@ function useJarvisStoreInternal() {
       id: string;
       updates: Partial<Pick<Objective, "title" | "area" | "target" | "nextAction" | "status">>;
     }) => {
-      dispatch({ type: "UPDATE_OBJECTIVE", payload });
+      dispatchUserAction({ type: "UPDATE_OBJECTIVE", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const deleteObjective = useCallback((payload: { id: string }) => {
-    dispatch({ type: "DELETE_OBJECTIVE", payload });
-  }, []);
+    dispatchUserAction({ type: "DELETE_OBJECTIVE", payload });
+  }, [dispatchUserAction]);
 
   const addObjectiveProject = useCallback(
     (payload: { objectiveId: string; title: string; milestone?: string }) => {
-      dispatch({ type: "ADD_OBJECTIVE_PROJECT", payload });
+      dispatchUserAction({ type: "ADD_OBJECTIVE_PROJECT", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const toggleObjectiveProject = useCallback(
     (payload: { objectiveId: string; projectId: string }) => {
-      dispatch({ type: "TOGGLE_OBJECTIVE_PROJECT", payload });
+      dispatchUserAction({ type: "TOGGLE_OBJECTIVE_PROJECT", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const updateJournalEntry = useCallback(
     (payload: { day: DayKey; id: string; updates: Partial<Pick<JournalEntry, "text" | "prompt">> }) => {
-      dispatch({ type: "UPDATE_JOURNAL", payload });
+      dispatchUserAction({ type: "UPDATE_JOURNAL", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const deleteJournalEntry = useCallback((payload: { day: DayKey; id: string }) => {
-    dispatch({ type: "DELETE_JOURNAL", payload });
-  }, []);
+    dispatchUserAction({ type: "DELETE_JOURNAL", payload });
+  }, [dispatchUserAction]);
 
   const addTodo = useCallback(
     (payload: {
@@ -2084,20 +2503,20 @@ function useJarvisStoreInternal() {
       icon?: string;
       seriesId?: string;
     }) => {
-      dispatch({ type: "ADD_TODO", payload });
+      dispatchUserAction({ type: "ADD_TODO", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const toggleTodo = useCallback((payload: { day: DayKey; id: string }) => {
-    dispatch({ type: "TOGGLE_TODO", payload });
-  }, []);
+    dispatchUserAction({ type: "TOGGLE_TODO", payload });
+  }, [dispatchUserAction]);
 
   const updateTodoPriority = useCallback(
     (payload: { day: DayKey; id: string; priority: TodoPriority }) => {
-      dispatch({ type: "UPDATE_TODO_PRIORITY", payload });
+      dispatchUserAction({ type: "UPDATE_TODO_PRIORITY", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const updateTodo = useCallback(
@@ -2106,9 +2525,9 @@ function useJarvisStoreInternal() {
       id: string;
       updates: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime" | "color" | "icon">>;
     }) => {
-      dispatch({ type: "UPDATE_TODO", payload });
+      dispatchUserAction({ type: "UPDATE_TODO", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const moveTodo = useCallback(
@@ -2118,24 +2537,24 @@ function useJarvisStoreInternal() {
       toDay: DayKey;
       updates?: Partial<Pick<TodoItem, "text" | "priority" | "timeblockMins" | "startTime" | "color" | "icon">>;
     }) => {
-      dispatch({ type: "MOVE_TODO", payload });
+      dispatchUserAction({ type: "MOVE_TODO", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const reorderTodos = useCallback((payload: { day: DayKey; orderedIds: string[] }) => {
-    dispatch({ type: "REORDER_TODOS", payload });
-  }, []);
+    dispatchUserAction({ type: "REORDER_TODOS", payload });
+  }, [dispatchUserAction]);
 
   const deleteTodo = useCallback((payload: { day: DayKey; id: string }) => {
-    dispatch({ type: "DELETE_TODO", payload });
-  }, []);
+    dispatchUserAction({ type: "DELETE_TODO", payload });
+  }, [dispatchUserAction]);
 
   const updateTodoSchedule = useCallback(
     (payload: { day: DayKey; id: string; startTime?: string; timeblockMins?: Timeblock }) => {
-      dispatch({ type: "UPDATE_TODO_SCHEDULE", payload });
+      dispatchUserAction({ type: "UPDATE_TODO_SCHEDULE", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const logSleep = useCallback(
@@ -2149,9 +2568,9 @@ function useJarvisStoreInternal() {
       notes?: string;
       day?: DayKey;
     }) => {
-      dispatch({ type: "LOG_SLEEP", payload });
+      dispatchUserAction({ type: "LOG_SLEEP", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const updateSleepEntry = useCallback(
@@ -2162,18 +2581,18 @@ function useJarvisStoreInternal() {
         Pick<SleepEntry, "durationMins" | "quality" | "startMinutes" | "endMinutes" | "recoveryScore" | "dreams" | "notes">
       >;
     }) => {
-      dispatch({ type: "UPDATE_SLEEP_ENTRY", payload });
+      dispatchUserAction({ type: "UPDATE_SLEEP_ENTRY", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   const deleteSleepEntry = useCallback((payload: { day: DayKey; id: string }) => {
-    dispatch({ type: "DELETE_SLEEP_ENTRY", payload });
-  }, []);
+    dispatchUserAction({ type: "DELETE_SLEEP_ENTRY", payload });
+  }, [dispatchUserAction]);
 
   const updateSleepSchedule = useCallback((payload: SleepSchedule) => {
-    dispatch({ type: "SET_SLEEP_SCHEDULE", payload });
-  }, []);
+    dispatchUserAction({ type: "SET_SLEEP_SCHEDULE", payload });
+  }, [dispatchUserAction]);
 
   const recordHomelabAction = useCallback(
     (payload: {
@@ -2184,16 +2603,20 @@ function useJarvisStoreInternal() {
       risk: HomelabActionRisk;
       note?: string;
     }) => {
-      dispatch({ type: "RECORD_HOMELAB_ACTION", payload });
+      dispatchUserAction({ type: "RECORD_HOMELAB_ACTION", payload });
     },
-    [],
+    [dispatchUserAction],
   );
 
   return {
-    state,
+    state: activeState,
     hydrated,
-    syncStatus,
-    refreshRemoteState,
+    syncStatus: visibleSyncStatus,
+    demoMode,
+    enableDemoMode,
+    disableDemoMode,
+    resetDemoMode,
+    refreshRemoteState: refreshVisibleState,
     logMood,
     updateMood,
     deleteMood,

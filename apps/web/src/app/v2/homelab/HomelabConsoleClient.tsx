@@ -11,14 +11,14 @@ import type { MonitoringHistoryPoint, MonitoringStatus, MonitoringSummary } from
 const POLL_INTERVAL_MS = 45_000;
 
 export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: HomelabSnapshot }) {
-  const { state, hydrated, recordHomelabAction } = useJarvisState();
+  const { state, hydrated, demoMode, recordHomelabAction } = useJarvisState();
   const { showToast } = useToast();
-  const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const [snapshot, setSnapshot] = useState(() => (demoMode ? buildDemoHomelabSnapshot() : initialSnapshot));
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [lastRefreshTs, setLastRefreshTs] = useState<number | null>(null);
-  const [monitoring, setMonitoring] = useState<MonitoringSummary | null>(null);
+  const [monitoring, setMonitoring] = useState<MonitoringSummary | null>(() => (demoMode ? buildDemoMonitoringSummary() : null));
   const [isMonitoringPolling, setIsMonitoringPolling] = useState(false);
   const [monitoringError, setMonitoringError] = useState<string | null>(null);
 
@@ -32,7 +32,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
   const primaryAttention = snapshot.attention[0];
   const recentActions = state.homelabActions.slice(0, 6);
   const inactiveServices = snapshot.services.filter((service) => service.status !== "active");
-  const grafanaUrl = monitoring?.grafanaUrl ?? "http://100.115.58.56:3001";
+  const grafanaUrl = demoMode ? "#" : monitoring?.grafanaUrl ?? "http://100.115.58.56:3001";
 
   const refreshSnapshot = useCallback(
     async (manual = false) => {
@@ -42,6 +42,24 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
         setIsPolling(true);
       }
       setRefreshError(null);
+
+      if (demoMode) {
+        setSnapshot(buildDemoHomelabSnapshot());
+        setLastRefreshTs(Date.now());
+        if (manual) {
+          recordHomelabAction({
+            action: "refresh-snapshot",
+            label: "Demo homelab snapshot refresh",
+            status: "completed",
+            risk: "low",
+            note: "Generated showcase snapshot refreshed. Real homelab data is unchanged.",
+          });
+          showToast("Demo homelab refreshed");
+        }
+        setIsRefreshing(false);
+        setIsPolling(false);
+        return;
+      }
 
       try {
         const response = await fetch("/api/homelab/snapshot", {
@@ -75,12 +93,18 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
         setIsPolling(false);
       }
     },
-    [recordHomelabAction, showToast],
+    [demoMode, recordHomelabAction, showToast],
   );
 
   const refreshMonitoring = useCallback(async () => {
     setIsMonitoringPolling(true);
     setMonitoringError(null);
+
+    if (demoMode) {
+      setMonitoring(buildDemoMonitoringSummary());
+      setIsMonitoringPolling(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/monitoring/summary", {
@@ -98,7 +122,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
     } finally {
       setIsMonitoringPolling(false);
     }
-  }, []);
+  }, [demoMode]);
 
   const handleManualRefresh = useCallback(async () => {
     await Promise.all([refreshSnapshot(true), refreshMonitoring()]);
@@ -106,16 +130,24 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
 
   useEffect(() => {
     setLastRefreshTs(Date.now());
+    if (demoMode) {
+      setSnapshot(buildDemoHomelabSnapshot());
+      setMonitoring(buildDemoMonitoringSummary());
+      setRefreshError(null);
+      setMonitoringError(null);
+      return;
+    }
     void refreshMonitoring();
-  }, [refreshMonitoring]);
+  }, [demoMode, refreshMonitoring]);
 
   useEffect(() => {
+    if (demoMode) return;
     const interval = window.setInterval(() => {
       void refreshSnapshot(false);
       void refreshMonitoring();
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [refreshMonitoring, refreshSnapshot]);
+  }, [demoMode, refreshMonitoring, refreshSnapshot]);
 
   function recordConfirmedAction(args: {
     action: HomelabActionType;
@@ -346,6 +378,116 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
   );
 }
 
+
+function buildDemoHomelabSnapshot(): HomelabSnapshot {
+  const now = new Date().toISOString();
+  return {
+    docsRoot: "/demo/homelab-docs",
+    generatedAt: now,
+    system: {
+      hostname: "jarvis-demo-node",
+      os: "Ubuntu LTS demo image",
+      kernel: "6.8.0-demo",
+      uptime: "18 days, 4 hours",
+      rootFilesystem: "32% used",
+      memory: "41% used",
+    },
+    network: {
+      lanIp: "10.0.0.42",
+      tailscaleIp: "100.64.0.42",
+      gateway: "10.0.0.1",
+      primaryInterface: "demo0",
+      tailscaleHealth: [],
+    },
+    services: [
+      buildDemoService("jarvis", "Jarvis App", "Personal command center", "jarvis.service", ["3000"], now),
+      buildDemoService("postgres", "Postgres", "Application database", "postgresql.service", ["5432"], now),
+      buildDemoService("prometheus", "Prometheus", "Metrics collection", "prometheus.service", ["9090"], now),
+      buildDemoService("grafana", "Grafana", "Operations dashboards", "grafana-server.service", ["3001"], now),
+    ],
+    attention: [
+      {
+        id: "demo-ready",
+        title: "Demo stack ready",
+        detail: "All generated services are healthy and safe to present.",
+        severity: "info",
+      },
+    ],
+    docs: {
+      total: 18,
+      snapshots: 6,
+      latestSnapshot: "demo-snapshot.md",
+    },
+  };
+}
+
+function buildDemoService(
+  id: string,
+  name: string,
+  purpose: string,
+  unit: string,
+  ports: string[],
+  lastChecked: string,
+): HomelabService {
+  return {
+    id,
+    name,
+    purpose,
+    unit,
+    status: "active",
+    ports,
+    localUrl: "http://10.0.0.42",
+    tailscaleUrl: "http://100.64.0.42",
+    docId: `${id}-demo-doc`,
+    lastChecked,
+  };
+}
+
+function buildDemoMonitoringSummary(): MonitoringSummary {
+  const now = Date.now();
+  const history = Array.from({ length: 16 }, (_, index) => ({
+    ts: now - (15 - index) * 60_000,
+    value: 28 + Math.sin(index / 2) * 8 + index * 0.6,
+  }));
+  return {
+    available: true,
+    generatedAt: new Date(now).toISOString(),
+    status: "healthy",
+    healthScore: 97,
+    grafanaUrl: "#",
+    targets: {
+      prometheus: true,
+      nodeExporter: true,
+      processExporter: true,
+    },
+    metrics: {
+      cpuUsagePercent: 34,
+      cpuTemperatureCelsius: 51,
+      memoryUsagePercent: 41,
+      rootDiskUsagePercent: 32,
+      hddUsagePercent: 58,
+      load1: 0.82,
+      uptimeSeconds: 1_568_000,
+      firingAlerts: 0,
+    },
+    process: {
+      jarvisProcessCount: 2,
+      nextDevProcessCount: 0,
+      jarvisCpuPercent: 4.2,
+      pm2CpuPercent: 0.6,
+    },
+    network: {
+      enp10s0: { rxMbps: 18.4, txMbps: 6.2 },
+      tailscale0: { rxMbps: 4.1, txMbps: 1.8 },
+    },
+    history: {
+      cpu: history,
+      temperature: history.map((point) => ({ ...point, value: point.value + 16 })),
+      memory: history.map((point) => ({ ...point, value: point.value + 10 })),
+      rootDisk: history.map((point) => ({ ...point, value: 32 })),
+    },
+  };
+}
 
 function MonitoringSection({
   summary,

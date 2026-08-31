@@ -11,6 +11,9 @@ import {
 import { classifyAssistantMessage } from "@/lib/assistant/router";
 import { resolveAssistantIntent } from "@/lib/assistant/serverIntent";
 import { authOptions } from "@/lib/auth";
+import { getFinanceAnalytics } from "@/lib/finance/analytics";
+import { normalizeFinancialTransactions } from "@/lib/finance/normalization";
+import { prisma } from "@/lib/prisma";
 import { getFreshHomelabSnapshot } from "@/lib/homelabDocs";
 import { checkOpenClawHealth, streamOpenClawChat } from "@/lib/openclaw/client";
 import { getMonitoringSummary } from "@/lib/prometheus";
@@ -109,6 +112,36 @@ export async function POST(request: Request) {
       mode: "message",
       message,
       used: "jarvis-status",
+      conversation: projectConversation(conversation),
+    });
+  }
+
+  if (isFinanceQuestion(input)) {
+    const demoMode = resolved.context.demoMode === true;
+    const message = demoMode ? buildDemoFinanceMessage(input) : await buildFinanceMessage(userId, input);
+    await appendAssistantMessage({
+      userId,
+      conversationId: conversation.id,
+      role: "assistant",
+      content: message,
+      source: demoMode ? "jarvis-finance-demo" : "jarvis-finance",
+    });
+    await updateConversationSummary({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage: message,
+    });
+    await updateAssistantAutoMemory({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage: message,
+    });
+    return NextResponse.json({
+      mode: "message",
+      message,
+      used: "jarvis-finance",
       conversation: projectConversation(conversation),
     });
   }
@@ -231,6 +264,199 @@ export async function POST(request: Request) {
       "X-Accel-Buffering": "no",
     },
   });
+}
+
+
+function buildDemoFinanceMessage(input: string) {
+  const lines = [
+    "Demo finance mode is active. I am using generated showcase data, not live Plaid data.",
+    "For the last 30 days: income is $8,500, spending is $3,642, and net cash flow is +$4,858.",
+    "Demo net worth is $280,360, with $26,900 cash, $182,700 invested, and $1,240 in credit liabilities.",
+    "Top demo spend categories are Housing $1,743, Groceries $396, and Food Dining $335.",
+    "Two demo events need classification review: a payroll bonus and a brokerage transfer candidate.",
+  ];
+  if (/transfer|investment|brokerage|portfolio/i.test(input)) {
+    lines.push("Demo transfers and investment contributions are excluded from everyday spend so the dashboard can show clean classification behavior.");
+  }
+  return lines.join(" ");
+}
+
+async function buildFinanceMessage(userId: string, input: string) {
+  const rangeDays = inferFinanceRangeDays(input);
+  const rangeCutoff = getFinanceRangeCutoff(rangeDays);
+  const [accountCount, connectionCount, rawTransactionCount, existingCanonicalEventCount, missingCanonicalTransactions] = await Promise.all([
+    prisma.financialAccount.count({ where: { userId } }),
+    prisma.financialConnection.count({ where: { userId, status: "active" } }),
+    prisma.financialTransaction.count({ where: { userId } }),
+    prisma.financialEvent.count({ where: { userId } }),
+    prisma.financialTransaction.findMany({
+      where: { userId, financialEvent: null },
+      orderBy: { date: "desc" },
+      take: 5000,
+      select: { id: true },
+    }),
+  ]);
+
+  const backfill = missingCanonicalTransactions.length
+    ? await normalizeFinancialTransactions(userId, {
+        transactionIds: missingCanonicalTransactions.map((transaction) => transaction.id),
+      })
+    : { transactions: 0, events: 0, transferMatches: 0 };
+  const canonicalEventCount = existingCanonicalEventCount + backfill.events;
+
+  const [analytics, rawRangeTransactions] = await Promise.all([
+    getFinanceAnalytics(userId, { rangeDays, includePending: false }),
+    prisma.financialTransaction.findMany({
+      where: { userId, pending: false, date: { gte: rangeCutoff } },
+      orderBy: { date: "desc" },
+      take: 1000,
+      select: {
+        name: true,
+        merchantName: true,
+        amount: true,
+        category: true,
+        isoCurrencyCode: true,
+      },
+    }),
+  ]);
+
+  if (!accountCount && !rawTransactionCount && !analytics.manualPositions.length) {
+    return "I can reach the finance system, but I do not see connected accounts, transactions, or manual positions yet. Connect Plaid on the finance page, then run Sync.";
+  }
+
+  const rawFallback = canonicalEventCount === 0 ? buildRawFinanceFallback(rawRangeTransactions) : null;
+  const periodIncome = rawFallback?.income ?? analytics.cashFlow.income;
+  const periodSpend = rawFallback?.spending ?? analytics.cashFlow.spending;
+  const periodNetFlow = rawFallback?.netCashFlow ?? analytics.cashFlow.netCashFlow;
+  const periodSavingsRate = periodIncome > 0 ? (periodIncome - periodSpend) / periodIncome : analytics.savings.savingsRate;
+  const currency = rawFallback?.currency ?? analytics.currency ?? "USD";
+  const lines = [
+    `I can see your finance data. For the last ${rangeDays} days:`,
+    `Income is ${formatMoney(periodIncome, currency)}, spending is ${formatMoney(periodSpend, currency)}, and net cash flow is ${formatSignedMoney(periodNetFlow, currency)}.`,
+    `Net worth is ${formatMoney(analytics.netWorth.totalNetWorth, currency)}; liquid net worth is ${formatMoney(analytics.netWorth.liquidNetWorth, currency)}. Cash is ${formatMoney(analytics.netWorth.cash, currency)}, investments are ${formatMoney(analytics.netWorth.investableAssets + analytics.netWorth.retirementAssets, currency)}, and liabilities are ${formatMoney(analytics.netWorth.totalLiabilities, currency)}.`,
+  ];
+
+  if (periodSavingsRate !== null) {
+    lines.push(`Savings rate for the period is ${formatPercent(periodSavingsRate)}.`);
+  }
+  if (analytics.cashFlow.transfers > 0) {
+    lines.push(`${formatMoney(analytics.cashFlow.transfers, currency)} of internal transfers were excluded from spend.`);
+  }
+  if (analytics.cashFlow.investmentContributions > 0) {
+    lines.push(`Investment contributions total ${formatMoney(analytics.cashFlow.investmentContributions, currency)}.`);
+  }
+
+  const topCategories = rawFallback?.topCategories ?? analytics.spendingByCategory.slice(0, 3);
+  if (topCategories.length) {
+    lines.push(`Top spend categories: ${topCategories.map((item) => `${item.label} ${formatMoney(item.value, currency)}`).join(", ")}.`);
+  }
+  const topMerchants = rawFallback?.topMerchants ?? analytics.spendingByMerchant.slice(0, 3);
+  if (topMerchants.length) {
+    lines.push(`Top merchants: ${topMerchants.map((item) => `${item.label} ${formatMoney(item.value, currency)}`).join(", ")}.`);
+  }
+
+  if (rawFallback && rawTransactionCount > 0) {
+    lines.push("This answer is using raw Plaid transactions because canonical finance events have not been created yet. Run Finance > Sync to activate transfer-aware classification for assistant answers.");
+  }
+  if (analytics.reviewQueue.length) {
+    lines.push(`${analytics.reviewQueue.length} finance event${analytics.reviewQueue.length === 1 ? "" : "s"} need classification review.`);
+  }
+  if (connectionCount === 0) {
+    lines.push("No active Plaid connections are currently linked.");
+  }
+
+  return lines.join(" ");
+}
+
+function buildRawFinanceFallback(
+  transactions: Array<{
+    name: string;
+    merchantName: string | null;
+    amount: number;
+    category: string[];
+    isoCurrencyCode: string | null;
+  }>,
+) {
+  if (!transactions.length) return null;
+  const outflows = transactions.filter((transaction) => transaction.amount > 0);
+  const inflows = transactions.filter((transaction) => transaction.amount < 0);
+  const spending = outflows.reduce((total, transaction) => total + transaction.amount, 0);
+  const income = inflows.reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
+  return {
+    income,
+    spending,
+    netCashFlow: income - spending,
+    currency: mostCommon(transactions.map((transaction) => transaction.isoCurrencyCode).filter((value): value is string => Boolean(value))),
+    topCategories: summarizeRawBreakdown(outflows, (transaction) => transaction.category[0] ?? "Uncategorized"),
+    topMerchants: summarizeRawBreakdown(outflows, (transaction) => transaction.merchantName ?? transaction.name),
+  };
+}
+
+function summarizeRawBreakdown<T extends { amount: number }>(items: T[], getLabel: (item: T) => string) {
+  const totals = new Map<string, number>();
+  items.forEach((item) => {
+    const label = titleCase(getLabel(item).trim() || "Uncategorized");
+    totals.set(label, (totals.get(label) ?? 0) + item.amount);
+  });
+  return Array.from(totals.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 3)
+    .map(([label, value]) => ({ label, value }));
+}
+
+function mostCommon(values: string[]) {
+  const counts = new Map<string, number>();
+  values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+  return Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+}
+
+function getFinanceRangeCutoff(rangeDays: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - rangeDays + 1);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function isFinanceQuestion(input: string) {
+  const normalized = input.toLowerCase();
+  return /\b(finance|finances|financial|money|spend|spending|spent|budget|cash\s*flow|cashflow|net worth|income|paycheck|salary|savings?|investments?|portfolio|holdings?|brokerage|retirement|debt|liabilit(?:y|ies)|credit card|transactions?|plaid)\b/.test(normalized);
+}
+
+function inferFinanceRangeDays(input: string) {
+  const normalized = input.toLowerCase();
+  if (/\b(year|annual|12 months|365)\b/.test(normalized)) return 365;
+  if (/\b(6 months|six months|180)\b/.test(normalized)) return 180;
+  if (/\b(quarter|3 months|three months|90)\b/.test(normalized)) return 90;
+  if (/\b(2 months|two months|60)\b/.test(normalized)) return 60;
+  return 30;
+}
+
+function titleCase(value: string) {
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function formatMoney(value: number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
+  }).format(value);
+}
+
+function formatSignedMoney(value: number, currency = "USD") {
+  const prefix = value >= 0 ? "+" : "-";
+  return `${prefix}${formatMoney(Math.abs(value), currency)}`;
+}
+
+function formatPercent(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    maximumFractionDigits: Math.abs(value) >= 1 ? 0 : 1,
+  }).format(value);
 }
 
 function buildIntentPersistenceMessage(result: { kind: string; summary: string; clarification?: string; assistantMessage?: string }) {

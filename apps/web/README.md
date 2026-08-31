@@ -32,7 +32,7 @@ Optional integration variables:
 - OPENAI_TRANSCRIPTION_MODEL defaults to `gpt-4o-mini-transcribe`.
 - OPENAI_INTENT_MODEL controls fuzzy assistant intent parsing and defaults to `gpt-5`.
 - PLAID_ENV, PLAID_CLIENT_ID, and PLAID_SECRET enable Plaid Link in the finance dashboard.
-- PLAID_PRODUCTS defaults to `transactions,investments`; add `liabilities` later if Plaid access is approved and the UI is extended for debts.
+- Plaid products are selected by the finance connection mode: Bank / Credit Card requests `transactions`; Investment Account requests `transactions,investments`.
 - PLAID_COUNTRY_CODES defaults to `US`.
 - FINANCIAL_DATA_KEY encrypts Plaid access tokens at rest. Use a stable 64-character hex value from `openssl rand -hex 32`.
 

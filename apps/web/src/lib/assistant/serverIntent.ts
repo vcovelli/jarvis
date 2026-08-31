@@ -9,6 +9,7 @@ import {
   type AssistantIntentResult,
   type AssistantPriority,
 } from "@/lib/assistantIntent";
+import { getFinanceAnalytics } from "@/lib/finance/analytics";
 import { prisma } from "@/lib/prisma";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
@@ -26,7 +27,7 @@ export async function resolveAssistantIntent(params: {
   context: unknown;
 }): Promise<AssistantIntentResolution> {
   const clientContext = sanitizeAssistantContext(params.context);
-  const finance = await buildFinanceContext(params.userId);
+  const finance = clientContext.demoMode ? buildDemoAssistantFinanceContext() : await buildFinanceContext(params.userId);
   const context: AssistantContextPayload = {
     ...clientContext,
     finance,
@@ -103,6 +104,22 @@ export function sanitizeAssistantContext(value: unknown): AssistantContextPayloa
           })
           .filter((entry) => entry.durationMins > 0)
       : [],
+    demoMode: record.demoMode === true,
+  };
+}
+
+function buildDemoAssistantFinanceContext(): AssistantFinanceContext {
+  return {
+    accounts: 5,
+    netWorth: 280360,
+    cash: 26900,
+    investments: 182700,
+    spend30: 3642,
+    recentTransactions: [
+      { date: formatDayKey(new Date()), name: "Northstar Payroll Bonus", amount: -850, category: ["income", "review"] },
+      { date: formatDayKey(new Date()), name: "Atlas Brokerage Recurring", amount: 250, category: ["investments", "review"] },
+      { date: formatDayKey(new Date()), name: "Market Basket", amount: 126.42, category: ["groceries"] },
+    ],
   };
 }
 
@@ -185,47 +202,28 @@ function buildIntentSystemPrompt() {
 }
 
 async function buildFinanceContext(userId: string): Promise<AssistantFinanceContext | undefined> {
-  const [accounts, transactions, holdings] = await Promise.all([
-    prisma.financialAccount.findMany({ where: { userId } }),
-    prisma.financialTransaction.findMany({
-      where: { userId },
-      orderBy: { date: "desc" },
-      take: 50,
-      select: { date: true, name: true, merchantName: true, amount: true, category: true },
-    }),
-    prisma.investmentHolding.findMany({ where: { userId }, select: { institutionValue: true } }),
+  const [analytics, accountCount] = await Promise.all([
+    getFinanceAnalytics(userId, { rangeDays: 30, includePending: false }),
+    prisma.financialAccount.count({ where: { userId } }),
   ]);
-
-  if (!accounts.length && !transactions.length && !holdings.length) return undefined;
-
-  const netWorth = accounts.reduce((total, account) => {
-    const balance = account.currentBalance ?? account.availableBalance ?? 0;
-    if (account.type === "credit" || account.type === "loan") return total - Math.abs(balance);
-    return total + balance;
-  }, 0);
-  const cash = accounts
-    .filter((account) => account.type === "depository")
-    .reduce((total, account) => total + (account.currentBalance ?? account.availableBalance ?? 0), 0);
-  const accountInvestments = accounts
-    .filter((account) => account.type === "investment")
-    .reduce((total, account) => total + (account.currentBalance ?? 0), 0);
-  const holdingInvestments = holdings.reduce((total, holding) => total + (holding.institutionValue ?? 0), 0);
-  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const spend30 = transactions
-    .filter((transaction) => transaction.amount > 0 && transaction.date.getTime() >= cutoff)
-    .reduce((total, transaction) => total + transaction.amount, 0);
+  const hasFinanceData =
+    accountCount > 0 ||
+    analytics.transactionCount > 0 ||
+    analytics.manualPositions.length > 0 ||
+    Math.abs(analytics.netWorth.totalNetWorth) > 0;
+  if (!hasFinanceData) return undefined;
 
   return {
-    accounts: accounts.length,
-    netWorth,
-    cash,
-    investments: holdingInvestments || accountInvestments,
-    spend30,
-    recentTransactions: transactions.slice(0, 12).map((transaction) => ({
-      date: formatDayKey(transaction.date),
-      name: transaction.merchantName ?? transaction.name,
-      amount: transaction.amount,
-      category: transaction.category,
+    accounts: accountCount,
+    netWorth: analytics.netWorth.totalNetWorth,
+    cash: analytics.netWorth.cash,
+    investments: analytics.netWorth.investableAssets + analytics.netWorth.retirementAssets,
+    spend30: analytics.cashFlow.spending,
+    recentTransactions: analytics.recentEvents.slice(0, 12).map((event) => ({
+      date: formatDayKey(event.date),
+      name: event.normalizedMerchant ?? event.displayName,
+      amount: event.cashFlowAmount || event.amount,
+      category: [event.primaryCategory, event.subcategory].filter((item): item is string => Boolean(item)),
     })),
   };
 }
