@@ -371,7 +371,7 @@ function calculateNetWorth(
 }
 
 function buildCashFlowSeries(events: EventWithContext[], rangeDays: number): FinanceFlowPoint[] {
-  const bucketCount = rangeDays <= 30 ? 6 : rangeDays <= 90 ? 8 : 10;
+  const bucketCount = getCashflowBucketCount(rangeDays);
   const end = new Date();
   const start = getRangeCutoff(rangeDays);
   const spanMs = Math.max(1, end.getTime() - start.getTime());
@@ -577,6 +577,15 @@ function getPrimaryCurrency(
   return Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
 }
 
+function getCashflowBucketCount(rangeDays: number) {
+  if (rangeDays <= 1) return 1;
+  if (rangeDays <= 7) return 7;
+  if (rangeDays <= 14) return 7;
+  if (rangeDays <= 30) return 6;
+  if (rangeDays <= 90) return 8;
+  return 10;
+}
+
 function getRangeCutoff(rangeDays: number) {
   const date = new Date();
   date.setDate(date.getDate() - rangeDays + 1);
@@ -616,7 +625,7 @@ function getMetadataString(metadata: Prisma.JsonValue | null, key: string) {
 
 function coerceRangeDays(value: number | undefined) {
   if (!value || !Number.isFinite(value)) return 60;
-  return Math.min(730, Math.max(7, Math.round(value)));
+  return Math.min(730, Math.max(1, Math.round(value)));
 }
 
 function roundMoney(value: number) {
