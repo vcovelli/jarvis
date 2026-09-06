@@ -227,7 +227,23 @@ type PlaidLinkTokenResponse = {
   products: string[];
   linkSession: string;
 };
-type RangeKey = "30" | "60" | "90" | "180";
+
+type FinanceConnectionDeleteResponse = {
+  plaid?: {
+    attempted: boolean;
+    removed: boolean;
+    warning: string | null;
+  };
+  deleted?: {
+    accounts: number;
+    transactions: number;
+    events: number;
+    balanceSnapshots: number;
+    classificationRules: number;
+  };
+};
+
+type RangeKey = "1" | "7" | "14" | "30" | "60" | "90" | "180";
 type ChartId = "cashflow" | "categories" | "accounts" | "investments" | "merchants";
 type BreakdownMode = "category" | "account";
 type Tone = "good" | "warn" | "bad" | "neutral";
@@ -280,6 +296,9 @@ type FinanceDashboard = {
 };
 
 const RANGE_OPTIONS: Array<{ value: RangeKey; label: string }> = [
+  { value: "1", label: "1D" },
+  { value: "7", label: "7D" },
+  { value: "14", label: "14D" },
   { value: "30", label: "30D" },
   { value: "60", label: "60D" },
   { value: "90", label: "90D" },
@@ -812,7 +831,7 @@ function buildDemoBreakdown(
 }
 
 function buildDemoCashFlowSeries(rangeDays: number): FlowPoint[] {
-  const points = rangeDays <= 30 ? 6 : rangeDays <= 90 ? 8 : 10;
+  const points = getCashflowBucketCount(rangeDays);
   return Array.from({ length: points }, (_, index) => {
     const isPayPeriod = index === 1 || index === Math.max(1, points - 2);
     const income = isPayPeriod ? 4250 : index === points - 1 ? 850 : 0;
@@ -886,6 +905,28 @@ function applyDemoFinanceReview(
   };
 }
 
+function removeConnectionFromSummary(summary: FinanceSummary | null, connectionId: string): FinanceSummary | null {
+  if (!summary) return summary;
+
+  const removedAccountIds = new Set(
+    summary.accounts
+      .filter((account) => account.connectionId === connectionId)
+      .map((account) => account.id),
+  );
+  const keepAccountLinkedItem = (accountId: string | null) => !accountId || !removedAccountIds.has(accountId);
+
+  return {
+    ...summary,
+    connections: summary.connections.filter((connection) => connection.id !== connectionId),
+    accounts: summary.accounts.filter((account) => account.connectionId !== connectionId),
+    transactions: summary.transactions.filter((transaction) => keepAccountLinkedItem(transaction.accountId)),
+    holdings: summary.holdings.filter((holding) => keepAccountLinkedItem(holding.accountId)),
+    events: summary.events.filter((event) => keepAccountLinkedItem(event.accountId)),
+    analytics: null,
+    updatedAt: Date.now(),
+  };
+}
+
 function getDemoEventImpactFlags(eventType: string) {
   return {
     income: ["income", "dividend", "interest"].includes(eventType),
@@ -949,6 +990,9 @@ export default function FinancePage() {
   const [assistantOpen, setAssistantOpen] = usePersistentBoolean(financePreferenceKeys.assistantOpen, true);
   const [reviewEvent, setReviewEvent] = useState<FinanceEvent | null>(null);
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [connectionToRemove, setConnectionToRemove] = useState<FinanceConnection | null>(null);
+  const [removalSourceAccount, setRemovalSourceAccount] = useState<FinanceAccount | null>(null);
+  const [removingConnectionId, setRemovingConnectionId] = useState<string | null>(null);
   const [assistantQuestion, setAssistantQuestion] = useState("");
   const [assistantAnswer, setAssistantAnswer] = useState<string | null>(null);
   const [assistantStatus, setAssistantStatus] = useState<FinanceAssistantStatus>("idle");
@@ -998,6 +1042,22 @@ export default function FinancePage() {
       ]),
     );
   }, [summary]);
+  const connectionById = useMemo(() => {
+    return new Map((summary?.connections ?? []).map((connection) => [connection.id, connection]));
+  }, [summary]);
+  const accountsByConnectionId = useMemo(() => {
+    const map = new Map<string, FinanceAccount[]>();
+    for (const account of summary?.accounts ?? []) {
+      const accounts = map.get(account.connectionId) ?? [];
+      accounts.push(account);
+      map.set(account.connectionId, accounts);
+    }
+    return map;
+  }, [summary]);
+  const openRemoveConnection = useCallback((connection: FinanceConnection, sourceAccount?: FinanceAccount) => {
+    setConnectionToRemove(connection);
+    setRemovalSourceAccount(sourceAccount ?? null);
+  }, []);
 
   const connectPlaid = useCallback(async (connectionType: PlaidConnectionType) => {
     if (demoMode) {
@@ -1062,6 +1122,40 @@ export default function FinancePage() {
       setMessage(getErrorMessage(error));
     }
   }, [demoMode, loadSummary, rangeKey]);
+
+  const removeConnection = useCallback(async (connection: FinanceConnection) => {
+    const connectionName = formatConnectionName(connection);
+    setRemovingConnectionId(connection.id);
+    setMessage(null);
+
+    if (demoMode) {
+      setSummary((current) => removeConnectionFromSummary(current, connection.id));
+      setConnectionToRemove(null);
+      setRemovalSourceAccount(null);
+      setRemovingConnectionId(null);
+      setStatus("idle");
+      setMessage(connectionName + " removed from demo data. Real Plaid data is unchanged.");
+      return;
+    }
+
+    setStatus("loading");
+    try {
+      const data = await fetchJson<FinanceConnectionDeleteResponse>("/api/finance/connections/" + encodeURIComponent(connection.id), {
+        method: "DELETE",
+      });
+      await loadSummary();
+      setConnectionToRemove(null);
+      setRemovalSourceAccount(null);
+      setMessage(data.plaid?.warning
+        ? connectionName + " removed locally. Plaid unlink warning: " + data.plaid.warning
+        : connectionName + " removed.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(getErrorMessage(error));
+    } finally {
+      setRemovingConnectionId(null);
+    }
+  }, [demoMode, loadSummary]);
 
   const saveEventReview = useCallback(async (eventId: string, payload: Record<string, string | boolean>) => {
     setReviewSaving(true);
@@ -1145,7 +1239,7 @@ export default function FinancePage() {
   const monthlySpendPace = formatMonthlySpendPace(dashboard.periodSpend, rangeDays, dashboard.currency);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5">
       <section className="glass-panel overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
           <div className="min-w-0">
@@ -1222,7 +1316,7 @@ export default function FinancePage() {
           </>
         }
       >
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-6">
           <MetricCard
             label="Net worth"
             value={formatMoney(dashboard.netWorth, dashboard.currency)}
@@ -1315,14 +1409,14 @@ export default function FinancePage() {
             </>
           }
         >
-          <div className="flex flex-wrap gap-2">
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FINANCE_CHARTS.map((chart) => (
               <button
                 key={chart.id}
                 type="button"
                 onClick={() => setActiveChart(chart.id)}
                 className={
-                  "rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] transition " +
+                  "min-h-10 shrink-0 touch-manipulation rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] transition active:scale-[0.98] " +
                   (activeChart === chart.id
                     ? "border-cyan-300/70 bg-cyan-300/20 text-white shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
                     : "border-white/10 bg-white/5 text-zinc-400 hover:border-white/25 hover:text-white")
@@ -1405,15 +1499,21 @@ export default function FinancePage() {
         >
           <div className="space-y-3">
             {dashboard.accounts.length ? (
-              dashboard.accounts.map((account) => (
-                <AccountRow
-                  key={account.id}
-                  account={account}
-                  currency={dashboard.currency}
-                  institutionName={institutionNameByConnectionId.get(account.connectionId)}
-                  maxBalance={maxAccountBalance}
-                />
-              ))
+              dashboard.accounts.map((account) => {
+                const connection = connectionById.get(account.connectionId);
+                return (
+                  <AccountRow
+                    key={account.id}
+                    account={account}
+                    currency={dashboard.currency}
+                    institutionName={institutionNameByConnectionId.get(account.connectionId)}
+                    maxBalance={maxAccountBalance}
+                    connection={connection}
+                    removingConnection={removingConnectionId === account.connectionId}
+                    onRemoveConnection={openRemoveConnection}
+                  />
+                );
+              })
             ) : (
               <EmptyState text="Connected accounts will appear here." />
             )}
@@ -1429,7 +1529,13 @@ export default function FinancePage() {
               </div>
               <div className="mt-3 space-y-3">
                 {summary?.connections.map((connection) => (
-                  <ConnectionRow key={connection.id} connection={connection} />
+                  <ConnectionRow
+                    key={connection.id}
+                    connection={connection}
+                    accounts={accountsByConnectionId.get(connection.id) ?? []}
+                    removing={removingConnectionId === connection.id}
+                    onRemove={openRemoveConnection}
+                  />
                 ))}
               </div>
             </div>
@@ -1458,6 +1564,8 @@ export default function FinancePage() {
           summary={`${dashboard.recentEvents.length || dashboard.filteredTransactions.length} visible`}
           open={transactionsOpen}
           onToggle={() => setTransactionsOpen(!transactionsOpen)}
+          className="flex min-h-0 flex-col xl:h-full"
+          bodyClassName="min-h-0 xl:flex xl:flex-1 xl:flex-col"
           actions={
             <>
               {dashboard.reviewCount > 0 ? <StatusPill label={`${dashboard.reviewCount} review`} tone="warn" /> : null}
@@ -1465,7 +1573,7 @@ export default function FinancePage() {
             </>
           }
         >
-          <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
+          <div className="space-y-3 overflow-y-auto pr-1 sm:max-h-[70vh] xl:min-h-0 xl:flex-1 xl:max-h-none xl:overscroll-contain">
             {dashboard.recentEvents.length ? (
               dashboard.recentEvents.map((event) => (
                 <FinancialEventRow key={event.id} event={event} currency={dashboard.currency} onReview={setReviewEvent} />
@@ -1527,6 +1635,22 @@ export default function FinancePage() {
           onClose={() => setReviewEvent(null)}
           onSelectEvent={setReviewEvent}
           onSave={(payload) => void saveEventReview(reviewEvent.id, payload)}
+        />
+      ) : null}
+
+      {connectionToRemove ? (
+        <RemoveConnectionModal
+          connection={connectionToRemove}
+          sourceAccount={removalSourceAccount}
+          linkedAccounts={accountsByConnectionId.get(connectionToRemove.id) ?? []}
+          removing={removingConnectionId === connectionToRemove.id}
+          onCancel={() => {
+            if (!removingConnectionId) {
+              setConnectionToRemove(null);
+              setRemovalSourceAccount(null);
+            }
+          }}
+          onConfirm={() => void removeConnection(connectionToRemove)}
         />
       ) : null}
     </div>
@@ -1626,6 +1750,7 @@ function CollapsiblePanel({
   actions,
   children,
   className = "",
+  bodyClassName = "",
 }: {
   eyebrow: string;
   title: string;
@@ -1635,6 +1760,7 @@ function CollapsiblePanel({
   actions?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
 }) {
   return (
     <section className={`glass-panel rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5 ${className}`}>
@@ -1649,9 +1775,9 @@ function CollapsiblePanel({
             {summary ? <span className="mt-1 block text-sm leading-5 text-zinc-400">{summary}</span> : null}
           </span>
         </button>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">{actions}</div> : null}
+        {actions ? <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{actions}</div> : null}
       </div>
-      {open ? <div className="mt-5">{children}</div> : null}
+      {open ? <div className={`mt-5 ${bodyClassName}`}>{children}</div> : null}
     </section>
   );
 }
@@ -1845,10 +1971,10 @@ function MetricCard({
           ? "from-rose-300/18 to-white/5 text-rose-100"
           : "from-cyan-300/12 to-white/5 text-white";
   return (
-    <div className={`rounded-2xl border border-white/10 bg-gradient-to-br ${toneClass} p-4`}>
-      <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">{label}</p>
-      <p className="mt-2 truncate text-2xl font-semibold tabular-nums">{value}</p>
-      <p className="mt-1 truncate text-xs text-zinc-400">{detail}</p>
+    <div className={`rounded-2xl border border-white/10 bg-gradient-to-br ${toneClass} p-3 sm:p-4`}>
+      <p className="text-[9px] uppercase tracking-[0.22em] text-zinc-500 sm:text-[10px] sm:tracking-[0.28em]">{label}</p>
+      <p className="mt-2 truncate text-xl font-semibold tabular-nums sm:text-2xl">{value}</p>
+      <p className="mt-1 truncate text-[11px] text-zinc-400 sm:text-xs">{detail}</p>
     </div>
   );
 }
@@ -1865,18 +1991,19 @@ function SegmentedControl<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 p-1">
-      <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">{label}</span>
-      <div className="flex flex-wrap gap-1">
+    <div className="flex w-full min-w-0 items-center gap-2 rounded-[20px] border border-white/10 bg-black/20 p-1 sm:w-auto">
+      <span className="shrink-0 px-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">{label}</span>
+      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {options.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
+            aria-pressed={option.value === value}
             className={
-              "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] transition " +
+              "min-h-8 shrink-0 touch-manipulation rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] transition active:scale-[0.97] " +
               (option.value === value
-                ? "bg-cyan-300 text-slate-950"
+                ? "bg-cyan-300 text-slate-950 shadow-[0_8px_24px_rgba(34,211,238,0.18)]"
                 : "text-zinc-400 hover:bg-white/10 hover:text-white")
             }
           >
@@ -1898,7 +2025,7 @@ function ToggleSwitch({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-3 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-400">
+    <label className="flex min-h-10 w-full cursor-pointer select-none items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-black/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-400 sm:w-auto">
       <span>{label}</span>
       <input
         type="checkbox"
@@ -1908,7 +2035,7 @@ function ToggleSwitch({
       />
       <span
         className={
-          "relative h-5 w-9 rounded-full border transition " +
+          "relative h-5 w-9 shrink-0 rounded-full border transition " +
           (checked ? "border-cyan-300/50 bg-cyan-300/30" : "border-white/10 bg-white/5")
         }
       >
@@ -1924,6 +2051,10 @@ function ToggleSwitch({
 }
 
 function CashflowChart({ series, currency }: { series: FlowPoint[]; currency: string }) {
+  const defaultIndex = Math.max(0, series.length - 1);
+  const [requestedActiveIndex, setActiveIndex] = useState(defaultIndex);
+  const activeIndex = Math.min(Math.max(0, requestedActiveIndex), defaultIndex);
+
   const width = 720;
   const height = 280;
   const padding = 28;
@@ -1931,7 +2062,7 @@ function CashflowChart({ series, currency }: { series: FlowPoint[]; currency: st
   const chartWidth = width - padding * 2;
   const maxFlow = Math.max(1, ...series.flatMap((point) => [point.income, point.spending]));
   const barSlot = series.length ? chartWidth / series.length : chartWidth;
-  const barWidth = Math.max(10, barSlot * 0.26);
+  const barWidth = Math.max(10, Math.min(34, barSlot * 0.26));
   const cumulative = series.reduce<number[]>((points, point) => {
     const previous = points.at(-1) ?? 0;
     points.push(previous + point.net);
@@ -1944,90 +2075,148 @@ function CashflowChart({ series, currency }: { series: FlowPoint[]; currency: st
     .map((value, index) => {
       const x = padding + barSlot * index + barSlot / 2;
       const y = padding + ((maxCumulative - value) / cumulativeRange) * chartHeight;
-      return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+      return (index === 0 ? "M" : "L") + " " + x.toFixed(1) + " " + y.toFixed(1);
     })
     .join(" ");
+  const activePoint = series[activeIndex] ?? series[defaultIndex];
+  const activeCumulative = cumulative[activeIndex] ?? 0;
+  const activeX = padding + barSlot * activeIndex + barSlot / 2;
+  const activeY = padding + ((maxCumulative - activeCumulative) / cumulativeRange) * chartHeight;
 
   if (!series.some((point) => point.income || point.spending)) {
     return <EmptyState text="Plaid cashflow will render once transactions sync." />;
   }
 
   return (
-    <div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-[280px] w-full">
-        <defs>
-          <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#67e8f9" />
-            <stop offset="100%" stopColor="#34d399" />
-          </linearGradient>
-          <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fbbf24" />
-            <stop offset="100%" stopColor="#fb7185" />
-          </linearGradient>
-        </defs>
-        <rect x="0" y="0" width={width} height={height} rx="26" fill="rgba(0,0,0,0.24)" />
-        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-          const y = padding + chartHeight * tick;
-          return (
-            <line
-              key={`cashflow-grid-${tick}`}
-              x1={padding}
-              y1={y}
-              x2={width - padding}
-              y2={y}
-              stroke="rgba(255,255,255,0.08)"
-              strokeWidth="1"
+    <div className="min-w-0">
+      {activePoint ? (
+        <div className="mb-3 grid grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-black/25">
+          <div className="border-r border-white/10 px-3 py-2">
+            <p className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">{activePoint.label}</p>
+            <p className={(activePoint.net >= 0 ? "text-emerald-100" : "text-rose-100") + " mt-1 truncate text-sm font-semibold tabular-nums sm:text-base"}>{formatSignedMoney(activePoint.net, currency)}</p>
+          </div>
+          <div className="border-r border-white/10 px-3 py-2">
+            <p className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">Income</p>
+            <p className="mt-1 truncate text-sm font-semibold text-emerald-100 tabular-nums sm:text-base">{formatMoney(activePoint.income, currency)}</p>
+          </div>
+          <div className="px-3 py-2">
+            <p className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">Spend</p>
+            <p className="mt-1 truncate text-sm font-semibold text-amber-100 tabular-nums sm:text-base">{formatMoney(activePoint.spending, currency)}</p>
+          </div>
+        </div>
+      ) : null}
+      <div className="rounded-[24px] border border-white/10 bg-black/20 p-2 sm:p-3">
+        <svg viewBox={"0 0 " + width + " " + height} className="h-[220px] w-full touch-pan-x select-none sm:h-[280px]">
+          <defs>
+            <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#67e8f9" />
+              <stop offset="100%" stopColor="#34d399" />
+            </linearGradient>
+            <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#fbbf24" />
+              <stop offset="100%" stopColor="#fb7185" />
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width={width} height={height} rx="26" fill="rgba(0,0,0,0.18)" />
+          {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+            const y = padding + chartHeight * tick;
+            return (
+              <line
+                key={"cashflow-grid-" + tick}
+                x1={padding}
+                y1={y}
+                x2={width - padding}
+                y2={y}
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth="1"
+              />
+            );
+          })}
+          {series.map((point, index) => {
+            const xCenter = padding + barSlot * index + barSlot / 2;
+            const incomeHeight = (point.income / maxFlow) * chartHeight;
+            const spendHeight = (point.spending / maxFlow) * chartHeight;
+            const active = index === activeIndex;
+            return (
+              <g key={"cashflow-" + point.label + "-" + index} opacity={active ? 1 : 0.58}>
+                <rect
+                  x={xCenter - barWidth - 2}
+                  y={height - padding - incomeHeight}
+                  width={barWidth}
+                  height={Math.max(point.income ? 3 : 0, incomeHeight)}
+                  rx="7"
+                  fill="url(#incomeGradient)"
+                />
+                <rect
+                  x={xCenter + 2}
+                  y={height - padding - spendHeight}
+                  width={barWidth}
+                  height={Math.max(point.spending ? 3 : 0, spendHeight)}
+                  rx="7"
+                  fill="url(#spendGradient)"
+                />
+              </g>
+            );
+          })}
+          {cumulativePath ? (
+            <path
+              d={cumulativePath}
+              fill="none"
+              stroke="#f8fafc"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="3"
+              opacity="0.86"
             />
-          );
-        })}
-        {series.map((point, index) => {
-          const xCenter = padding + barSlot * index + barSlot / 2;
-          const incomeHeight = (point.income / maxFlow) * chartHeight;
-          const spendHeight = (point.spending / maxFlow) * chartHeight;
-          return (
-            <g key={`cashflow-${point.label}-${index}`}>
-              <rect
-                x={xCenter - barWidth - 2}
-                y={height - padding - incomeHeight}
-                width={barWidth}
-                height={Math.max(point.income ? 3 : 0, incomeHeight)}
-                rx="7"
-                fill="url(#incomeGradient)"
-                opacity="0.92"
-              />
-              <rect
-                x={xCenter + 2}
-                y={height - padding - spendHeight}
-                width={barWidth}
-                height={Math.max(point.spending ? 3 : 0, spendHeight)}
-                rx="7"
-                fill="url(#spendGradient)"
-                opacity="0.9"
-              />
+          ) : null}
+          {activePoint ? (
+            <g pointerEvents="none">
+              <line x1={activeX} y1={padding} x2={activeX} y2={height - padding} stroke="rgba(103,232,249,0.42)" strokeDasharray="5 7" />
+              <circle cx={activeX} cy={activeY} r="6" fill="#f8fafc" stroke="#67e8f9" strokeWidth="3" />
             </g>
-          );
-        })}
-        {cumulativePath ? (
-          <path
-            d={cumulativePath}
-            fill="none"
-            stroke="#f8fafc"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="3"
-            opacity="0.88"
-          />
-        ) : null}
-      </svg>
+          ) : null}
+          {series.map((point, index) => (
+            <rect
+              key={"cashflow-hit-" + point.label + "-" + index}
+              x={padding + barSlot * index}
+              y={padding}
+              width={barSlot}
+              height={chartHeight}
+              fill="transparent"
+              tabIndex={0}
+              role="button"
+              aria-label={"Show " + point.label + " cashflow"}
+              onFocus={() => setActiveIndex(index)}
+              onKeyDown={(keyEvent) => {
+                if (keyEvent.key === "Enter" || keyEvent.key === " ") setActiveIndex(index);
+              }}
+              onPointerEnter={() => setActiveIndex(index)}
+              onPointerDown={() => setActiveIndex(index)}
+              style={{ cursor: "pointer" }}
+            />
+          ))}
+        </svg>
+      </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.24em] text-zinc-400">
           <LegendDot color="#34d399" label="Income" />
           <LegendDot color="#fb7185" label="Spend" />
           <LegendDot color="#f8fafc" label="Net path" />
         </div>
-        <div className="flex flex-wrap justify-end gap-3 text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-          {series.map((point) => (
-            <span key={`cashflow-label-${point.label}`}>{point.label}</span>
+        <div className="-mx-1 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 text-[11px] uppercase tracking-[0.2em] text-zinc-500 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {series.map((point, index) => (
+            <button
+              key={"cashflow-label-" + point.label + "-" + index}
+              type="button"
+              onClick={() => setActiveIndex(index)}
+              aria-pressed={index === activeIndex}
+              className={
+                "shrink-0 touch-manipulation rounded-full border px-2.5 py-1 transition active:scale-[0.96] " +
+                (index === activeIndex ? "border-cyan-300/50 bg-cyan-300/12 text-cyan-100" : "border-white/10 bg-white/5 hover:border-white/25 hover:text-white")
+              }
+            >
+              {point.label}
+            </button>
           ))}
         </div>
       </div>
@@ -2049,30 +2238,68 @@ function BreakdownBars({
   currency: string;
   emptyText: string;
 }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const max = Math.max(1, ...items.map((item) => item.value));
+  const selectedItem = items.find((item) => item.id === selectedId) ?? items[0];
+
   if (!items.length) return <EmptyState text={emptyText} />;
   return (
     <div className="space-y-3">
-      {items.map((item) => (
-        <div key={item.id} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+      {selectedItem ? (
+        <div className="rounded-2xl border border-cyan-300/25 bg-cyan-300/10 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">{item.label}</p>
-              <p className="mt-1 text-xs text-zinc-500">{item.detail}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: selectedItem.color }} />
+                <p className="truncate text-sm font-semibold text-white">{selectedItem.label}</p>
+              </div>
+              <p className="mt-1 text-xs text-cyan-100/70">{selectedItem.detail}</p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-sm font-semibold text-white tabular-nums">{formatMoney(item.value, currency)}</p>
-              <p className="mt-1 text-[11px] text-zinc-500">{formatPercent(item.percent)}</p>
+              <p className="text-sm font-semibold text-white tabular-nums">{formatMoney(selectedItem.value, currency)}</p>
+              <p className="mt-1 text-[11px] text-cyan-100/70">{formatPercent(selectedItem.percent)}</p>
             </div>
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${Math.max(3, (item.value / max) * 100)}%`, backgroundColor: item.color }}
-            />
-          </div>
         </div>
-      ))}
+      ) : null}
+      <div className="space-y-2">
+        {items.map((item) => {
+          const active = item.id === selectedItem?.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSelectedId(item.id)}
+              onPointerEnter={() => setSelectedId(item.id)}
+              onFocus={() => setSelectedId(item.id)}
+              aria-pressed={active}
+              className={
+                "w-full touch-manipulation rounded-2xl border p-4 text-left transition active:scale-[0.995] " +
+                (active
+                  ? "border-cyan-300/45 bg-cyan-300/12 shadow-[0_16px_40px_rgba(34,211,238,0.08)]"
+                  : "border-white/10 bg-black/25 hover:border-white/25 hover:bg-white/[0.07]")
+              }
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">{item.label}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{item.detail}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold text-white tabular-nums">{formatMoney(item.value, currency)}</p>
+                  <p className="mt-1 text-[11px] text-zinc-500">{formatPercent(item.percent)}</p>
+                </div>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full transition-[width,opacity] duration-300"
+                  style={{ width: Math.max(3, (item.value / max) * 100) + "%", backgroundColor: item.color, opacity: active ? 1 : 0.58 }}
+                />
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2086,8 +2313,10 @@ function AllocationChart({
   totalLabel: string;
   emptyText: string;
 }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const total = sumBreakdown(items);
   const circumference = 2 * Math.PI * 42;
+  const selectedItem = items.find((item) => item.id === selectedId) ?? items[0];
 
   if (!items.length || total <= 0) return <EmptyState text={emptyText} />;
 
@@ -2101,45 +2330,73 @@ function AllocationChart({
   );
 
   return (
-    <div className="grid gap-5 md:grid-cols-[230px_minmax(0,1fr)] md:items-center">
-      <div className="relative mx-auto h-[230px] w-[230px]">
-        <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+    <div className="grid gap-4 md:grid-cols-[210px_minmax(0,1fr)] md:items-center lg:grid-cols-[230px_minmax(0,1fr)]">
+      <div className="relative mx-auto h-[210px] w-[210px] sm:h-[230px] sm:w-[230px]">
+        <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90 touch-manipulation select-none">
           <circle cx="60" cy="60" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="16" />
-          {segments.map(({ item, segment, dashOffset }) => (
-            <circle
-              key={item.id}
-              cx="60"
-              cy="60"
-              r="42"
-              fill="none"
-              stroke={item.color}
-              strokeWidth="16"
-              strokeLinecap="round"
-              strokeDasharray={`${segment} ${circumference - segment}`}
-              strokeDashoffset={dashOffset}
-            />
-          ))}
+          {segments.map(({ item, segment, dashOffset }) => {
+            const active = item.id === selectedItem?.id;
+            return (
+              <circle
+                key={item.id}
+                cx="60"
+                cy="60"
+                r="42"
+                fill="none"
+                stroke={item.color}
+                strokeWidth={active ? "19" : "14"}
+                strokeLinecap="round"
+                strokeDasharray={segment + " " + (circumference - segment)}
+                strokeDashoffset={dashOffset}
+                opacity={active ? 1 : 0.52}
+                onPointerEnter={() => setSelectedId(item.id)}
+                onPointerDown={() => setSelectedId(item.id)}
+                style={{ cursor: "pointer" }}
+              />
+            );
+          })}
         </svg>
         <div className="absolute inset-0 grid place-items-center text-center">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">Total</p>
-            <p className="mt-1 text-xl font-semibold text-white tabular-nums">{totalLabel}</p>
+          <div className="max-w-[150px] px-3">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">{selectedItem ? "Selected" : "Total"}</p>
+            <p className="mt-1 truncate text-lg font-semibold text-white tabular-nums sm:text-xl">
+              {selectedItem ? selectedItem.label : totalLabel}
+            </p>
+            <p className="mt-1 text-xs text-zinc-400">
+              {selectedItem ? formatPercent(selectedItem.percent) : totalLabel}
+            </p>
           </div>
         </div>
       </div>
-      <div className="space-y-3">
-        {items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                <p className="truncate text-sm font-semibold text-white">{item.label}</p>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const active = item.id === selectedItem?.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSelectedId(item.id)}
+              onPointerEnter={() => setSelectedId(item.id)}
+              onFocus={() => setSelectedId(item.id)}
+              aria-pressed={active}
+              className={
+                "flex min-h-14 w-full touch-manipulation items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition active:scale-[0.995] " +
+                (active
+                  ? "border-cyan-300/45 bg-cyan-300/12 shadow-[0_16px_40px_rgba(34,211,238,0.08)]"
+                  : "border-white/10 bg-black/25 hover:border-white/25 hover:bg-white/[0.07]")
+              }
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                  <p className="truncate text-sm font-semibold text-white">{item.label}</p>
+                </div>
+                <p className="mt-1 truncate text-xs text-zinc-500">{item.detail}</p>
               </div>
-              <p className="mt-1 truncate text-xs text-zinc-500">{item.detail}</p>
-            </div>
-            <p className="shrink-0 text-sm font-semibold text-white tabular-nums">{formatPercent(item.percent)}</p>
-          </div>
-        ))}
+              <p className="shrink-0 text-sm font-semibold text-white tabular-nums">{formatPercent(item.percent)}</p>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -2188,18 +2445,47 @@ function InsightRow({ insight }: { insight: { label: string; value: string; tone
   );
 }
 
-function ConnectionRow({ connection }: { connection: FinanceConnection }) {
+function ConnectionRow({
+  connection,
+  accounts,
+  removing,
+  onRemove,
+}: {
+  connection: FinanceConnection;
+  accounts: FinanceAccount[];
+  removing: boolean;
+  onRemove: (connection: FinanceConnection) => void;
+}) {
+  const accountPreview = accounts.length
+    ? accounts.slice(0, 4).map(formatAccountName).join(" / ")
+    : "No synced accounts loaded";
+  const remainingCount = Math.max(0, accounts.length - 4);
+
   return (
     <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{connection.institutionName ?? connection.provider}</p>
+          <p className="truncate text-sm font-semibold text-white">{formatConnectionName(connection)}</p>
           <p className="mt-1 text-xs text-zinc-500">{connection.products.join(" / ") || "accounts"}</p>
         </div>
-        <StatusPill label={connection.status} tone={connection.status === "active" ? "good" : "warn"} />
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <StatusPill label={accounts.length + " account" + (accounts.length === 1 ? "" : "s")} tone="neutral" />
+          <StatusPill label={connection.status} tone={connection.status === "active" ? "good" : "warn"} />
+          <button
+            type="button"
+            onClick={() => onRemove(connection)}
+            disabled={removing}
+            className="rounded-full border border-rose-300/25 bg-rose-300/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-100 transition hover:border-rose-200/60 hover:bg-rose-300/18 disabled:cursor-wait disabled:opacity-55"
+          >
+            {removing ? "Removing" : "Remove"}
+          </button>
+        </div>
       </div>
-      <p className="mt-3 text-xs text-zinc-500">
-        {connection.lastSyncedAt ? `Last sync ${formatDateTime(connection.lastSyncedAt)}` : "Not synced yet"}
+      <p className="mt-3 text-xs leading-5 text-zinc-400">
+        {accountPreview}{remainingCount > 0 ? " / +" + remainingCount + " more" : ""}
+      </p>
+      <p className="mt-2 text-xs text-zinc-500">
+        {connection.lastSyncedAt ? "Last sync " + formatDateTime(connection.lastSyncedAt) : "Not synced yet"}
       </p>
     </div>
   );
@@ -2210,11 +2496,17 @@ function AccountRow({
   institutionName,
   maxBalance,
   currency,
+  connection,
+  removingConnection,
+  onRemoveConnection,
 }: {
   account: FinanceAccount;
   institutionName?: string;
   maxBalance: number;
   currency: string;
+  connection?: FinanceConnection;
+  removingConnection: boolean;
+  onRemoveConnection: (connection: FinanceConnection, sourceAccount: FinanceAccount) => void;
 }) {
   const balance = getAccountBalance(account);
   const contribution = accountContribution(account);
@@ -2226,7 +2518,7 @@ function AccountRow({
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-white">{account.name}</p>
           <p className="mt-1 truncate text-xs text-zinc-500">
-            {[institutionName, meta.label, account.subtype, account.mask ? `xx${account.mask}` : undefined].filter(Boolean).join(" - ")}
+            {[institutionName, meta.label, account.subtype, account.mask ? "xx" + account.mask : undefined].filter(Boolean).join(" - ")}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -2234,10 +2526,20 @@ function AccountRow({
           {account.availableBalance !== null && account.availableBalance !== account.currentBalance ? (
             <p className="mt-1 text-[11px] text-zinc-500">{formatMoney(account.availableBalance, currency)} avail</p>
           ) : null}
+          {connection ? (
+            <button
+              type="button"
+              onClick={() => onRemoveConnection(connection, account)}
+              disabled={removingConnection}
+              className="mt-2 rounded-full border border-rose-300/20 bg-rose-300/8 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-rose-100 transition hover:border-rose-200/55 hover:bg-rose-300/15 disabled:cursor-wait disabled:opacity-55"
+            >
+              {removingConnection ? "Removing" : "Remove link"}
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
-        <div className="h-full rounded-full" style={{ width: `${Math.max(4, percent)}%`, backgroundColor: meta.color }} />
+        <div className="h-full rounded-full" style={{ width: Math.max(4, percent) + "%", backgroundColor: meta.color }} />
       </div>
     </div>
   );
@@ -2355,6 +2657,96 @@ function EventBadge({ eventType }: { eventType: string }) {
     <span className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] ${classes}`}>
       {label}
     </span>
+  );
+}
+
+function RemoveConnectionModal({
+  connection,
+  sourceAccount,
+  linkedAccounts,
+  removing,
+  onCancel,
+  onConfirm,
+}: {
+  connection: FinanceConnection;
+  sourceAccount?: FinanceAccount | null;
+  linkedAccounts: FinanceAccount[];
+  removing: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const connectionName = formatConnectionName(connection);
+  const title = sourceAccount
+    ? "Remove connection for " + formatAccountName(sourceAccount) + "?"
+    : "Remove " + connectionName + "?";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-md sm:items-center sm:px-4 sm:py-6"
+      onClick={removing ? undefined : onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="finance-remove-connection-title"
+        className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-white/10 bg-[#070b16] p-5 text-white shadow-2xl sm:rounded-3xl"
+        onClick={(clickEvent) => clickEvent.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-rose-200/80">Remove connection</p>
+            <h3 id="finance-remove-connection-title" className="mt-2 text-xl font-semibold text-white">
+              {title}
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              This removes the Plaid link for {connectionName} and deletes synced accounts, transactions, holdings, review events, and connection-specific rules from Jarvis.
+            </p>
+          </div>
+          <StatusPill label="Confirm" tone="bad" />
+        </div>
+
+        {linkedAccounts.length ? (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">Accounts on this link</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {linkedAccounts.slice(0, 8).map((account) => (
+                <span key={account.id} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold text-zinc-200">
+                  {formatAccountName(account)}
+                </span>
+              ))}
+              {linkedAccounts.length > 8 ? (
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold text-zinc-400">
+                  +{linkedAccounts.length - 8} more
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-300/10 p-4 text-sm leading-6 text-rose-50/90">
+          Manual positions stay in place. This cannot be undone from Jarvis after you confirm.
+        </div>
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={removing}
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-3 text-xs font-semibold uppercase tracking-[0.22em] text-zinc-200 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={removing}
+            className="rounded-full border border-rose-300/35 bg-rose-300/14 px-4 py-3 text-xs font-semibold uppercase tracking-[0.22em] text-rose-50 transition hover:border-rose-200/70 hover:bg-rose-300/22 disabled:cursor-wait disabled:opacity-60"
+          >
+            {removing ? "Removing" : "Remove connection"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2792,6 +3184,14 @@ function getConnectionTypeLabel(connectionType: PlaidConnectionType) {
   return PLAID_CONNECTION_OPTIONS.find((option) => option.value === connectionType)?.label ?? "Plaid connection";
 }
 
+function formatConnectionName(connection: FinanceConnection) {
+  return connection.institutionName ?? titleCase(connection.provider || "Financial connection");
+}
+
+function formatAccountName(account: FinanceAccount) {
+  return account.mask ? account.name + " xx" + account.mask : account.name;
+}
+
 function usePersistentOption<T extends string>(key: string, defaultValue: T, validValues: readonly T[]) {
   const [value, setValue] = useState<T>(defaultValue);
 
@@ -3111,7 +3511,7 @@ function buildFinanceInsights({
 }
 
 function buildCashflowSeries(transactions: FinanceTransaction[], rangeDays: number): FlowPoint[] {
-  const bucketCount = rangeDays <= 30 ? 6 : rangeDays <= 90 ? 8 : 10;
+  const bucketCount = getCashflowBucketCount(rangeDays);
   const end = new Date();
   const start = getRangeCutoff(rangeDays);
   const spanMs = Math.max(1, end.getTime() - start.getTime());
@@ -3293,6 +3693,15 @@ function getRangeCutoff(rangeDays: number) {
   date.setDate(date.getDate() - rangeDays + 1);
   date.setHours(0, 0, 0, 0);
   return date;
+}
+
+function getCashflowBucketCount(rangeDays: number) {
+  if (rangeDays <= 1) return 1;
+  if (rangeDays <= 7) return 7;
+  if (rangeDays <= 14) return 7;
+  if (rangeDays <= 30) return 6;
+  if (rangeDays <= 90) return 8;
+  return 10;
 }
 
 function sumTransactions(
