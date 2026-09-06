@@ -26,6 +26,8 @@ The app expects the following values in the web app environment:
 - DATABASE_URL — the Postgres connection string
 - NEXTAUTH_URL — the public base URL of the deployment
 - NEXTAUTH_SECRET — a strong random secret
+- REGISTRATION_DISABLED — set to `true` to close public signup
+- REGISTRATION_ACCESS_CODE — optional shared code required during signup
 
 A sample configuration is already provided in the app environment file.
 
@@ -72,6 +74,7 @@ If the app is behind a proxy, confirm that the forwarded host and protocol are h
 A production deployment should also think about:
 
 - secure secret storage
+- closed or payment-gated registration until billing is live
 - database backups
 - server-side logging
 - monitoring for failed auth and failed state writes

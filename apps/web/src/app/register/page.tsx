@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +32,7 @@ export default function RegisterPage() {
             const response = await fetch("/api/auth/register", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name, email, password }),
+              body: JSON.stringify({ name, email, password, accessCode }),
             });
             if (!response.ok) {
               const data = await response.json().catch(() => ({}));
@@ -79,6 +80,17 @@ export default function RegisterPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs uppercase tracking-[0.3em] text-zinc-400">Access code</label>
+            <input
+              type="text"
+              autoComplete="off"
+              value={accessCode}
+              onChange={(event) => setAccessCode(event.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
+              placeholder="Optional"
             />
           </div>
           {error && <p className="text-sm text-rose-200">{error}</p>}

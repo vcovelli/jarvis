@@ -2,10 +2,16 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
+import { validateRegistrationAccess } from "@/lib/registration";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const access = validateRegistrationAccess(body?.accessCode);
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
     const email = String(body?.email ?? "").trim().toLowerCase();
     const password = String(body?.password ?? "");
     const name = String(body?.name ?? "").trim();
