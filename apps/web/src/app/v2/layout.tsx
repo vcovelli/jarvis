@@ -11,7 +11,7 @@ import { JarvisStateProvider } from "@/lib/jarvisStore";
 
 export const metadata: Metadata = {
   title: "Jarvis OS — Console",
-  description: "Versioned console shell with mood, journal, todos, and sleep modules.",
+  description: "Private planning, reflection, health, finance, assistant, and systems workspace.",
 };
 
 export default async function V2Layout({

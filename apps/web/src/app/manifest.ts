@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/v2",
     name: "Jarvis OS",
     short_name: "Jarvis",
-    description: "A personal operating console for planning, reflection, and systems tracking.",
+    description: "A private personal operating console for planning, reflection, health signals, finance, and systems tracking.",
     start_url: "/v2",
     scope: "/",
     display: "standalone",
