@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { signOut, useSession } from "next-auth/react";
 
 import {
@@ -96,6 +97,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   const [theme, setTheme] = useState<ThemePreference>(() => getStoredTheme());
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(() => getStoredDesktopSidebarOpen());
+  const [mobileNavigation, setMobileNavigation] = useState<{ href: string; fromRoute: string } | null>(null);
 
   useEffect(() => {
     return onThemeChange(setTheme);
@@ -129,6 +131,10 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       : pathname ?? "/";
   const activeRootBase = activePath.split("/")[1] ?? "";
   const activeRoot = activeRootBase ? "/" + activeRootBase : "/";
+  const currentSearch = searchParams?.toString() ?? "";
+  const currentHref = `${pathname ?? ""}${currentSearch ? `?${currentSearch}` : ""}`;
+  const currentRoute = `${pathname ?? ""}?${currentSearch}`;
+  const pendingMobileHref = mobileNavigation?.fromRoute === currentRoute ? mobileNavigation.href : null;
 
   function buildHref(href: string) {
     const [path, query] = href.split("?");
@@ -150,9 +156,27 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
     return item.activeFor?.includes(activeRoot) ?? activeRoot === (pathOnly || "/");
   }
 
+  function isMobileActive(item: NavLink) {
+    if (pendingMobileHref) return pendingMobileHref === buildHref(item.href);
+    return isActive(item);
+  }
+
+  function beginMobileNavigation(href: string) {
+    if (href === currentHref) {
+      setMobileNavigation(null);
+      return;
+    }
+    if (pendingMobileHref === href) return;
+    flushSync(() => {
+      setMobileNavigation({ href, fromRoute: currentRoute });
+    });
+  }
+
+  const assistantHref = buildHref("/assistant");
   const onAssistantPage = activeRoot === "/assistant";
+  const mobileAssistantActive = pendingMobileHref ? pendingMobileHref === assistantHref : onAssistantPage;
   const habitsImmersive = activeRoot === "/habits";
-  const mobileAssistantClass = "mobile-nav-item mobile-nav-assistant " + (onAssistantPage ? "is-active" : "");
+  const mobileAssistantClass = "mobile-nav-item mobile-nav-assistant " + (mobileAssistantActive ? "is-active" : "");
   const mobileAssistantContent = (
     <>
       <span className="mobile-nav-icon mobile-nav-assistant-icon">
@@ -162,7 +186,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
     </>
   );
 
-  const primaryMobileActive = mobileLinks.some((item) => isActive(item)) || onAssistantPage;
+  const primaryMobileActive = mobileLinks.some((item) => isMobileActive(item)) || mobileAssistantActive;
   const moreActive = mobileOpen || !primaryMobileActive;
 
   const navItems = (items: NavLink[], dense = false, onNavigate?: () => void) =>
@@ -260,20 +284,47 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
           aria-label="Primary mobile navigation"
         >
           <div className="jarvis-mobile-nav-row mx-auto grid max-w-xl grid-cols-5 gap-1">
-            <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
-            <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
+            <MobileBarLink
+              item={mobileLinks[0]}
+              active={isMobileActive(mobileLinks[0])}
+              href={buildHref(mobileLinks[0].href)}
+              pending={pendingMobileHref === buildHref(mobileLinks[0].href)}
+              onNavigate={beginMobileNavigation}
+            />
+            <MobileBarLink
+              item={mobileLinks[1]}
+              active={isMobileActive(mobileLinks[1])}
+              href={buildHref(mobileLinks[1].href)}
+              pending={pendingMobileHref === buildHref(mobileLinks[1].href)}
+              onNavigate={beginMobileNavigation}
+            />
             <Link
-              href={buildHref("/assistant")}
+              href={assistantHref}
               aria-label="Open assistant"
               aria-current={onAssistantPage ? "page" : undefined}
+              aria-busy={pendingMobileHref === assistantHref || undefined}
+              data-navigation-state={pendingMobileHref === assistantHref ? "pending" : mobileAssistantActive ? "active" : "idle"}
+              onPointerDown={(event) => {
+                if (event.button === 0) beginMobileNavigation(assistantHref);
+              }}
+              onClick={() => beginMobileNavigation(assistantHref)}
               className={mobileAssistantClass}
             >
               {mobileAssistantContent}
             </Link>
-            <MobileBarLink item={mobileLinks[2]} active={isActive(mobileLinks[2])} href={buildHref(mobileLinks[2].href)} />
+            <MobileBarLink
+              item={mobileLinks[2]}
+              active={isMobileActive(mobileLinks[2])}
+              href={buildHref(mobileLinks[2].href)}
+              pending={pendingMobileHref === buildHref(mobileLinks[2].href)}
+              onNavigate={beginMobileNavigation}
+            />
             <button
               type="button"
-              onClick={() => setMobileOpen(true)}
+              onClick={() => {
+                setMobileNavigation(null);
+                setMobileOpen(true);
+              }}
               className={"mobile-nav-item " + (moreActive ? "is-active" : "")}
               aria-label="Open more navigation"
               aria-expanded={mobileOpen}
@@ -328,9 +379,31 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   );
 }
 
-function MobileBarLink({ item, active, href }: { item: NavLink; active: boolean; href: string }) {
+function MobileBarLink({
+  item,
+  active,
+  href,
+  pending,
+  onNavigate,
+}: {
+  item: NavLink;
+  active: boolean;
+  href: string;
+  pending: boolean;
+  onNavigate: (href: string) => void;
+}) {
   return (
-    <Link href={href} aria-current={active ? "page" : undefined} className={"mobile-nav-item " + (active ? "is-active" : "")}>
+    <Link
+      href={href}
+      aria-current={active && !pending ? "page" : undefined}
+      aria-busy={pending || undefined}
+      data-navigation-state={pending ? "pending" : active ? "active" : "idle"}
+      onPointerDown={(event) => {
+        if (event.button === 0) onNavigate(href);
+      }}
+      onClick={() => onNavigate(href)}
+      className={"mobile-nav-item " + (active ? "is-active" : "")}
+    >
       <span className="mobile-nav-icon"><MobileNavIcon label={item.label} className="h-4 w-4" /></span>
       <span className="mobile-nav-label">{item.label}</span>
     </Link>
