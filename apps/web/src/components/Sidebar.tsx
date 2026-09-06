@@ -5,7 +5,14 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { signOut, useSession } from "next-auth/react";
 
-import { applyTheme, getStoredTheme, onThemeChange, type ThemeMode } from "@/lib/theme";
+import {
+  getStoredTheme,
+  onThemeChange,
+  themeModeOptions,
+  themePaletteOptions,
+  updateThemePreference,
+  type ThemePreference,
+} from "@/lib/theme";
 import { useJarvisState, type StateSyncStatus } from "@/lib/jarvisStore";
 import { mobileSidebarOpenEvent } from "@/lib/shellEvents";
 
@@ -16,30 +23,33 @@ type NavLink = {
   activeFor?: string[];
 };
 
-const commandLinks: NavLink[] = [
-  { href: "/", label: "Home", description: "State" },
-  { href: "/finance", label: "Finances", description: "Money" },
-  { href: "/assistant", label: "Assistant", description: "Agent" },
-  { href: "/daily", label: "Daily", description: "Planner", activeFor: ["/daily", "/todos"] },
-  { href: "/habits", label: "Habits", description: "Chains" },
+const startLinks: NavLink[] = [
+  { href: "/", label: "Home", description: "Overview" },
+  { href: "/daily?mode=backlog", label: "Plan", description: "Schedule", activeFor: ["/daily", "/todos"] },
+  { href: "/assistant", label: "Assistant", description: "Ask" },
+];
+
+const dailyRhythmLinks: NavLink[] = [
+  { href: "/must-win", label: "Must Win", description: "Priority" },
+  { href: "/habits", label: "Habits", description: "Routines" },
+  { href: "/mood", label: "Mood", description: "Check-in" },
+  { href: "/journal", label: "Journal", description: "Reflect" },
   { href: "/sleep", label: "Sleep", description: "Recovery" },
-  { href: "/?focus=mood", label: "Mood", description: "Check-in" },
-  { href: "/homelab", label: "Homelab", description: "Server" },
 ];
 
-const planningLinks: NavLink[] = [
-  { href: "/journal", label: "Journal", description: "Notes" },
-  { href: "/focus", label: "Focus", description: "Discipline" },
-  { href: "/objectives", label: "Objectives", description: "Outcomes" },
+const growthLinks: NavLink[] = [
+  { href: "/focus", label: "Focus", description: "Deep work" },
+  { href: "/objectives", label: "Objectives", description: "Goals" },
   { href: "/review", label: "Review", description: "Trends" },
+  { href: "/fitness", label: "Fitness", description: "Health" },
+  { href: "/career", label: "Career", description: "Growth" },
 ];
 
-const systemLinks: NavLink[] = [
-  { href: "/documentation", label: "Docs", description: "Markdown" },
-  { href: "/career", label: "Career", description: "Skills" },
-  { href: "/manufacturing", label: "Manufacturing", description: "CNC" },
-  { href: "/real-estate", label: "Real Estate", description: "Deals" },
-  { href: "/fitness", label: "Fitness", description: "Health" },
+const resourceLinks: NavLink[] = [
+  { href: "/finance", label: "Finances", description: "Money" },
+  { href: "/real-estate", label: "Real Estate", description: "Property" },
+  { href: "/homelab", label: "Homelab", description: "Servers" },
+  { href: "/documentation", label: "Docs", description: "Reference" },
 ];
 
 const adminLinks: NavLink[] = [
@@ -48,9 +58,9 @@ const adminLinks: NavLink[] = [
 ];
 
 const mobileLinks: NavLink[] = [
-  { href: "/", label: "Home", description: "State" },
-  { href: "/daily", label: "Daily", description: "Planner", activeFor: ["/daily", "/todos"] },
-  { href: "/finance", label: "Finances", description: "Goals" },
+  { href: "/", label: "Home", description: "Overview" },
+  { href: "/daily?mode=backlog", label: "Plan", description: "Schedule", activeFor: ["/daily", "/todos"] },
+  { href: "/finance", label: "Finances", description: "Money" },
 ];
 
 const desktopSidebarStorageKey = "jarvis-desktop-sidebar-open";
@@ -83,7 +93,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { syncStatus, refreshRemoteState } = useJarvisState();
-  const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
+  const [theme, setTheme] = useState<ThemePreference>(() => getStoredTheme());
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(() => getStoredDesktopSidebarOpen());
 
@@ -142,17 +152,18 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
 
   const onAssistantPage = activeRoot === "/assistant";
   const habitsImmersive = activeRoot === "/habits";
-  const mobileAssistantClass =
-    "flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 pb-1 text-center text-[10px] font-semibold transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-200/70 " +
-    (onAssistantPage ? "text-cyan-50" : "text-cyan-100");
+  const mobileAssistantClass = "mobile-nav-item mobile-nav-assistant " + (onAssistantPage ? "is-active" : "");
   const mobileAssistantContent = (
     <>
-      <span className="flex h-14 w-14 items-center justify-center rounded-full border border-cyan-200/60 bg-cyan-300 text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.32)]">
-        <AssistantNavIcon className="h-7 w-7" />
+      <span className="mobile-nav-icon mobile-nav-assistant-icon">
+        <AssistantNavIcon className="h-6 w-6" />
       </span>
-      <span className="truncate">Assistant</span>
+      <span className="mobile-nav-label">Assistant</span>
     </>
   );
+
+  const primaryMobileActive = mobileLinks.some((item) => isActive(item)) || onAssistantPage;
+  const moreActive = mobileOpen || !primaryMobileActive;
 
   const navItems = (items: NavLink[], dense = false, onNavigate?: () => void) =>
     items.map((item) => {
@@ -186,21 +197,16 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   return (
     <>
       {!desktopOpen && (
-        <div
-          className="group fixed inset-y-0 left-0 z-30 hidden w-12 lg:block"
-          aria-label="Collapsed sidebar reveal zone"
+        <button
+          type="button"
+          className="theme-button-secondary fixed left-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 hidden items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold shadow-lg backdrop-blur-2xl transition focus:outline-none lg:flex"
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+          onClick={() => updateDesktopOpen(true)}
         >
-          <button
-            type="button"
-            className="absolute left-3 top-1/2 flex -translate-x-[calc(100%+1rem)] -translate-y-1/2 items-center gap-2 rounded-full border border-cyan-200/20 bg-[#08111f]/90 px-3 py-2 text-sm font-semibold text-cyan-50 opacity-0 shadow-[0_16px_48px_rgba(2,6,23,0.32)] backdrop-blur-2xl transition-all duration-200 ease-out hover:border-cyan-200/45 hover:bg-cyan-300/10 focus:translate-x-0 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-cyan-200/70 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100"
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
-            onClick={() => updateDesktopOpen(true)}
-          >
-            <SidebarExpandIcon className="h-4 w-4" />
-            <span>Nav</span>
-          </button>
-        </div>
+          <SidebarExpandIcon className="h-4 w-4" />
+          <span>Nav</span>
+        </button>
       )}
 
       <aside
@@ -209,8 +215,8 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
           (desktopOpen ? "lg:flex" : "lg:hidden")
         }
       >
-        <div className="flex w-full flex-col gap-5 rounded-[32px] border border-white/10 bg-white/[0.05] p-4 shadow-[0_24px_80px_rgba(2,6,23,0.25)] backdrop-blur-2xl">
-          <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-cyan-400/12 via-white/6 to-indigo-400/10 p-4">
+        <div className="theme-surface flex w-full flex-col gap-5 rounded-[32px] p-4">
+          <div className="theme-card rounded-[24px] p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.45em] text-cyan-200/80">Jarvis OS</p>
@@ -230,10 +236,11 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
           </div>
 
           <nav className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pr-1">
-            <NavGroup title="Command">{navItems(commandLinks)}</NavGroup>
-            <NavGroup title="Plan">{navItems(planningLinks)}</NavGroup>
-            <NavGroup title="Systems">{navItems(systemLinks)}</NavGroup>
-            <NavGroup title="Admin">{navItems(adminLinks)}</NavGroup>
+            <NavGroup title="Start">{navItems(startLinks)}</NavGroup>
+            <NavGroup title="Daily rhythm">{navItems(dailyRhythmLinks)}</NavGroup>
+            <NavGroup title="Growth">{navItems(growthLinks)}</NavGroup>
+            <NavGroup title="Resources">{navItems(resourceLinks)}</NavGroup>
+            <NavGroup title="Account">{navItems(adminLinks)}</NavGroup>
           </nav>
 
           <ShellControls
@@ -249,10 +256,10 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       {!habitsImmersive && (
         <nav
           data-no-pull-refresh="true"
-          className="jarvis-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/90 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 shadow-[0_-18px_45px_rgba(2,6,23,0.38)] backdrop-blur-2xl lg:hidden"
+          className="jarvis-mobile-nav fixed inset-x-0 bottom-0 z-40 lg:hidden"
           aria-label="Primary mobile navigation"
         >
-          <div className="mx-auto grid h-[4.45rem] max-w-xl grid-cols-5 items-end gap-1">
+          <div className="jarvis-mobile-nav-row mx-auto grid max-w-xl grid-cols-5 gap-1">
             <MobileBarLink item={mobileLinks[0]} active={isActive(mobileLinks[0])} href={buildHref(mobileLinks[0].href)} />
             <MobileBarLink item={mobileLinks[1]} active={isActive(mobileLinks[1])} href={buildHref(mobileLinks[1].href)} />
             <Link
@@ -267,12 +274,12 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="flex min-w-0 flex-col items-center gap-1 rounded-[22px] px-1 py-2 text-center text-[10px] font-semibold text-zinc-300 transition hover:bg-white/6 hover:text-white active:scale-[0.98]"
+              className={"mobile-nav-item " + (moreActive ? "is-active" : "")}
               aria-label="Open more navigation"
               aria-expanded={mobileOpen}
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-base leading-none">...</span>
-              <span className="truncate">More</span>
+              <span className="mobile-nav-icon"><MoreNavIcon className="h-4 w-4" /></span>
+              <span className="mobile-nav-label">More</span>
             </button>
           </div>
         </nav>
@@ -281,7 +288,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       {mobileOpen && (
         <div data-no-pull-refresh="true" className="fixed inset-0 z-50 flex bg-slate-950/50 backdrop-blur-sm mobile-sidebar-overlay lg:hidden">
           <div
-            className="mobile-sidebar flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] border-r border-white/10 bg-slate-950/92 px-6 py-8 text-sm text-zinc-200 shadow-[24px_0_80px_rgba(2,6,23,0.45)] backdrop-blur-2xl"
+            className="mobile-sidebar theme-modal flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] px-6 py-8 text-sm shadow-[24px_0_80px_rgba(2,6,23,0.45)]"
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
               paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -292,16 +299,17 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70"
+                className="min-h-10 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70"
               >
                 Close
               </button>
             </div>
             <nav className="flex flex-1 flex-col gap-5 overflow-y-auto overscroll-contain">
-              <NavGroup title="Command">{navItems(commandLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Plan">{navItems(planningLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Systems">{navItems(systemLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Admin">{navItems(adminLinks, true, () => setMobileOpen(false))}</NavGroup>
+              <NavGroup title="Start">{navItems(startLinks, true, () => setMobileOpen(false))}</NavGroup>
+              <NavGroup title="Daily rhythm">{navItems(dailyRhythmLinks, true, () => setMobileOpen(false))}</NavGroup>
+              <NavGroup title="Growth">{navItems(growthLinks, true, () => setMobileOpen(false))}</NavGroup>
+              <NavGroup title="Resources">{navItems(resourceLinks, true, () => setMobileOpen(false))}</NavGroup>
+              <NavGroup title="Account">{navItems(adminLinks, true, () => setMobileOpen(false))}</NavGroup>
             </nav>
             <ShellControls
               sessionEmail={session?.user?.email}
@@ -322,18 +330,61 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
 
 function MobileBarLink({ item, active, href }: { item: NavLink; active: boolean; href: string }) {
   return (
-    <Link
-      href={href}
-      className={
-        "flex min-w-0 flex-col items-center gap-1 rounded-[22px] px-1 py-2 text-center text-[10px] font-semibold transition active:scale-[0.98] " +
-        (active ? "bg-cyan-300 text-zinc-950 shadow-[0_10px_24px_rgba(34,211,238,0.24)]" : "text-zinc-300 hover:bg-white/6 hover:text-white")
-      }
-    >
-      <span className={"flex h-7 w-7 items-center justify-center rounded-full border text-[12px] font-bold " + (active ? "border-zinc-950/10 bg-zinc-950/10" : "border-white/10 bg-white/5")}>
-        {item.label.charAt(0)}
-      </span>
-      <span className="w-full truncate">{item.label}</span>
+    <Link href={href} aria-current={active ? "page" : undefined} className={"mobile-nav-item " + (active ? "is-active" : "")}>
+      <span className="mobile-nav-icon"><MobileNavIcon label={item.label} className="h-4 w-4" /></span>
+      <span className="mobile-nav-label">{item.label}</span>
     </Link>
+  );
+}
+
+function MobileNavIcon({ label, className }: { label: string; className?: string }) {
+  if (label === "Home") return <HomeNavIcon className={className} />;
+  if (label === "Plan") return <PlanNavIcon className={className} />;
+  if (label === "Finances") return <FinanceNavIcon className={className} />;
+  return <MoreNavIcon className={className} />;
+}
+
+function HomeNavIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m3 10 9-7 9 7" />
+      <path d="M5 10v10h14V10" />
+      <path d="M10 20v-6h4v6" />
+    </svg>
+  );
+}
+
+function PlanNavIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="5" width="16" height="15" rx="3" />
+      <path d="M8 3v4" />
+      <path d="M16 3v4" />
+      <path d="M4 10h16" />
+      <path d="m9 15 2 2 4-5" />
+    </svg>
+  );
+}
+
+function FinanceNavIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 19V5" />
+      <path d="M4 19h16" />
+      <path d="m7 15 3-3 3 2 5-6" />
+      <path d="M18 8h-4" />
+      <path d="M18 8v4" />
+    </svg>
+  );
+}
+
+function MoreNavIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </svg>
   );
 }
 
@@ -507,8 +558,8 @@ function ShellControls({
   onRefresh,
 }: {
   sessionEmail?: string | null;
-  theme: ThemeMode;
-  setTheme: (theme: ThemeMode) => void;
+  theme: ThemePreference;
+  setTheme: (theme: ThemePreference) => void;
   syncStatus: StateSyncStatus;
   onRefresh: () => Promise<boolean>;
 }) {
@@ -528,13 +579,18 @@ function ShellControls({
     }
   }
 
+  function updateTheme(patch: Partial<ThemePreference>) {
+    const next = updateThemePreference(patch);
+    setTheme(next);
+  }
+
   return (
-    <div className="mt-auto rounded-[24px] border border-white/10 bg-white/5 p-2 text-xs text-zinc-300">
+    <div className="theme-surface mt-auto rounded-[24px] p-2 text-xs">
       <div className="flex items-stretch gap-2">
         <button
           type="button"
           onClick={() => updateExpanded(!expanded)}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-[18px] border border-white/10 bg-black/25 px-3 py-2 text-left transition hover:border-cyan-200/30 hover:bg-white/[0.06]"
+          className="theme-button-secondary flex min-w-0 flex-1 items-center gap-2 rounded-[18px] px-3 py-2 text-left transition"
           aria-expanded={expanded}
           aria-label={expanded ? "Collapse shell controls" : "Expand shell controls"}
         >
@@ -561,44 +617,65 @@ function ShellControls({
         <div className="mt-2 space-y-2 border-t border-white/10 pt-2">
           <StateSaveStatus syncStatus={syncStatus} />
           {sessionEmail && (
-            <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
+            <div className="theme-card rounded-2xl px-3 py-2">
               <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Signed in</p>
               <p className="mt-1 truncate text-xs text-white/80">{sessionEmail}</p>
             </div>
           )}
-          <div className="inline-flex w-full rounded-full border border-white/10 bg-white/5 p-1 text-[10px] uppercase tracking-[0.3em]">
-            {(["dark", "light"] as const).map((option) => {
-              const active = theme === option;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => {
-                    setTheme(option);
-                    applyTheme(option);
-                  }}
-                  className={
-                    "flex-1 rounded-full px-3 py-2 font-semibold transition " +
-                    (active ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-300 hover:text-white")
-                  }
-                >
-                  {option}
-                </button>
-              );
-            })}
+          <div className="theme-card rounded-2xl p-2">
+            <p className="theme-muted px-1 text-[9px] font-semibold uppercase tracking-[0.24em]">Foundation</p>
+            <div className="mt-2 grid grid-cols-3 gap-1">
+              {themeModeOptions.map((option) => {
+                const active = theme.mode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    title={option.description}
+                    aria-pressed={active}
+                    onClick={() => updateTheme({ mode: option.value })}
+                    className={"theme-chip flex min-w-0 flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[9px] font-semibold uppercase tracking-[0.12em] transition " + (active ? "is-active" : "")}
+                  >
+                    <span className="h-3.5 w-7 rounded-full border border-white/25" style={{ background: option.swatch }} />
+                    <span className="truncate">{option.value === "contrast" ? "High" : option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="theme-card rounded-2xl p-2">
+            <p className="theme-muted px-1 text-[9px] font-semibold uppercase tracking-[0.24em]">Palette</p>
+            <div className="mt-2 grid grid-cols-2 gap-1">
+              {themePaletteOptions.map((option) => {
+                const active = theme.palette === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    title={option.description}
+                    aria-pressed={active}
+                    onClick={() => updateTheme({ palette: option.value })}
+                    className={"theme-chip flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] transition " + (active ? "is-active" : "")}
+                  >
+                    <span className="h-4 w-4 shrink-0 rounded-full border border-white/25" style={{ background: option.swatch }} />
+                    <span className="truncate">{option.shortLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <button
             type="button"
             onClick={() => void onRefresh()}
             disabled={refreshDisabled}
-            className="w-full rounded-full border border-cyan-200/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-100 transition hover:border-cyan-200/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="theme-button-secondary w-full rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] transition disabled:cursor-not-allowed disabled:opacity-50"
           >
             {syncStatus.remote === "refreshing" ? "Refreshing" : "Refresh state"}
           </button>
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/20 hover:text-white"
+            className="theme-button-secondary w-full rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] transition"
           >
             Sign out
           </button>

@@ -1409,14 +1409,14 @@ export default function FinancePage() {
             </>
           }
         >
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:overflow-x-auto sm:px-1 sm:pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FINANCE_CHARTS.map((chart) => (
               <button
                 key={chart.id}
                 type="button"
                 onClick={() => setActiveChart(chart.id)}
                 className={
-                  "min-h-10 shrink-0 touch-manipulation rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] transition active:scale-[0.98] " +
+                  "min-h-10 touch-manipulation rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition active:scale-[0.98] sm:shrink-0 sm:tracking-[0.22em] " +
                   (activeChart === chart.id
                     ? "border-cyan-300/70 bg-cyan-300/20 text-white shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
                     : "border-white/10 bg-white/5 text-zinc-400 hover:border-white/25 hover:text-white")
@@ -1991,9 +1991,9 @@ function SegmentedControl<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex w-full min-w-0 items-center gap-2 rounded-[20px] border border-white/10 bg-black/20 p-1 sm:w-auto">
-      <span className="shrink-0 px-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">{label}</span>
-      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex w-full min-w-0 flex-col items-stretch gap-1.5 rounded-[20px] border border-white/10 bg-black/20 p-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+      <span className="shrink-0 px-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 sm:pt-0">{label}</span>
+      <div className="grid min-w-0 flex-1 grid-cols-4 gap-1 sm:flex sm:overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {options.map((option) => (
           <button
             key={option.value}
@@ -2001,7 +2001,7 @@ function SegmentedControl<T extends string>({
             onClick={() => onChange(option.value)}
             aria-pressed={option.value === value}
             className={
-              "min-h-8 shrink-0 touch-manipulation rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] transition active:scale-[0.97] " +
+              "min-h-9 touch-manipulation rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition active:scale-[0.97] sm:shrink-0 sm:tracking-[0.16em] " +
               (option.value === value
                 ? "bg-cyan-300 text-slate-950 shadow-[0_8px_24px_rgba(34,211,238,0.18)]"
                 : "text-zinc-400 hover:bg-white/10 hover:text-white")
@@ -2203,7 +2203,7 @@ function CashflowChart({ series, currency }: { series: FlowPoint[]; currency: st
           <LegendDot color="#fb7185" label="Spend" />
           <LegendDot color="#f8fafc" label="Net path" />
         </div>
-        <div className="-mx-1 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 text-[11px] uppercase tracking-[0.2em] text-zinc-500 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="grid w-full grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.16em] text-zinc-500 sm:mx-0 sm:flex sm:max-w-full sm:overflow-x-auto sm:px-1 sm:pb-1 sm:tracking-[0.2em] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {series.map((point, index) => (
             <button
               key={"cashflow-label-" + point.label + "-" + index}
@@ -2211,7 +2211,7 @@ function CashflowChart({ series, currency }: { series: FlowPoint[]; currency: st
               onClick={() => setActiveIndex(index)}
               aria-pressed={index === activeIndex}
               className={
-                "shrink-0 touch-manipulation rounded-full border px-2.5 py-1 transition active:scale-[0.96] " +
+                "min-h-9 touch-manipulation rounded-full border px-2.5 py-1 transition active:scale-[0.96] sm:shrink-0 " +
                 (index === activeIndex ? "border-cyan-300/50 bg-cyan-300/12 text-cyan-100" : "border-white/10 bg-white/5 hover:border-white/25 hover:text-white")
               }
             >
@@ -2682,14 +2682,14 @@ function RemoveConnectionModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-md sm:items-center sm:px-4 sm:py-6"
+      className="theme-overlay fixed inset-0 z-50 flex items-end justify-center p-0 backdrop-blur-md sm:items-center sm:px-4 sm:py-6"
       onClick={removing ? undefined : onCancel}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="finance-remove-connection-title"
-        className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-white/10 bg-[#070b16] p-5 text-white shadow-2xl sm:rounded-3xl"
+        className="theme-modal w-full max-w-lg overflow-hidden rounded-t-3xl p-5 sm:rounded-3xl"
         onClick={(clickEvent) => clickEvent.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -2806,12 +2806,12 @@ function ReviewEventModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-md sm:items-center sm:px-4 sm:py-6" onClick={onClose}>
+    <div className="theme-overlay fixed inset-0 z-50 flex items-end justify-center p-0 backdrop-blur-md sm:items-center sm:px-4 sm:py-6" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="finance-review-title"
-        className="grid max-h-[94vh] w-full max-w-6xl overflow-hidden rounded-t-3xl border border-white/10 bg-[#070b16] text-white shadow-2xl sm:rounded-3xl lg:grid-cols-[minmax(270px,0.34fr)_minmax(0,0.66fr)]"
+        className="theme-modal grid max-h-[94vh] w-full max-w-6xl overflow-hidden rounded-t-3xl sm:rounded-3xl lg:grid-cols-[minmax(270px,0.34fr)_minmax(0,0.66fr)]"
         onClick={(clickEvent) => clickEvent.stopPropagation()}
       >
         <aside className="min-h-0 border-b border-white/10 bg-white/[0.03] p-4 lg:border-b-0 lg:border-r lg:p-5">
@@ -2943,7 +2943,7 @@ function ReviewEventModal({
                 className="appearance-none rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold normal-case tracking-normal text-white outline-none focus:border-cyan-300/60"
               >
                 {eventTypeOptions.map((option) => (
-                  <option key={option} value={option} className="bg-[#070b16] text-white">
+                  <option key={option} value={option} className="theme-option">
                     {titleCase(option)}
                   </option>
                 ))}
@@ -2957,7 +2957,7 @@ function ReviewEventModal({
                 className="appearance-none rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold normal-case tracking-normal text-white outline-none focus:border-cyan-300/60"
               >
                 {categoryOptions.map((category) => (
-                  <option key={category} value={category} className="bg-[#070b16] text-white">
+                  <option key={category} value={category} className="theme-option">
                     {titleCase(category)}
                   </option>
                 ))}

@@ -1665,7 +1665,7 @@ export default function AssistantPage() {
       />
 
       <div
-        className={`fixed inset-0 z-50 flex bg-black/70 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md transition-[opacity,backdrop-filter] duration-200 sm:p-2 md:hidden ${
+        className={`fixed inset-x-0 bottom-[var(--jarvis-mobile-nav-height)] top-0 z-50 flex bg-black/70 px-2 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md transition-[opacity,backdrop-filter] duration-200 sm:p-2 md:hidden ${
           conversationPanelOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         data-no-pull-refresh="true"
@@ -1699,12 +1699,12 @@ export default function AssistantPage() {
       </div>
 
       <section
-        className={`relative isolate flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-none border-y border-white/10 bg-[#050b14]/92 shadow-none backdrop-blur-xl sm:rounded-[22px] sm:border sm:shadow-[0_18px_70px_rgba(0,0,0,0.28)] ${
+        className={`theme-workspace relative isolate flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-none border-y shadow-none backdrop-blur-xl sm:rounded-[22px] sm:border sm:shadow-[0_18px_70px_rgba(0,0,0,0.28)] ${
           draft ? "hidden lg:flex" : "flex"
         }`}
       >
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
-        <div className="shrink-0 border-b border-white/10 bg-[#080f1b]/92 px-3 py-2.5 sm:px-5 sm:py-3 lg:px-6">
+        <div className="theme-workspace-chrome shrink-0 border-b px-3 py-2.5 sm:px-5 sm:py-3 lg:px-6">
           <div className={`flex gap-2 ${detailsEditorOpen && !projectHomeOpen ? "flex-col sm:flex-row sm:items-start sm:justify-between" : "items-start justify-between"}`}>
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-zinc-500 sm:gap-2 sm:text-xs">
@@ -1880,7 +1880,7 @@ export default function AssistantPage() {
                       className={`max-w-[92%] rounded-[21px] px-3.5 py-2.5 text-[15px] shadow-lg sm:max-w-[680px] sm:rounded-[22px] sm:px-4 sm:py-3 sm:text-sm ${
                         isUser
                           ? "bg-cyan-300 text-zinc-950 shadow-cyan-950/20"
-                          : "border border-white/10 bg-[#0b1220]/95 text-zinc-100"
+                          : "theme-workspace-subtle border text-zinc-100"
                       }`}
                     >
                       <div className={`mb-1 flex items-center gap-2 text-xs font-semibold ${isUser ? "text-zinc-900/60" : "text-white/40"}`}>
@@ -1915,7 +1915,7 @@ export default function AssistantPage() {
 
           {!draft && (
             <form
-              className="mx-2 mt-1 shrink-0 rounded-[22px] border border-white/10 bg-[#060b13]/95 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.28)] sm:mx-0 sm:mt-3 sm:rounded-[24px]"
+              className="theme-workspace-chrome mx-2 mt-1 shrink-0 rounded-[22px] border p-2 shadow-[0_18px_60px_rgba(0,0,0,0.28)] sm:mx-0 sm:mt-3 sm:rounded-[24px]"
               onSubmit={(event) => {
                 event.preventDefault();
                 handleSubmit();
@@ -1995,7 +1995,7 @@ export default function AssistantPage() {
         )}
         {draft && draft.type !== "todo" && (
           <form
-            className="glass-panel flex h-[calc(100svh-var(--jarvis-mobile-nav-height)-6rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border border-emerald-300/20 bg-[#0b1121]/95 text-sm text-white shadow-2xl backdrop-blur-xl lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:min-h-0"
+            className="theme-workspace flex h-[calc(100svh-var(--jarvis-mobile-nav-height)-6rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border text-sm shadow-2xl backdrop-blur-xl lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:min-h-0"
             onSubmit={(event) => {
               event.preventDefault();
               runAction(draft);
@@ -2056,7 +2056,7 @@ export default function AssistantPage() {
                       className="mt-2 h-2 w-full cursor-pointer appearance-none rounded bg-transparent"
                       style={{
                         accentColor: moodTone.accent,
-                        background: `linear-gradient(90deg, ${moodTone.accent} 0%, ${moodTone.accent} ${moodPercent}%, #3f3f46 ${moodPercent}%, #3f3f46 100%)`,
+                        background: `linear-gradient(90deg, ${moodTone.accent} 0%, ${moodTone.accent} ${moodPercent}%, var(--border) ${moodPercent}%, var(--border) 100%)`,
                       }}
                     />
                   </div>
@@ -2526,7 +2526,7 @@ export default function AssistantPage() {
               </div>
             </div>
 
-            <div className="shrink-0 border-t border-white/10 bg-[#0b1121] px-5 pb-3 pt-3 shadow-[0_-18px_40px_rgba(2,6,23,0.45)] sm:px-6 sm:pb-4">
+            <div className="theme-workspace-chrome shrink-0 border-t px-5 pb-3 pt-3 shadow-[0_-18px_40px_rgba(2,6,23,0.45)] sm:px-6 sm:pb-4">
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -2744,7 +2744,7 @@ function TopicActionsMenu({ projectId, topic, onRename, onMove, onDelete, classN
           ref={menuRef}
           role="menu"
           style={{ top: position.top, left: position.left }}
-          className="fixed z-[80] w-[152px] overflow-hidden rounded-2xl border border-white/10 bg-[#07111f]/98 p-1 text-sm shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-2xl"
+          className="theme-modal fixed z-[80] w-[152px] overflow-hidden rounded-2xl p-1 text-sm shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-2xl"
         >
           <button type="button" role="menuitem" onClick={() => runAction(() => onRename(projectId, topic.key, topic.label))} className="block w-full rounded-xl px-3 py-2 text-left text-white/75 hover:bg-white/[0.06] hover:text-white">Rename</button>
           <button type="button" role="menuitem" onClick={() => runAction(() => onMove(projectId, topic.key, -1))} className="block w-full rounded-xl px-3 py-2 text-left text-white/75 hover:bg-white/[0.06] hover:text-white">Move up</button>
@@ -2773,7 +2773,7 @@ function NewConversationTopicMenu({ project, conversations, className, onSelect,
   }, [conversations]);
 
   return (
-    <div className={`overflow-hidden rounded-[22px] border border-white/10 bg-[#07111f]/98 p-2 text-left shadow-[0_24px_70px_rgba(0,0,0,0.42)] backdrop-blur-2xl ${className ?? ""}`}>
+    <div className={`theme-modal overflow-hidden rounded-[22px] p-2 text-left shadow-[0_24px_70px_rgba(0,0,0,0.42)] backdrop-blur-2xl ${className ?? ""}`}>
       <div className="px-3 py-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -3100,7 +3100,7 @@ function AssistantConversationRail({
 
   return (
     <aside
-      className={`assistant-conversation-rail glass-panel min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#07111f]/92 shadow-[0_18px_64px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[22px] ${className ?? ""}`}
+      className={`assistant-conversation-rail theme-workspace min-h-0 flex-col overflow-hidden rounded-[24px] border shadow-[0_18px_64px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[22px] ${className ?? ""}`}
       data-no-pull-refresh="true"
     >
       <div className="shrink-0 border-b border-white/10 px-4 pb-3 pt-4 sm:py-4">
@@ -3158,7 +3158,7 @@ function AssistantConversationRail({
       </div>
 
       <div
-        className="assistant-rail-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 py-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+1.15rem)] sm:py-3 sm:pb-3"
+        className="assistant-rail-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 py-2.5 pb-5 sm:py-3 sm:pb-3"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         <div className="space-y-1">
@@ -3409,7 +3409,7 @@ function AssistantMemoryPanel({
 
   return (
     <aside className="flex h-full min-w-0">
-      <div className="glass-panel flex min-h-0 w-full flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#07111f]/90 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+      <div className="theme-workspace flex min-h-0 w-full flex-col overflow-hidden rounded-[26px] border shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-xl">
         <div className="shrink-0 border-b border-white/10 px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -4070,7 +4070,7 @@ function AssistantTaskPanel({
 
   return (
     <form
-      className="glass-panel flex h-[calc(100svh-var(--jarvis-mobile-nav-height)-6rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0b1121]/95 shadow-2xl backdrop-blur-xl lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:min-h-0"
+      className="theme-workspace flex h-[calc(100svh-var(--jarvis-mobile-nav-height)-6rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border shadow-2xl backdrop-blur-xl lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:min-h-0"
       onSubmit={(event) => {
         event.preventDefault();
         onConfirm();
@@ -4276,7 +4276,7 @@ function AssistantTaskPanel({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-white/10 bg-[#0b1121] px-5 pb-3 pt-3 shadow-[0_-18px_40px_rgba(2,6,23,0.45)] sm:px-6 sm:pb-4">
+      <div className="theme-workspace-chrome shrink-0 border-t px-5 pb-3 pt-3 shadow-[0_-18px_40px_rgba(2,6,23,0.45)] sm:px-6 sm:pb-4">
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -4856,7 +4856,7 @@ function SliderField({ label, value, min, max, suffix = "", onChange }: SliderFi
         className="h-2 w-full cursor-pointer appearance-none rounded bg-transparent"
         style={{
           accentColor: tone.accent,
-          background: `linear-gradient(90deg, ${tone.accent} 0%, ${tone.accent} ${percent}%, #3f3f46 ${percent}%, #3f3f46 100%)`,
+          background: `linear-gradient(90deg, ${tone.accent} 0%, ${tone.accent} ${percent}%, var(--border) ${percent}%, var(--border) 100%)`,
         }}
       />
     </label>
@@ -5500,7 +5500,7 @@ function SelectField({
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full appearance-none rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+          className="theme-input w-full appearance-none rounded-2xl px-4 py-3 text-base font-medium focus:outline-none sm:text-sm"
         >
           {children}
         </select>
@@ -5601,7 +5601,7 @@ function TimeInputField({
         type="time"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white accent-cyan-300 focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+        className="theme-input w-full rounded-2xl px-4 py-3 text-base font-medium accent-cyan-300 focus:outline-none sm:text-sm"
       />
     </label>
   );

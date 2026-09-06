@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
+import { WALKTHROUGH_KEY, WALKTHROUGH_REPLAY_EVENT } from "@/components/FirstRunWalkthrough";
 import { useJarvisState } from "@/lib/jarvisStore";
 
 type DemoStat = {
@@ -37,6 +38,16 @@ export default function SettingsPage() {
 
   const startPitch = () => {
     enableDemoMode();
+    router.push("/v2");
+  };
+
+  const replayWalkthrough = () => {
+    try {
+      window.localStorage.removeItem(WALKTHROUGH_KEY);
+    } catch {
+      // The event still opens the walkthrough when storage is unavailable.
+    }
+    window.dispatchEvent(new Event(WALKTHROUGH_REPLAY_EVENT));
     router.push("/v2");
   };
 
@@ -84,6 +95,14 @@ export default function SettingsPage() {
                 className="rounded-full border border-emerald-300/35 bg-emerald-300/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-300/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Start pitch
+              </button>
+              <button
+                type="button"
+                onClick={replayWalkthrough}
+                disabled={!hydrated}
+                className="theme-button-secondary rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Replay walkthrough
               </button>
               {demoMode ? (
                 <button

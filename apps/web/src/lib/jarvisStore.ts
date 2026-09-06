@@ -21,6 +21,8 @@ export type MoodTag = string;
 export const defaultMoodTags = ["energy", "stress", "sleep", "workout"] as const;
 const defaultMoodTagSet = new Set(defaultMoodTags.map((tag) => tag.toLowerCase()));
 const MAX_CUSTOM_MOOD_TAGS = 24;
+const MAX_DELETED_MOOD_IDS = 500;
+const MAX_DELETED_MOOD_TAGS = 100;
 const MAX_DELETED_TODO_IDS = 500;
 const MAX_MOOD_TAG_LENGTH = 24;
 
@@ -192,6 +194,8 @@ export type HomelabActionLog = {
 
 export type JarvisState = {
   mood: Record<DayKey, MoodLog[]>;
+  deletedMoodIds: string[];
+  deletedMoodTags: string[];
   journal: Record<DayKey, JournalEntry[]>;
   todos: Record<DayKey, TodoItem[]>;
   deletedTodoIds: string[];
@@ -455,6 +459,8 @@ const defaultSchedule: SleepSchedule = {
 
 const initialState: JarvisState = {
   mood: {},
+  deletedMoodIds: [],
+  deletedMoodTags: [],
   journal: {},
   todos: {},
   deletedTodoIds: [],
@@ -514,6 +520,8 @@ function buildDemoJarvisState(baseDate = new Date()): JarvisState {
         },
       ],
     },
+    deletedMoodIds: [],
+    deletedMoodTags: [],
     journal: {
       [today]: [
         {
@@ -977,9 +985,27 @@ type Action =
     };
 
 function mergeJarvisStates(serverState: JarvisState, localState: JarvisState): JarvisState {
+  const deletedMoodIds = mergeDeletedIds(
+    serverState.deletedMoodIds,
+    localState.deletedMoodIds,
+    MAX_DELETED_MOOD_IDS,
+  );
+  const deletedMoodTags = mergeDeletedMoodTags(
+    serverState.deletedMoodTags,
+    localState.deletedMoodTags,
+  );
   const deletedTodoIds = mergeDeletedTodoIds(serverState.deletedTodoIds, localState.deletedTodoIds);
+  const mergedMood = removeMoodTagsFromLogs(
+    filterDeletedMoodEntries(
+      mergeDayListRecord(serverState.mood, localState.mood),
+      deletedMoodIds,
+    ),
+    deletedMoodTags,
+  );
   return sanitizeState({
-    mood: mergeDayListRecord(serverState.mood, localState.mood),
+    mood: mergedMood,
+    deletedMoodIds,
+    deletedMoodTags,
     journal: mergeDayListRecord(serverState.journal, localState.journal),
     todos: filterDeletedTodos(
       mergeDayListRecord(serverState.todos, localState.todos),
@@ -987,7 +1013,10 @@ function mergeJarvisStates(serverState: JarvisState, localState: JarvisState): J
     ),
     deletedTodoIds,
     sleep: mergeDayListRecord(serverState.sleep, localState.sleep),
-    moodTags: sanitizeMoodTagList([...localState.moodTags, ...serverState.moodTags]),
+    moodTags: filterDeletedMoodTags(
+      sanitizeMoodTagList([...localState.moodTags, ...serverState.moodTags]),
+      deletedMoodTags,
+    ),
     sleepSchedule: localState.sleepSchedule,
     operatingMode: { ...serverState.operatingMode, ...localState.operatingMode },
     mustWin: { ...serverState.mustWin, ...localState.mustWin },
@@ -1036,6 +1065,14 @@ function mergeDeletedTodoIds(serverIds: string[] = [], localIds: string[] = []):
   return sanitizeDeletedTodoIds([...localIds, ...serverIds]);
 }
 
+function mergeDeletedIds(serverIds: string[] = [], localIds: string[] = [], limit: number): string[] {
+  return sanitizeDeletedIds([...localIds, ...serverIds], limit);
+}
+
+function mergeDeletedMoodTags(serverTags: string[] = [], localTags: string[] = []): string[] {
+  return sanitizeDeletedMoodTags([...localTags, ...serverTags]);
+}
+
 function addDeletedTodoId(ids: string[], id: string): string[] {
   return sanitizeDeletedTodoIds([id, ...ids]);
 }
@@ -1050,6 +1087,24 @@ function filterDeletedTodos(
     acc[day as DayKey] = items.filter((todo) => !deleted.has(todo.id));
     return acc;
   }, {} as Record<DayKey, TodoItem[]>);
+}
+
+function filterDeletedMoodEntries(
+  mood: Record<DayKey, MoodLog[]>,
+  deletedMoodIds: string[],
+): Record<DayKey, MoodLog[]> {
+  if (!deletedMoodIds.length) return mood;
+  const deleted = new Set(deletedMoodIds);
+  return Object.entries(mood).reduce((acc, [day, entries]) => {
+    acc[day as DayKey] = entries.filter((entry) => !deleted.has(entry.id));
+    return acc;
+  }, {} as Record<DayKey, MoodLog[]>);
+}
+
+function filterDeletedMoodTags(tags: string[], deletedTags: string[]): string[] {
+  if (!deletedTags.length) return tags;
+  const deleted = new Set(deletedTags.map((tag) => tag.toLowerCase()));
+  return tags.filter((tag) => !deleted.has(tag.toLowerCase()));
 }
 
 function mergeObjectives(serverObjectives: Objective[], localObjectives: Objective[]): Objective[] {
@@ -1149,12 +1204,20 @@ function reducer(state: JarvisState, action: Action): JarvisState {
     }
     case "DELETE_MOOD": {
       const logs = state.mood[action.payload.day] ?? [];
+      const nextLogs = logs.filter((log) => log.id !== action.payload.id);
+      if (nextLogs.length === logs.length && state.deletedMoodIds.includes(action.payload.id)) {
+        return state;
+      }
       return {
         ...state,
         mood: {
           ...state.mood,
-          [action.payload.day]: logs.filter((log) => log.id !== action.payload.id),
+          [action.payload.day]: nextLogs,
         },
+        deletedMoodIds: sanitizeDeletedIds(
+          [action.payload.id, ...state.deletedMoodIds],
+          MAX_DELETED_MOOD_IDS,
+        ),
       };
     }
     case "ADD_MOOD_TAG": {
@@ -1169,6 +1232,9 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       return {
         ...state,
         moodTags: [...state.moodTags, tag],
+        deletedMoodTags: state.deletedMoodTags.filter(
+          (deletedTag) => deletedTag.toLowerCase() !== normalized,
+        ),
       };
     }
     case "RENAME_MOOD_TAG": {
@@ -1188,20 +1254,40 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       const previousValue = updatedTags[fromIndex];
       updatedTags[fromIndex] = to;
       const updatedMoodLogs = replaceMoodTagInLogs(state.mood, previousValue, to);
+      const renamedIdentity = previousValue.toLowerCase() !== normalizedTo;
       return {
         ...state,
         moodTags: updatedTags,
         mood: updatedMoodLogs,
+        deletedMoodTags: renamedIdentity
+          ? sanitizeDeletedMoodTags([
+              previousValue,
+              ...state.deletedMoodTags.filter((tag) => tag.toLowerCase() !== normalizedTo),
+            ])
+          : state.deletedMoodTags.filter((tag) => tag.toLowerCase() !== normalizedTo),
       };
     }
     case "DELETE_MOOD_TAG": {
       const normalized = normalizeMoodTag(action.payload.tag);
       if (!normalized) return state;
       const filtered = state.moodTags.filter((tag) => tag.toLowerCase() !== normalized.toLowerCase());
-      if (filtered.length === state.moodTags.length) return state;
+      const deletedMoodTags = sanitizeDeletedMoodTags([normalized, ...state.deletedMoodTags]);
+      const mood = removeMoodTagsFromLogs(state.mood, [normalized]);
+      const wasAlreadyDeleted = state.deletedMoodTags.some(
+        (tag) => tag.toLowerCase() === normalized.toLowerCase(),
+      );
+      if (
+        filtered.length === state.moodTags.length &&
+        mood === state.mood &&
+        wasAlreadyDeleted
+      ) {
+        return state;
+      }
       return {
         ...state,
         moodTags: filtered,
+        mood,
+        deletedMoodTags,
       };
     }
     case "ADD_JOURNAL": {
@@ -2717,8 +2803,15 @@ function insertItem<T>(collection: Record<DayKey, T[]>, day: DayKey, item: T) {
 function sanitizeState(input: unknown): JarvisState {
   if (!input || typeof input !== "object") return initialState;
   const state = input as Partial<JarvisState>;
+  const deletedMoodIds = sanitizeDeletedIds(state.deletedMoodIds, MAX_DELETED_MOOD_IDS);
+  const deletedMoodTags = sanitizeDeletedMoodTags(state.deletedMoodTags);
   return {
-    mood: sanitizeRecord(state.mood),
+    mood: removeMoodTagsFromLogs(
+      filterDeletedMoodEntries(sanitizeRecord(state.mood), deletedMoodIds),
+      deletedMoodTags,
+    ),
+    deletedMoodIds,
+    deletedMoodTags,
     journal: sanitizeRecord(state.journal),
     todos: filterDeletedTodos(
       sanitizeRecord(state.todos),
@@ -2726,7 +2819,7 @@ function sanitizeState(input: unknown): JarvisState {
     ),
     deletedTodoIds: sanitizeDeletedTodoIds(state.deletedTodoIds),
     sleep: sanitizeRecord(state.sleep),
-    moodTags: sanitizeMoodTagList(state.moodTags),
+    moodTags: filterDeletedMoodTags(sanitizeMoodTagList(state.moodTags), deletedMoodTags),
     sleepSchedule: sanitizeSleepSchedule(state.sleepSchedule),
     operatingMode: sanitizeDayValueRecord(state.operatingMode),
     mustWin: sanitizeDayValueRecord(state.mustWin),
@@ -2779,6 +2872,10 @@ function sanitizeRecord<T>(record?: Record<DayKey, T[]>): Record<DayKey, T[]> {
 }
 
 function sanitizeDeletedTodoIds(value?: unknown): string[] {
+  return sanitizeDeletedIds(value, MAX_DELETED_TODO_IDS);
+}
+
+function sanitizeDeletedIds(value: unknown, limit: number): string[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
   const ids: string[] = [];
@@ -2788,9 +2885,26 @@ function sanitizeDeletedTodoIds(value?: unknown): string[] {
     if (!id || seen.has(id)) continue;
     seen.add(id);
     ids.push(id);
-    if (ids.length >= MAX_DELETED_TODO_IDS) break;
+    if (ids.length >= limit) break;
   }
   return ids;
+}
+
+function sanitizeDeletedMoodTags(value?: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const tag = normalizeMoodTag(entry);
+    if (!tag) continue;
+    const normalized = tag.toLowerCase();
+    if (defaultMoodTagSet.has(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    tags.push(tag);
+    if (tags.length >= MAX_DELETED_MOOD_TAGS) break;
+  }
+  return tags;
 }
 
 function sanitizeMoodTagList(value?: unknown): string[] {
@@ -3052,6 +3166,29 @@ function replaceMoodTagInLogs(
         return { ...log, tags: nextTags };
       }
       return log;
+    });
+    acc[day as DayKey] = dayChanged ? nextLogs : logs;
+    return acc;
+  }, {} as Record<DayKey, MoodLog[]>);
+  return changed ? updatedEntries : mood;
+}
+
+function removeMoodTagsFromLogs(
+  mood: Record<DayKey, MoodLog[]>,
+  tags: string[],
+): Record<DayKey, MoodLog[]> {
+  if (!tags.length) return mood;
+  const deletedTags = new Set(tags.map((tag) => tag.toLowerCase()));
+  let changed = false;
+  const updatedEntries = Object.entries(mood).reduce((acc, [day, logs]) => {
+    let dayChanged = false;
+    const nextLogs = logs.map((log) => {
+      if (!log.tags?.length) return log;
+      const nextTags = log.tags.filter((tag) => !deletedTags.has(tag.toLowerCase()));
+      if (nextTags.length === log.tags.length) return log;
+      dayChanged = true;
+      changed = true;
+      return { ...log, tags: nextTags };
     });
     acc[day as DayKey] = dayChanged ? nextLogs : logs;
     return acc;

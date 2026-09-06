@@ -55,6 +55,15 @@ type OperatingModeSuggestion = {
   };
 };
 type PanelKey = "mood" | "timeline" | "todos" | "journal";
+type RemoteTone = "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+type RemoteTile = {
+  href: string;
+  label: string;
+  detail: string;
+  value: string;
+  tone: RemoteTone;
+  attention?: boolean;
+};
 type HomelabDashboardSummary = {
   generatedAt: string | null;
   services: {
@@ -78,6 +87,8 @@ export default function Home() {
     state,
     hydrated,
     demoMode,
+    enableDemoMode,
+    disableDemoMode,
     logMood,
     updateMood,
     deleteMood,
@@ -118,14 +129,6 @@ export default function Home() {
     () => (state.habits ?? []).filter((habit) => !habit.archivedTs),
     [state.habits],
   );
-  const hasHabitLoggedToday = useMemo(
-    () => activeHabits.some((habit) => {
-      const status = habit.logs[todayKey];
-      return status === "yes" || status === "no" || status === "skip";
-    }),
-    [activeHabits, todayKey],
-  );
-
   const [moodValue, setMoodValue] = useState(5);
   const [moodNote, setMoodNote] = useState("");
   const [selectedMoodTags, setSelectedMoodTags] = useState<MoodTag[]>([]);
@@ -176,7 +179,6 @@ export default function Home() {
     (todaysMood.length > 0 || todaysSleep.length > 0) && Boolean(todaysMustWin?.done);
   const streak = useMemo(() => calculateStreak(state, todayStreakComplete), [state, todayStreakComplete]);
   const hasMoodToday = todaysMood.length > 0;
-  const hasTodoDoneToday = todaysTodos.some((todo) => todo.done);
   const suggestedMode = useMemo(
     () => getOperatingModeSuggestion({ mood: todaysMood, todos: todaysTodos, sleep: todaysSleep }),
     [todaysMood, todaysTodos, todaysSleep],
@@ -275,8 +277,80 @@ export default function Home() {
             : !todaysReview
               ? "Close the loop with a review"
               : "Maintain the system and protect focus";
-    return { completedTodos, highPriorityOpen, nextAction, openTodos, readiness, serviceScore };
+    const nextHref = !todaysMustWin
+      ? "/v2/must-win"
+      : !hasMoodToday
+        ? "/v2/mood"
+        : highPriorityOpen[0]
+          ? `/v2/daily?focus=${highPriorityOpen[0].id}`
+          : homelabSummary?.attention[0]?.severity === "critical"
+            ? "/v2/homelab"
+            : !todaysReview
+              ? "/v2/review"
+              : "/v2/focus";
+    return { completedTodos, highPriorityOpen, nextAction, nextHref, openTodos, readiness, serviceScore };
   }, [hasMoodToday, homelabSummary, todaysMustWin, todaysReview, todaysSleep, todaysTodos]);
+
+  const quickRemoteTiles = useMemo<RemoteTile[]>(() => {
+    const latestTodayMood = [...todaysMood].sort((a, b) => b.ts - a.ts)[0];
+    const latestSleep = [...todaysSleep].sort((a, b) => b.ts - a.ts)[0];
+    const loggedHabitCount = activeHabits.filter((habit) => {
+      const status = habit.logs[todayKey];
+      return status === "yes" || status === "no" || status === "skip";
+    }).length;
+    const looseTodoCount = todaysTodos.filter((todo) => !todo.done && !todo.startTime).length;
+
+    return [
+      {
+        href: "/v2/mood",
+        label: "Mood",
+        detail: latestTodayMood ? "Latest check-in" : "Needs a signal",
+        value: latestTodayMood ? String(latestTodayMood.mood) + "/10" : "Log",
+        tone: latestTodayMood && latestTodayMood.mood <= 4 ? "rose" : "cyan",
+        attention: !hasMoodToday,
+      },
+      {
+        href: "/v2/sleep",
+        label: "Sleep",
+        detail: latestSleep ? "Recovery logged" : "Add recovery",
+        value: latestSleep ? formatCompactHours(latestSleep.durationMins) : "Add",
+        tone: "violet",
+        attention: todaysSleep.length === 0,
+      },
+      {
+        href: "/v2/habits",
+        label: "Habits",
+        detail: activeHabits.length ? "Routine check" : "Create routines",
+        value: activeHabits.length ? String(loggedHabitCount) + "/" + String(activeHabits.length) : "Set",
+        tone: "emerald",
+        attention: activeHabits.length === 0 || loggedHabitCount < activeHabits.length,
+      },
+      {
+        href: "/v2/must-win",
+        label: "Must Win",
+        detail: todaysMustWin?.done ? "Closed" : todaysMustWin ? "In play" : "Choose one",
+        value: todaysMustWin?.done ? "Won" : todaysMustWin ? "Live" : "Set",
+        tone: "amber",
+        attention: !todaysMustWin?.done,
+      },
+      {
+        href: "/v2/daily?mode=backlog",
+        label: "Mind Sweep",
+        detail: looseTodoCount ? "Loose tasks" : "Capture ideas",
+        value: looseTodoCount ? String(looseTodoCount) + " loose" : "Open",
+        tone: "cyan",
+        attention: looseTodoCount > 0 || todaysTodos.length === 0,
+      },
+      {
+        href: "/v2/review",
+        label: "Review",
+        detail: todaysReview ? "Loop closed" : "End the day",
+        value: todaysReview ? "Done" : "Due",
+        tone: "slate",
+        attention: !todaysReview,
+      },
+    ];
+  }, [activeHabits, hasMoodToday, todayKey, todaysMood, todaysMustWin, todaysReview, todaysSleep, todaysTodos]);
 
   useEffect(() => {
     try {
@@ -601,29 +675,67 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-full w-full min-w-0 flex-col gap-8 pb-24 sm:pb-10">
-      <header className="hidden lg:block">
-        <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
-      </header>
-      <div className="lg:hidden">
-        <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
-      </div>
-
-      <section className="lg:hidden">
-        <div className="rounded-3xl border border-white/10 bg-slate-950/90 p-4 shadow-xl shadow-black/30 backdrop-blur-xl">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-400">Quick actions</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-white sm:grid-cols-3">
-            <QuickNavLink href="/v2?focus=mood" label="Mood" attention={!hasMoodToday} />
-            <QuickNavLink href="/v2/sleep" label="Sleep" attention={todaysSleep.length === 0} />
-            <QuickNavLink href="/v2/habits" label="Habits" attention={activeHabits.length === 0 || !hasHabitLoggedToday} />
-            <QuickNavLink href="/v2?focus=mustwin" label="Must Win" attention={!todaysMustWin?.done} />
-            <QuickNavLink href="/v2?focus=todos" label="Todos" attention={todaysTodos.length === 0 || !hasTodoDoneToday} />
-            <QuickNavLink href="/v2/review" label="Review" attention={!todaysReview} />
+    <div className="flex min-h-full w-full min-w-0">
+      <div
+        className={
+          "flex w-full min-w-0 flex-col gap-4 pb-0 lg:gap-8 lg:pb-6 " +
+          (mobileInsightsOpen ? "mobile-dashboard-open" : "mobile-dashboard-closed")
+        }
+      >
+        <header className="hidden lg:block">
+          <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
+        </header>
+      <section className="flex min-h-[calc(100dvh_-_var(--jarvis-mobile-nav-height)_-_9.5rem)] items-center lg:hidden">
+        <div className="theme-surface w-full rounded-[28px] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="theme-kicker text-[11px] uppercase tracking-[0.24em]">Quick remote</p>
+              <h2 className="theme-text mt-1 text-xl font-semibold">What needs you next?</h2>
+            </div>
+            <button
+              type="button"
+              onClick={demoMode ? disableDemoMode : enableDemoMode}
+              className="theme-button-secondary shrink-0 rounded-xl px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em]"
+            >
+              {demoMode ? "Real" : "Demo"}
+            </button>
+          </div>
+          <Link href={commandCenter.nextHref} className="theme-card mt-3 block rounded-2xl p-3 transition active:scale-[0.99] sm:mt-4 sm:p-4">
+            <p className="theme-muted text-[10px] uppercase tracking-[0.24em]">Recommended</p>
+            <p className="theme-text mt-1 text-sm font-semibold leading-6">{commandCenter.nextAction}</p>
+          </Link>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:grid-cols-3 sm:gap-3">
+            {quickRemoteTiles.map((tile) => (
+              <QuickNavLink key={tile.href + tile.label} {...tile} />
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="sticky top-3 z-30 flex justify-center lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileInsightsOpen((current) => !current)}
+          className="theme-button-secondary inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold shadow-lg backdrop-blur-xl"
+          aria-expanded={mobileInsightsOpen}
+        >
+          <svg
+            className={"h-4 w-4 transition-transform duration-200 " + (mobileInsightsOpen ? "rotate-180" : "")}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+          {mobileInsightsOpen ? "Hide details" : "Show details"}
+        </button>
+      </div>
+
+      <section className="mobile-dashboard-detail grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -633,7 +745,7 @@ export default function Home() {
             </div>
             <Link
               href="/v2/daily"
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
+              className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
             >
               Planner
             </Link>
@@ -671,7 +783,7 @@ export default function Home() {
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <Link
               href="/v2/homelab"
-              className="rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-zinc-950"
+              className="inline-flex min-h-9 items-center rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-zinc-950"
             >
               Homelab
             </Link>
@@ -682,7 +794,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid gap-6">
+      <section className="mobile-dashboard-detail grid gap-6">
         <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Weekly insight</p>
           <h2 className="mt-3 text-xl font-semibold text-white">{weeklyInsight.headline}</h2>
@@ -698,7 +810,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
+      <section className="mobile-dashboard-detail grid gap-6 lg:grid-cols-3">
         <div
           className={`glass-panel rounded-3xl border border-white/10 bg-white/5 px-6 py-6 backdrop-blur-lg lg:col-span-2 ${
             operatingModeCollapsed ? "lg:py-4" : ""
@@ -868,7 +980,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
+      <section className="mobile-dashboard-detail grid gap-6 lg:grid-cols-3">
         <div
           ref={moodPanelRef}
           className={`glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg ${focusKey === "mood" ? highlightClass : ""}`}
@@ -1005,7 +1117,7 @@ export default function Home() {
         />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
+      <section className="mobile-dashboard-detail grid gap-6 lg:grid-cols-3">
         <TodosPanel
           panelRef={todosPanelRef}
           className={focusKey === "todos" ? highlightClass : ""}
@@ -1035,17 +1147,6 @@ export default function Home() {
           onToggleCollapse={() => togglePanelCollapse("journal")}
         />
       </section>
-
-      <div className="lg:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileInsightsOpen((current) => !current)}
-          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.3em] text-white/80"
-          aria-expanded={mobileInsightsOpen}
-        >
-          {mobileInsightsOpen ? "Hide insights" : "View insights"}
-        </button>
-      </div>
 
       <section className={`grid gap-6 md:grid-cols-2 lg:grid-cols-3 ${mobileInsightsOpen ? "lg:grid" : "hidden lg:grid"}`}>
         {homelabSummary && (
@@ -1186,7 +1287,7 @@ export default function Home() {
 
       </section>
 
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+      <section className="mobile-dashboard-detail glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-medium text-white">End-of-day Review</h2>
@@ -1226,8 +1327,8 @@ export default function Home() {
       </section>
 
       {reviewOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#0b1326] p-6 text-white shadow-2xl">
+        <div className="theme-overlay fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="theme-modal w-full max-w-lg rounded-3xl p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold">30-second review</h3>
@@ -1333,11 +1434,11 @@ export default function Home() {
       )}
       {editingMood && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          className="theme-overlay fixed inset-0 z-50 flex items-center justify-center px-4"
           onClick={() => setEditingMood(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#0b1326] p-6 text-white shadow-2xl"
+            className="theme-modal w-full max-w-2xl rounded-3xl p-6"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1473,6 +1574,7 @@ export default function Home() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -2007,11 +2109,7 @@ function TimelinePanel({
   );
 }
 
-type QuickNavLinkProps = {
-  href: string;
-  label: string;
-  attention?: boolean;
-};
+type QuickNavLinkProps = RemoteTile;
 
 function CommandMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -2023,30 +2121,47 @@ function CommandMetric({ label, value, detail }: { label: string; value: string;
   );
 }
 
-function QuickNavLink({ href, label, attention = false }: QuickNavLinkProps) {
+function QuickNavLink({ href, label, detail, value, tone, attention = false }: QuickNavLinkProps) {
+  const dotClass =
+    "h-2.5 w-2.5 rounded-full " +
+    (attention ? remoteToneDotClass(tone) : "bg-white/25");
   return (
     <Link
       href={href}
-      className={`flex flex-col items-center justify-between gap-2 rounded-[24px] border px-4 py-4 text-center text-sm font-semibold uppercase tracking-[0.18em] transition ${
+      className="remote-tile theme-card flex min-w-0 flex-col justify-between rounded-2xl px-3 py-2.5 text-left transition active:scale-[0.98] hover:-translate-y-0.5 sm:py-3"
+      style={
         attention
-          ? "border-cyan-300/70 bg-cyan-300/10 text-white shadow-[0_16px_40px_rgba(14,165,233,0.12)]"
-          : "border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10"
-      }`}
+          ? {
+              borderColor: "color-mix(in srgb, var(--accent) 58%, var(--border))",
+              background: "linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--surface)), color-mix(in srgb, var(--surface) 86%, transparent))",
+            }
+          : undefined
+      }
     >
-      <span>{label}</span>
-      {attention ? (
-        <span className="rounded-full bg-cyan-300/10 px-2 py-1 text-[10px] font-semibold text-cyan-200">
-          ⚡
-        </span>
-      ) : (
-        <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold text-zinc-300">
-          Go
-        </span>
-      )}
+      <span className="relative z-10 flex items-start justify-between gap-2">
+        <span className="theme-text min-w-0 text-sm font-semibold leading-tight">{label}</span>
+        <span className={dotClass} />
+      </span>
+      <span className="relative z-10 block">
+        <span className="theme-text block text-lg font-semibold leading-tight">{value}</span>
+        <span className="theme-muted mt-1 block text-xs font-medium leading-tight">{detail}</span>
+      </span>
     </Link>
   );
 }
 
+function remoteToneDotClass(tone: RemoteTone) {
+  if (tone === "emerald") return "bg-emerald-300";
+  if (tone === "amber") return "bg-amber-300";
+  if (tone === "rose") return "bg-rose-300";
+  if (tone === "violet") return "bg-violet-300";
+  if (tone === "slate") return "bg-zinc-300";
+  return "bg-cyan-300";
+}
+
+function formatCompactHours(minutes: number) {
+  return (minutes / 60).toFixed(1) + "h";
+}
 type TodosPanelProps = {
   className?: string;
   panelRef?: RefObject<HTMLDivElement | null>;
