@@ -25,6 +25,8 @@ Required variables:
 - DATABASE_URL
 - NEXTAUTH_URL
 - NEXTAUTH_SECRET
+- REGISTRATION_DISABLED closes public signup when set to `true`
+- REGISTRATION_ACCESS_CODE requires a shared signup code when set
 
 Optional integration variables:
 

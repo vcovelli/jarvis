@@ -2,12 +2,16 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3000",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test src/lib/finance/classification.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/finance/classification.test.ts src/lib/registration.test.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "verify": "npm run lint && npm test && npm run build"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

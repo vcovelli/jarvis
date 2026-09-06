@@ -7,12 +7,14 @@ This folder is the long-form companion to the repository README files. Each docu
 - [Usage guide](./usage.md) — how to use the app day to day.
 - [Architecture guide](./architecture.md) — how the app is structured and how data flows.
 - [Deployment guide](./deployment.md) — how to run it locally, ship it, and keep it healthy in production.
+- [Deployment readiness](./deployment-readiness.md) — current SaaS, payment, and self-host readiness status.
 
 ## Recommended reading order
 
 1. Read the usage guide if you want to understand the product experience.
 2. Read the architecture guide if you want to modify or extend the app.
 3. Read the deployment guide before you ship anything to a real environment.
+4. Read deployment readiness before opening paid signups or selling a self-host package.
 
 ## Mental model
 
