@@ -1,28 +1,41 @@
-# Documentation Hub
+# Jarvis Documentation
 
-This folder is the long-form companion to the repository README files. Each document starts with a shallow overview and then moves into deeper implementation detail.
+This directory is the source of truth for how Jarvis is used, built, themed, and operated. Documentation is split by audience so a user can learn the product without reading implementation details and a contributor can trace behavior without relying on old roadmap assumptions.
 
-## Start here
+## Choose a guide
 
-- [Usage guide](./usage.md) — how to use the app day to day.
-- [Architecture guide](./architecture.md) — how the app is structured and how data flows.
-- [Deployment guide](./deployment.md) — how to run it locally, ship it, and keep it healthy in production.
-- [Deployment readiness](./deployment-readiness.md) — current SaaS, payment, and self-host readiness status.
+| Document | Audience | Purpose |
+| --- | --- | --- |
+| [Usage guide](./usage.md) | Users and testers | Navigation, daily workflows, every module, themes, demo mode, and sync behavior. |
+| [UI and theming](./ui-and-theming.md) | Designers and frontend contributors | Theme modes, palettes, semantic tokens, interaction rules, responsive layout, and accessibility expectations. |
+| [Architecture guide](./architecture.md) | Contributors and agents | Application boundaries, state flow, database models, APIs, authentication, and integrations. |
+| [Deployment guide](./deployment.md) | Operators | Local setup, environment variables, migrations, builds, reverse proxying, backups, and verification. |
+| [Deployment readiness](./deployment-readiness.md) | Product owners and operators | What is deployable now and what remains before open paid or packaged self-host distribution. |
 
-## Recommended reading order
+Additional implementation references:
 
-1. Read the usage guide if you want to understand the product experience.
-2. Read the architecture guide if you want to modify or extend the app.
-3. Read the deployment guide before you ship anything to a real environment.
-4. Read deployment readiness before opening paid signups or selling a self-host package.
+- [Web app README](../apps/web/README.md) — commands, project layout, environment configuration, and contributor workflow.
+- [Voice and finance status/roadmap](../apps/web/docs/voice-finance-roadmap.md) — current assistant pipeline, read-only finance model, and remaining integration work.
+- [`apps/web/.env.example`](../apps/web/.env.example) — canonical environment-variable template.
+- [`apps/web/prisma/schema.prisma`](../apps/web/prisma/schema.prisma) — canonical database schema.
 
-## Mental model
+## Product mental model
 
-Jarvis is a personal operating system for daily reflection and execution. The app combines:
+Jarvis combines two persistence styles:
 
-- lightweight logging for mood, journal, sleep, and review
-- planning tools for todos and time blocks
-- persistence through Prisma and a JSON-backed user state API
-- authentication and session handling through NextAuth
+- Daily-life modules use a responsive local cache and synchronize one structured `UserState` document per authenticated user.
+- Sensitive or query-heavy domains—finance and assistant history—use dedicated relational Prisma models and authenticated APIs.
 
-The docs below are written so a newcomer can understand the app quickly, while an agent or experienced developer can trace the implementation details without guessing.
+The shell groups features into Start, Daily rhythm, Growth, Resources, and Account. On mobile, Home, Plan, Assistant, and Finances stay one tap away; More opens the complete grouped navigation.
+
+## Documentation maintenance
+
+When behavior changes, update the closest guide in the same change:
+
+- User-visible workflows or navigation → `usage.md`
+- Global colors, surfaces, controls, responsive spacing, or interaction behavior → `ui-and-theming.md`
+- State, APIs, database models, auth, or integrations → `architecture.md`
+- Configuration, commands, infrastructure, or operational behavior → `deployment.md` and `apps/web/.env.example`
+- Product maturity or release blockers → `deployment-readiness.md`
+
+Do not describe a planned feature as shipped. The Focus, Fitness, Career, and Manufacturing pages are currently briefs, and external integrations must be documented as optional.

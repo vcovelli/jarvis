@@ -1,41 +1,73 @@
-# Voice and Finance Roadmap
+# Assistant Voice and Finance Status
 
-## Current voice architecture
+This document records what is implemented now and what remains. It is not a promise that roadmap items are shipped.
 
-1. The mobile bottom-bar microphone opens `/v2/assistant?voice=1`; when already on Assistant, it toggles the same voice capture control in place.
-2. The Assistant page starts browser speech recognition when available. It keeps listening through short pauses, auto-submits after a longer quiet pause, and the mic can be tapped again to submit immediately.
-3. If browser recognition is unavailable, Jarvis records audio with `MediaRecorder` and sends it to `/api/assistant/transcribe`.
-4. The transcription endpoint calls OpenAI only when `OPENAI_API_KEY` is configured.
-5. The resulting text is processed by the existing assistant command parser.
-6. If the command is not a strict template, `/api/assistant/intent` interprets it with OpenAI when configured or deterministic fuzzy parsing otherwise.
-7. Jarvis creates a draft action and requires confirmation before saving. Task drafts use the Daily planner-style review panel with schedule, repeat, priority, color, and icon controls.
+## Voice: current implementation
 
-This keeps voice fast while preserving the same save behavior and safety checks used by typed commands. Spoken commands use the shared intent layer first because transcripts are messy; typed commands keep the fast local parser and fall through to intent parsing when they are fuzzy. Task parsing treats schedule/date/priority phrases as metadata instead of title text, and ambiguous meal or evening times infer PM while breakfast and morning infer AM. Mood parsing accepts numeric scores, spoken number scores, inferred mood words, and configured mood tags. The intent layer is the start of a centralized life data model: it receives a compact context of todos, mood, sleep, mood tags, and server-side finance summaries, then turns user intent into explicit actions or insight responses.
+The center mobile navigation item opens `/v2/assistant`; it is an Assistant destination, not a microphone toggle. Voice capture starts from the microphone control inside the Assistant page.
 
-## Voice assistant operating model
+1. The page attempts the browser Speech Recognition API for fast command capture.
+2. Recognition continues through short pauses and can submit after a longer quiet period or an explicit second tap.
+3. When browser recognition is unavailable, Jarvis uses `MediaRecorder` and posts the captured audio to `/api/assistant/transcribe`.
+4. Server transcription requires `OPENAI_API_KEY` and uses `OPENAI_TRANSCRIPTION_MODEL` (`gpt-4o-mini-transcribe` by default).
+5. The transcript enters the same intent and confirmation pipeline as typed input.
 
-1. Capture the whole spoken command before parsing.
-2. Interpret speech with one shared intent layer rather than page-specific string templates.
-3. Show a draft for actions that create, move, complete, or log data.
-4. Make correction commands first-class, such as moving time, changing priority, completing a task, or adjusting a mood note.
-5. Keep the local fallback deterministic so the assistant still works when OpenAI is unavailable.
+Structured commands can add, move, update, complete, or schedule todos; log mood or sleep; add journal text; and return supported insights. The parser separates date, time, duration, priority, color, icon, and repeat metadata from a task title. It understands common day/time phrasing and configured mood tags.
 
-## Current finance architecture
+Mutating commands create a draft so the user can review the interpreted action before saving. The planner-style task draft exposes scheduling and presentation metadata. The local parser remains available when OpenAI is not configured; OpenAI fuzzy intent parsing is an optional fallback.
 
-1. Plaid Link token creation happens at `/api/finance/plaid/link-token`.
-2. Public tokens are exchanged at `/api/finance/plaid/exchange`.
-3. Plaid access tokens are encrypted server-side before storage.
-4. `/api/finance/sync` syncs accounts, Plaid Transactions Sync updates, and investment holdings.
-5. `/api/finance/summary` returns redacted read-only dashboard data.
-6. `/v2/finance` displays setup status, account balances, recent transactions, and holdings.
+## Assistant: current implementation
 
-The finance data is intentionally stored in dedicated Prisma models instead of the local Jarvis state blob because provider tokens and financial history need stricter server-side handling.
+Assistant history is no longer a temporary page-only concept. Jarvis persists:
 
-## Next implementation steps
+- user-owned conversations with titles, domains, descriptions, summaries, pinned state, and OpenClaw session keys
+- messages and their source/metadata
+- domain-scoped manual and derived memories
 
-1. Add Plaid webhook handling so transaction syncs happen automatically.
-2. Add custom categories and rules so Jarvis can adapt spending views to your actual life.
-3. Add recurring bill and subscription detection.
-4. Add monthly cashflow projections and savings-rate tracking.
-5. Add assistant finance questions, such as monthly spend summaries and account snapshots.
-6. Add Realtime voice conversation after the command-confirmation model is solid.
+`/api/assistant/message` routes recognized actions to the intent flow, Jarvis/homelab status questions to server snapshots, finance questions to server-side analytics, and general conversation to OpenClaw. OpenClaw output streams to the browser through Server-Sent Events. An unavailable gateway returns an explicit status message.
+
+## Finance: current implementation
+
+Finance is a dedicated server-side domain rather than part of the local `JarvisState` blob.
+
+1. `/api/finance/plaid/link-token` creates a signed, user-scoped Link session for either bank or investment products.
+2. `/api/finance/plaid/exchange` exchanges the public token and encrypts the access token before storage.
+3. `/api/finance/sync` imports accounts, transaction deltas, investment holdings, balance snapshots, normalized financial events, and net-worth snapshots.
+4. The classification layer distinguishes income, spend, savings, transfers, investment contributions, investment income, and review-needed events.
+5. Users can review events and create classification rules.
+6. Manual assets/liabilities and valuation history contribute to the broader net-worth view.
+7. `/api/finance/summary` returns redacted, read-only analytics for the dashboard.
+8. Finance questions use the same server analytics through the assistant message route.
+
+The UI supports setup state, account balances, cash flow, spending analysis, transactions, holdings, review items, rules, manual positions, net worth, and generated demo data. Jarvis does not move funds, execute trades, or modify an institution account.
+
+Removing a connection deletes its connection-scoped Jarvis records and attempts the provider unlink. It does not close or alter the underlying account.
+
+## Security model
+
+- All real assistant and finance routes require the signed-in user.
+- Ownership comes from the server session, not a client-supplied user id.
+- Plaid access tokens are encrypted with `FINANCIAL_DATA_KEY` or the `NEXTAUTH_SECRET` fallback.
+- Provider tokens never appear in the finance summary response.
+- Demo mode does not expose live finance data or write generated daily state into the personal workspace.
+- Structured assistant mutations retain an explicit user confirmation step.
+
+## Known limitations
+
+- Plaid synchronization is user-triggered; `PLAID_WEBHOOK_URL` can be supplied to Link, but the repository has no webhook receiver yet.
+- There is no background scheduler for transaction or holding refresh.
+- Classification rules can be created and applied by the system, but full rule editing/deletion and conflict-management UX should be audited before calling the workflow complete.
+- Finance analytics are informational and are not financial advice.
+- Browser speech support varies, and transcription fallback depends on microphone permission, browser recording support, network access, and OpenAI configuration.
+- General chat depends on OpenClaw availability and deployment-specific credentials/device identity.
+- Assistant/provider endpoints do not yet have a complete product-level quota and rate-limit system.
+
+## Next work
+
+1. Add signed Plaid webhook handling and idempotent background sync.
+2. Expand automated tests for sync deltas, route ownership, encryption/key failure, event review, and rule precedence.
+3. Complete classification-rule management and explain which rule changed each event.
+4. Add recurring bill/subscription detection and cash-flow projections.
+5. Add user-visible assistant/provider usage controls, privacy disclosures, and rate limits.
+6. Improve voice interruption, correction, and accessibility behavior across supported browsers.
+7. Consider realtime voice conversation only after the command-confirmation and operational safety model is stable.

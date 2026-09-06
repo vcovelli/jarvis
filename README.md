@@ -1,57 +1,68 @@
 # Jarvis OS
 
-Jarvis is a personal operating console for reflection, planning, and review. The app helps you capture how you feel, what matters today, and what you should do next without turning the experience into a heavy productivity system.
+Jarvis is a private, personal operating console for planning, reflection, health signals, goals, financial awareness, and lightweight systems tracking. It is designed around a quick daily loop: decide what must win, capture the day, do the work, and review the pattern.
 
-## What this app does
+The current product is a responsive Next.js application with credentials-based accounts, local-first interaction, authenticated Postgres synchronization, installable PWA behavior, and optional assistant, finance, real-estate, and homelab integrations.
 
-At a high level, Jarvis combines:
+## Product areas
 
-- quick daily check-ins for mood and notes
-- journal capture with prompt-driven entries
-- todo planning with lightweight time blocks
-- sleep logging and review patterns
-- objectives and homelab action tracking
+- **Start:** Home, Plan, and Assistant.
+- **Daily rhythm:** Must Win, Habits, Mood, Journal, and Sleep.
+- **Growth:** Focus, Objectives, Review, Fitness, and Career.
+- **Resources:** Finances, Real Estate, Homelab, and the homelab Docs browser.
+- **Account:** Platform settings, themes, password management, and account deletion.
+
+Focus, Fitness, Career, and the unlisted Manufacturing route are currently product briefs rather than complete trackers. Finance is read-only: Jarvis can organize and analyze connected data, but it cannot move money.
+
+## Stack
+
+- Next.js 16 App Router, React 19, and TypeScript
+- Tailwind CSS 4 plus semantic theme tokens
+- NextAuth credentials authentication with JWT sessions
+- Prisma 5 and PostgreSQL
+- Optional OpenClaw, OpenAI, Plaid, RentCast, Prometheus, Grafana, and filesystem-backed homelab docs
 
 ## Quick start
 
-From the repository root:
+Requirements: Node.js 20.9 or newer, npm, and PostgreSQL.
 
 ```bash
 cd apps/web
+cp .env.example .env
 npm install
-npx prisma migrate dev --name init
+npx prisma migrate dev
 npm run dev
 ```
 
-Then open http://localhost:3000.
+Set `DATABASE_URL`, `NEXTAUTH_URL`, and `NEXTAUTH_SECRET` in `.env`, then open [http://localhost:3000](http://localhost:3000). Optional integrations can remain unset; their pages either degrade gracefully or provide demo data.
 
-## Documentation
+Before handing off a change, run:
 
-The repository now includes a layered documentation set designed for both humans and agents:
+```bash
+npm run verify
+```
 
-- [docs/README.md](docs/README.md) — documentation hub
-- [docs/usage.md](docs/usage.md) — shallow overview plus deeper feature walkthroughs
-- [docs/architecture.md](docs/architecture.md) — how the app is structured and how data flows
-- [docs/deployment.md](docs/deployment.md) — local, staging, and production deployment guidance
-
-## App structure
+## Repository map
 
 ```text
 jarvis/
-  apps/web/      # Next.js app
-  docs/          # product, architecture, and deployment docs
+├── apps/web/                 # Application, API routes, Prisma schema, and app-specific docs
+│   ├── prisma/               # Database schema and versioned migrations
+│   └── src/                  # App Router pages, components, state, and integrations
+└── docs/                     # Product, UI, architecture, deployment, and readiness guides
 ```
 
-## Core product areas
+## Documentation
 
-- Dashboard — daily mood and system check-in
-- Journal — prompt-based entries
-- Todos — planning and time-blocking
-- Sleep — sleep logging and schedules
-- Review — weekly reflection and insight
-- Objectives — longer-term focus tracking
-- Homelab — operational action tracking
+- [Documentation hub](docs/README.md)
+- [User guide](docs/usage.md)
+- [UI and theming](docs/ui-and-theming.md)
+- [Architecture](docs/architecture.md)
+- [Deployment runbook](docs/deployment.md)
+- [Deployment readiness](docs/deployment-readiness.md)
+- [Web developer reference](apps/web/README.md)
+- [Voice and finance status/roadmap](apps/web/docs/voice-finance-roadmap.md)
 
-## Deployment note
+## Current deployment posture
 
-The app is built for a standard Next.js deployment with Postgres and Prisma. For the full production checklist, see [docs/deployment.md](docs/deployment.md).
+Jarvis is suitable for controlled personal or invited-user deployment. Keep public registration disabled or access-code gated until account recovery, email verification, abuse controls, billing entitlements, formal policies, and operational runbooks are complete. See [deployment readiness](docs/deployment-readiness.md) for the detailed gap list.

@@ -1,90 +1,169 @@
-# Web app README
+# Jarvis Web Application
 
-This is the web application for Jarvis. It is a Next.js app using the App Router, TypeScript, Prisma, and NextAuth.
+This directory contains the deployable Jarvis OS application: a Next.js 16 App Router project using React 19, TypeScript, Tailwind CSS 4, NextAuth, Prisma 5, and PostgreSQL.
 
-## Quick start
+## Requirements
 
-```bash
-npm install
-npx prisma migrate dev --name init
-npm run dev
-```
+- Node.js 20.9 or newer
+- npm
+- PostgreSQL
 
-Open http://localhost:3000.
-
-## Required environment variables
-
-Create an environment file from the example and fill in the values:
+## Start locally
 
 ```bash
 cp .env.example .env
+npm install
+npx prisma migrate dev
+npm run dev
 ```
 
-Required variables:
+Set the three required values in `.env` first:
 
-- DATABASE_URL
-- NEXTAUTH_URL
-- NEXTAUTH_SECRET
-- REGISTRATION_DISABLED closes public signup when set to `true`
-- REGISTRATION_ACCESS_CODE requires a shared signup code when set
-
-Optional integration variables:
-
-- OPENAI_API_KEY enables server transcription when the browser cannot do speech recognition directly.
-- OPENAI_TRANSCRIPTION_MODEL defaults to `gpt-4o-mini-transcribe`.
-- OPENAI_INTENT_MODEL controls fuzzy assistant intent parsing and defaults to `gpt-5`.
-- PLAID_ENV, PLAID_CLIENT_ID, and PLAID_SECRET enable Plaid Link in the finance dashboard.
-- Plaid products are selected by the finance connection mode: Bank / Credit Card requests `transactions`; Investment Account requests `transactions,investments`.
-- PLAID_COUNTRY_CODES defaults to `US`.
-- FINANCIAL_DATA_KEY encrypts Plaid access tokens at rest. Use a stable 64-character hex value from `openssl rand -hex 32`.
-
-## Main areas
-
-- dashboard and daily check-in
-- journal
-- todos and planning
-- sleep logging
-- review and reflections
-- account and auth flows
-
-
-## Progressive web app install
-
-Jarvis is configured as an installable web app with a manifest, standalone display mode, mobile theme colors, and Home Screen icons. The installed app starts at `/v2` and removes the normal browser URL and navigation chrome when launched from the Home Screen.
-
-- Android Chrome: open Jarvis in Chrome, tap the three-dot menu, then tap **Add to Home screen** or **Install app**. Launch Jarvis from the new Home Screen icon.
-- iPhone or iPad: Safari is the most reliable path. Open Jarvis in Safari, tap Share, tap **Add to Home Screen**, keep **Open as Web App** enabled if shown, then tap **Add**.
-- Chrome on iPhone may expose Add to Home Screen through the iOS share sheet on newer iOS versions, but Safari is still the cleanest install path to verify first.
-
-## Voice and finance integrations
-
-Voice action starts from the center mic in the mobile bottom bar or the Assistant page. The browser Speech Recognition API is used first for fast command capture. If the browser does not support it, Jarvis records a short audio clip and posts it to `/api/assistant/transcribe`, which uses OpenAI when `OPENAI_API_KEY` is configured. The transcript is routed through the existing assistant command flow, so voice-created items still show the normal confirmation card before they are saved.
-
-The assistant now has a shared intent layer in `src/lib/assistantIntent.ts`. Typed or spoken commands first try the fast local parser, then fall through to `/api/assistant/intent` for fuzzy parsing. That route can use OpenAI when configured and falls back to deterministic local parsing when it is not. Supported fuzzy intents include adding tasks, moving tasks across dates, changing task priority or schedule, completing tasks, logging mood, logging sleep, adding journal notes, and asking for basic insights from current Jarvis and finance data. Task commands strip date, time, duration, and priority metadata from the saved title, so a phrase like `add a task for 5:30pm today for dinner high priority` becomes `Dinner` at `17:30` with high priority. Ambiguous meal or evening times infer PM; breakfast and morning infer AM.
-
-Finance data is intentionally separate from the local-first Jarvis state blob. Plaid access tokens are stored only on the server in `FinancialConnection.accessTokenEncrypted`, protected by `FINANCIAL_DATA_KEY` or `NEXTAUTH_SECRET`. Accounts, transactions, and investment holdings sync into dedicated Prisma tables and are exposed through `/api/finance/summary`. The first version is read-only: Jarvis can connect, sync, display, and analyze data, but it cannot move money.
-
-Before using Plaid locally, run the finance migration and regenerate Prisma:
-
-```bash
-npx prisma migrate dev --name finance_foundation
-npx prisma generate
+```dotenv
+DATABASE_URL="postgres://user:password@localhost:5432/jarvis"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="replace-with-a-long-random-string"
 ```
 
-## State persistence
+Open [http://localhost:3000](http://localhost:3000). The public landing page sends authenticated users to `/v2`; direct `/v2` requests send unauthenticated users to `/login`.
 
-Jarvis state is managed in `src/lib/jarvisStore.ts` and persisted in two layers:
+## Commands
 
-- Local browser cache: every hydrated state change writes the full sanitized state to `localStorage` under a user-specific key. UI preferences, such as planner day and planner view mode, use separate localStorage keys.
-- Authenticated server sync: signed-in users also sync the same state to `/api/state`, backed by Prisma `UserState`. Saves are pushed immediately after local cache writes, retried when the browser comes back online, and flushed with a best-effort beacon or keepalive request when the tab is hidden or closed.
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the development server. |
+| `npm run lint` | Run ESLint. |
+| `npm test` | Run the configured finance-classification and registration tests. |
+| `npm run build` | Create a production Next.js build. |
+| `npm run start` | Serve the build on `127.0.0.1:3000`. |
+| `npm run prisma:generate` | Regenerate Prisma Client. |
+| `npm run prisma:migrate:deploy` | Apply committed migrations in production. |
+| `npm run verify` | Run lint, tests, and the production build. |
 
-Each local snapshot has metadata with its ETag, local save time, remote sync time, and whether a remote save is pending. During startup, a pending local snapshot wins over older server data so recently entered app data is not replaced by stale remote state. Once the server confirms the same ETag, the pending flag is cleared.
+Use `npx prisma migrate dev --name <description>` only when creating a deliberate schema change. Existing installations should apply the committed migration history.
 
-The v2 shell displays the current save status: loading, saving soon, saving, synced, saved locally, or save issue.
+## Project map
+
+```text
+prisma/
+  schema.prisma              relational models
+  migrations/                versioned database changes
+public/icons/                PWA and Home Screen artwork
+src/app/
+  api/                       server route handlers
+  v2/                        authenticated product routes
+  layout.tsx                 metadata, providers, and global CSS
+  manifest.ts               installable PWA manifest
+src/components/              shell and reusable UI
+src/lib/
+  jarvisStore.ts             local-first daily state and synchronization
+  theme.ts                   foundation/palette preference runtime
+  assistant/                 intent routing, conversations, and memory
+  finance/                   classification, normalization, and analytics
+  openclaw/                  general-chat gateway client
+  realEstate/                provider, demo data, and calculations
+  homelabDocs.ts             filesystem documentation/snapshot adapter
+  prometheus.ts              monitoring adapter
+```
+
+## Product routes
+
+- Start: `/v2`, `/v2/daily`, `/v2/assistant`
+- Daily rhythm: `/v2/must-win`, `/v2/habits`, `/v2/mood`, `/v2/journal`, `/v2/sleep`
+- Growth: `/v2/objectives`, `/v2/review`, plus Focus/Fitness/Career briefs
+- Resources: `/v2/finance`, `/v2/real-estate`, `/v2/homelab`, `/v2/documentation`
+- Account: `/v2/settings`, `/v2/account`
+
+`/v2/daily` re-exports the planner at `/v2/todos`. `/v2/manufacturing` remains a deployment-specific brief and is intentionally absent from the primary navigation.
+
+## Configuration
+
+[`./.env.example`](./.env.example) is the canonical variable template. Optional groups are:
+
+- Registration: `REGISTRATION_DISABLED`, `REGISTRATION_ACCESS_CODE`
+- OpenAI: `OPENAI_API_KEY`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_INTENT_MODEL`
+- OpenClaw: gateway URL/credentials, agent, session prefix, and optional local config/device paths
+- Plaid: environment, credentials, country codes, webhook metadata, and redirect URI
+- Finance encryption: `FINANCIAL_DATA_KEY`
+- RentCast: API key, monthly budget/reserve, and cache TTL
+- Homelab: docs root, Prometheus URL, and Grafana URL
+
+Core daily modules run without the optional integrations. Finance and Real Estate provide explicit setup/demo states; general assistant chat reports an unavailable OpenClaw gateway; homelab views depend on the host’s files and network.
+
+See [deployment.md](../../docs/deployment.md) for every variable, default, hosting constraint, and production command.
+
+## Persistence boundaries
+
+### Daily workspace
+
+`src/lib/jarvisStore.ts` keeps mood, journal, todos, sleep, Must Win, habits, reviews, objectives, custom mood tags, and homelab actions in one sanitized `JarvisState` document.
+
+- A user-scoped `localStorage` copy makes interaction immediate.
+- `/api/state` persists the authenticated copy in Prisma `UserState`.
+- ETags and conditional writes detect cross-device conflicts.
+- Pending writes retry after reconnect and get a best-effort page-hide flush.
+- Deletion tombstones stop moods, mood tags, and todos from returning during merges.
+- Demo mode uses isolated generated state and skips real-state persistence.
+
+The shell exposes loading, saving, synced, local-only, and error status plus manual refresh.
+
+### Finance and assistant
+
+Finance does not live in the JSON state document. Connections, encrypted provider tokens, accounts, transactions, holdings, normalized events, rules, manual positions, and snapshots use dedicated Prisma tables. The system is read-only with respect to external accounts.
+
+Assistant conversations, messages, and memory also use dedicated tables. Structured daily actions flow back through the client’s confirmation UI before changing `JarvisState`.
+
+## Assistant behavior
+
+The Assistant page is the center item in the mobile navigation; voice starts from the microphone control inside the page.
+
+1. Browser speech recognition is attempted when available.
+2. Otherwise `MediaRecorder` audio can be posted to `/api/assistant/transcribe` when OpenAI is configured.
+3. Typed or transcribed text enters the shared intent layer.
+4. Deterministic parsing handles common commands; `/api/assistant/intent` can use OpenAI for fuzzy input.
+5. Structured changes produce a draft/confirmation flow.
+6. Status and finance questions use Jarvis server data.
+7. General chat streams from an optional OpenClaw gateway.
+
+See [docs/voice-finance-roadmap.md](./docs/voice-finance-roadmap.md) for current limitations and next work.
+
+## Finance behavior
+
+Plaid connection modes request only the relevant products:
+
+- Bank / Credit Card → `transactions`
+- Investment Account → `transactions,investments`
+
+Tokens are encrypted server-side with `FINANCIAL_DATA_KEY`, falling back to `NEXTAUTH_SECRET`. Never expose either key or an access token to a client component. The finance dashboard supports synchronization, analytics, manual positions, event review, stored classification rules, and assistant questions; it cannot move money or place trades.
+
+## Progressive web app
+
+`src/app/manifest.ts` configures Jarvis as a standalone portrait-oriented PWA starting at `/v2`. Icons live in `public/icons`. Mobile layout reserves safe-area and bottom-navigation space.
+
+- Android/Chrome: use **Install app** or **Add to Home screen**.
+- iPhone/iPad: use Safari’s **Share → Add to Home Screen** flow.
+
+Jarvis does not currently register a custom offline service worker. Installation and local-first editing should not be described as complete offline application support.
+
+## UI contract
+
+Theme foundation (`light`, `dark`, `contrast`) and palette (`ocean`, `forest`, `rose`, `violet`) are independent. Use semantic theme primitives from `globals.css`; do not add a page-specific navy background or hardcoded icon color. `PageViewport` owns shared route spacing and scroll reset behavior.
+
+Read [UI and theming](../../docs/ui-and-theming.md) before modifying global surfaces, controls, navigation, or responsive layout.
+
+## Before opening a pull request
+
+1. Keep unrelated worktree changes intact.
+2. Update the relevant documentation with behavior changes.
+3. Add or update tests for non-trivial data and authorization logic.
+4. Run `npm run verify`.
+5. Smoke-test mobile navigation, local/server sync, and representative theme combinations for UI changes.
 
 ## Related documentation
 
-- [../../README.md](../../README.md) — repository overview
-- [../../docs/usage.md](../../docs/usage.md) — how to use the app
-- [../../docs/architecture.md](../../docs/architecture.md) — implementation details
-- [../../docs/deployment.md](../../docs/deployment.md) — deployment guidance
+- [Repository overview](../../README.md)
+- [Documentation hub](../../docs/README.md)
+- [Usage guide](../../docs/usage.md)
+- [Architecture](../../docs/architecture.md)
+- [Deployment](../../docs/deployment.md)
+- [Deployment readiness](../../docs/deployment-readiness.md)

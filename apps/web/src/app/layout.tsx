@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Jarvis OS",
   applicationName: "Jarvis OS",
-  description: "A personal operating console for planning, reflection, and systems tracking.",
+  description: "A private personal operating console for planning, reflection, health signals, finance, and systems tracking.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
