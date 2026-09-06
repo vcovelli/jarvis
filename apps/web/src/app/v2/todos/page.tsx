@@ -124,12 +124,15 @@ export default function TodosPage() {
   } = useJarvisState();
   const search = useSearchParams();
   const initialFocusTodoId = search?.get("focus") ?? undefined;
+  const plannerMode = search?.get("mode") ?? "";
+  const backlogMode = plannerMode === "backlog";
   const focusDay = search?.get("day");
   const todayKey = getDayKey();
   const [selectedDay, setSelectedDay] = useState<DayKey>(() =>
     normalizeDayKey(focusDay ?? todayKey, todayKey),
   );
   const [focusedTodoId, setFocusedTodoId] = useState<string | undefined>(() => initialFocusTodoId);
+  const mindSweepRef = useRef<HTMLDivElement | null>(null);
   const todaysMustWin = state.mustWin[selectedDay];
   const [text, setText] = useState("");
   const [priority, setPriority] = useState<TodoPriority>(1);
@@ -140,6 +143,8 @@ export default function TodosPage() {
   const [icon, setIcon] = useState<string>(defaultTaskIcon);
   const [mustWinText, setMustWinText] = useState("");
   const [mustWinTime, setMustWinTime] = useState("");
+  const [mindSweepText, setMindSweepText] = useState("");
+  const [mindSweepPriority, setMindSweepPriority] = useState<TodoPriority>(2);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [editPriority, setEditPriority] = useState<TodoPriority>(1);
@@ -170,6 +175,20 @@ export default function TodosPage() {
     () => getOrderedTodos(state.todos[selectedDay] ?? []),
     [state.todos, selectedDay],
   );
+  const unscheduledTodosForDay = useMemo(
+    () => todosForDay.filter((todo) => !todo.startTime && !todo.done),
+    [todosForDay],
+  );
+  const lingeringTodos = useMemo(() => {
+    const items = Object.entries(state.todos)
+      .flatMap(([day, todos]) =>
+        todos.map((todo) => ({ day: day as DayKey, todo })),
+      )
+      .filter((item) => item.day !== selectedDay && !item.todo.done && !item.todo.startTime)
+      .sort((a, b) => b.todo.createdTs - a.todo.createdTs);
+    return items.slice(0, 8);
+  }, [selectedDay, state.todos]);
+
   const existingTaskOptions = useMemo(() => {
     const flattened = Object.values(state.todos).flat();
     const sorted = [...flattened].sort((a, b) => b.createdTs - a.createdTs);
@@ -277,6 +296,21 @@ export default function TodosPage() {
     repeatMonthDay,
   ]);
 
+  const submitMindSweepTask = useCallback(() => {
+    const trimmed = mindSweepText.trim();
+    if (!trimmed) return;
+    const suggestion = suggestTaskStyle(trimmed);
+    addTodo({
+      day: selectedDay,
+      text: trimmed,
+      priority: mindSweepPriority,
+      color: suggestion.color ?? "#2dd4bf",
+      icon: suggestion.icon ?? "spark",
+    });
+    setMindSweepText("");
+    showToast("Captured to mind sweep");
+  }, [addTodo, mindSweepPriority, mindSweepText, selectedDay, showToast]);
+
   const submitMustWin = useCallback(() => {
     const trimmed = mustWinText.trim();
     if (!trimmed) return;
@@ -290,21 +324,26 @@ export default function TodosPage() {
     showToast("Must Win locked");
   }, [mustWinText, mustWinTime, selectedDay, setMustWin, showToast]);
 
+  const beginEditForDay = useCallback((day: DayKey, todo: TodoItem) => {
+    setSelectedDay(day);
+    setEditingId(todo.id);
+    setEditText(todo.text);
+    setEditPriority(todo.priority);
+    setEditTimeblock(todo.timeblockMins);
+    setEditDay(day);
+    setEditStartTime(todo.startTime ?? "");
+    setEditEndTime(buildEndTime(todo.startTime ?? "", todo.timeblockMins));
+    setEditColor(todo.color ?? defaultBlockColor);
+    setEditIcon(todo.icon ?? defaultTaskIcon);
+    setApplyToSeries(false);
+    setPanelMode("edit");
+  }, []);
+
   const beginEdit = useCallback(
     (todo: TodoItem) => {
-      setEditingId(todo.id);
-      setEditText(todo.text);
-      setEditPriority(todo.priority);
-      setEditTimeblock(todo.timeblockMins);
-      setEditDay(selectedDay);
-      setEditStartTime(todo.startTime ?? "");
-      setEditEndTime(buildEndTime(todo.startTime ?? "", todo.timeblockMins));
-      setEditColor(todo.color ?? defaultBlockColor);
-      setEditIcon(todo.icon ?? defaultTaskIcon);
-      setApplyToSeries(false);
-      setPanelMode("edit");
+      beginEditForDay(selectedDay, todo);
     },
-    [selectedDay],
+    [beginEditForDay, selectedDay],
   );
 
   const cancelEdit = useCallback(() => {
@@ -352,6 +391,39 @@ export default function TodosPage() {
       }
     },
     [panelMode, styleLocked],
+  );
+
+  const scheduleMindSweepDraft = useCallback(() => {
+    const trimmed = mindSweepText.trim();
+    const suggestion = suggestTaskStyle(trimmed);
+    cancelEdit();
+    setText(trimmed);
+    setPriority(mindSweepPriority);
+    setTimeblock(undefined);
+    setStartTime("");
+    setEndTime("");
+    setColor(suggestion.color ?? "#2dd4bf");
+    setIcon(suggestion.icon ?? "spark");
+    setStyleLocked(Boolean(suggestion.color || suggestion.icon));
+    setRepeatType("none");
+    setRepeatWeekdays([]);
+    setRepeatMonthDay(dayKeyToDate(selectedDay).getDate());
+    setExistingTaskId("");
+    setPanelMode("add");
+    showToast(trimmed ? "Draft ready to schedule" : "Ready to schedule a task");
+  }, [cancelEdit, mindSweepPriority, mindSweepText, selectedDay, showToast]);
+
+  const scheduleMindSweepTodo = useCallback(
+    (day: DayKey, todo: TodoItem, moveToSelectedDay = false) => {
+      if (moveToSelectedDay && day !== selectedDay) {
+        moveTodo({ fromDay: day, id: todo.id, toDay: selectedDay });
+        beginEditForDay(selectedDay, todo);
+        showToast("Moved here to schedule");
+        return;
+      }
+      beginEditForDay(day, todo);
+    },
+    [beginEditForDay, moveTodo, selectedDay, showToast],
   );
 
   const applyTimeRange = useCallback((range: TimeRangeState) => {
@@ -529,6 +601,14 @@ export default function TodosPage() {
   }, [initialFocusTodoId]);
 
   useEffect(() => {
+    if (!backlogMode) return;
+    const frame = requestAnimationFrame(() => {
+      mindSweepRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [backlogMode]);
+
+  useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         (document.activeElement as HTMLElement)?.blur();
@@ -635,8 +715,9 @@ export default function TodosPage() {
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-6 pb-6 lg:h-full lg:min-h-0 lg:gap-0 lg:overflow-hidden lg:pb-0">
-        <DayTimeline
-          todos={todosForDay}
+        <div className={backlogMode ? "order-2 lg:contents" : "order-1 lg:contents"}>
+          <DayTimeline
+            todos={todosForDay}
           selectedDay={selectedDay}
           weekDays={weekDays}
           dayColorMap={dayColorMap}
@@ -649,8 +730,9 @@ export default function TodosPage() {
           onFocusTodo={focusTodoOnPage}
           onToggle={(id) => toggleTodo({ day: selectedDay, id })}
           onShiftDay={handleShiftDay}
-          onJumpToday={jumpToToday}
-        />
+            onJumpToday={jumpToToday}
+          />
+        </div>
         <div className="hidden lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-5 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
           <TimeBlockingBoard
             todos={todosForDay}
@@ -694,7 +776,29 @@ export default function TodosPage() {
           />
         </div>
 
-        <div className="lg:hidden">
+        <div ref={mindSweepRef} className={"lg:hidden " + (backlogMode ? "order-1" : "order-2")}>
+          <MindSweepCard
+            selectedDay={selectedDay}
+            text={mindSweepText}
+            onTextChange={setMindSweepText}
+            priority={mindSweepPriority}
+            onPriorityChange={setMindSweepPriority}
+            onSubmit={submitMindSweepTask}
+            onScheduleDraft={scheduleMindSweepDraft}
+            unscheduledTodos={unscheduledTodosForDay}
+            lingeringTodos={lingeringTodos}
+            onToggle={(id) => toggleTodo({ day: selectedDay, id })}
+            onSchedule={(day, todo) => scheduleMindSweepTodo(day, todo)}
+            onDelete={handleDelete}
+            onMoveToSelectedDay={(day, id) => {
+              moveTodo({ fromDay: day, id, toDay: selectedDay });
+              showToast("Moved into selected day");
+            }}
+            onMoveAndSchedule={(day, todo) => scheduleMindSweepTodo(day, todo, true)}
+          />
+        </div>
+
+        <div className="order-3 lg:hidden">
           <MustWinCard
             selectedDay={selectedDay}
             todayKey={todayKey}
@@ -720,7 +824,7 @@ export default function TodosPage() {
       <button
         type="button"
         onClick={openAddPanel}
-        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400 text-2xl font-semibold text-zinc-900 shadow-2xl lg:hidden"
+        className="fixed bottom-[calc(var(--jarvis-mobile-nav-height)+1rem)] right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400 text-2xl font-semibold text-zinc-900 shadow-2xl lg:hidden"
       >
         <span className="sr-only">Add task</span>
         +
@@ -786,7 +890,7 @@ function DesktopPlannerRail({
 
   return (
     <aside className="hidden min-h-0 min-w-0 flex-col gap-5 lg:flex lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
-      <section className="rounded-[24px] border border-white/10 bg-[#0b1224]/85 p-4 text-white shadow-[0_24px_70px_rgba(2,6,23,0.24)] backdrop-blur-xl">
+      <section className="theme-workspace rounded-[24px] border p-4 shadow-[0_24px_70px_rgba(2,6,23,0.24)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] uppercase tracking-[0.35em] text-cyan-200/70">Control rail</p>
@@ -853,6 +957,182 @@ function PlannerMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3">
       <p className="text-[9px] uppercase tracking-[0.3em] text-white/45">{label}</p>
       <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+type MindSweepCardProps = {
+  selectedDay: DayKey;
+  text: string;
+  onTextChange: (value: string) => void;
+  priority: TodoPriority;
+  onPriorityChange: (value: TodoPriority) => void;
+  onSubmit: () => void;
+  onScheduleDraft: () => void;
+  unscheduledTodos: TodoItem[];
+  lingeringTodos: Array<{ day: DayKey; todo: TodoItem }>;
+  onToggle: (id: string) => void;
+  onSchedule: (day: DayKey, todo: TodoItem) => void;
+  onDelete: (id: string) => void;
+  onMoveToSelectedDay: (day: DayKey, id: string) => void;
+  onMoveAndSchedule: (day: DayKey, todo: TodoItem) => void;
+};
+
+function MindSweepCard({
+  selectedDay,
+  text,
+  onTextChange,
+  priority,
+  onPriorityChange,
+  onSubmit,
+  onScheduleDraft,
+  unscheduledTodos,
+  lingeringTodos,
+  onToggle,
+  onSchedule,
+  onDelete,
+  onMoveToSelectedDay,
+  onMoveAndSchedule,
+}: MindSweepCardProps) {
+  const looseCount = unscheduledTodos.length + lingeringTodos.length;
+  return (
+    <section className="theme-surface rounded-[28px] p-5 text-white backdrop-blur-lg">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="theme-kicker text-[10px] uppercase tracking-[0.32em]">Mind sweep</p>
+          <h2 className="theme-text mt-1 text-xl font-semibold">Capture before scheduling</h2>
+          <p className="theme-muted mt-2 text-sm leading-6">Use this as the soft backlog for loose thoughts, reminders, and ideas before they deserve a time slot.</p>
+        </div>
+        <span className="theme-pill is-active shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em]">
+          {looseCount} loose
+        </span>
+      </div>
+
+      <form
+        className="mt-5 grid gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        <textarea
+          value={text}
+          onChange={(event) => onTextChange(event.target.value)}
+          rows={3}
+          className="theme-input w-full rounded-2xl px-4 py-3 text-base focus:outline-none"
+          placeholder="Dump the thought that keeps looping. It can become a block later."
+        />
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="flex flex-wrap gap-2">
+            {([1, 2, 3] as TodoPriority[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onPriorityChange(option)}
+                className={"theme-chip rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] " + (priority === option ? "is-active" : "")}
+              >
+                {priorityLabel(option)}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="submit" className="theme-button-primary rounded-2xl px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em]">
+              Capture
+            </button>
+            <button type="button" onClick={onScheduleDraft} className="theme-button-secondary rounded-2xl px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em]">
+              Schedule
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <div className="mt-5 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="theme-kicker text-[10px] uppercase tracking-[0.3em]">Loose on {formatTaskPanelDate(selectedDay)}</p>
+          <span className="theme-muted text-xs">{unscheduledTodos.length}</span>
+        </div>
+        {unscheduledTodos.length ? (
+          unscheduledTodos.map((todo) => (
+            <MindSweepItem
+              key={todo.id}
+              todo={todo}
+              meta={priorityLabel(todo.priority)}
+              onToggle={() => onToggle(todo.id)}
+              onSchedule={() => onSchedule(selectedDay, todo)}
+              scheduleLabel="Schedule"
+              onDelete={() => onDelete(todo.id)}
+            />
+          ))
+        ) : (
+          <p className="theme-card rounded-2xl border-dashed px-4 py-5 text-center text-sm theme-muted">
+            Nothing loose for {formatTaskPanelDate(selectedDay)}. Capture an idea or schedule the draft directly.
+          </p>
+        )}
+      </div>
+
+      {lingeringTodos.length > 0 && (
+        <div className="theme-divider mt-6 border-t pt-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="theme-kicker text-[10px] uppercase tracking-[0.3em]">Lingering elsewhere</p>
+            <span className="theme-muted text-xs">{lingeringTodos.length}</span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {lingeringTodos.map(({ day, todo }) => (
+              <MindSweepItem
+                key={day + "-" + todo.id}
+                todo={todo}
+                meta={formatTaskPanelDate(day) + " - " + priorityLabel(todo.priority)}
+                onMove={() => onMoveToSelectedDay(day, todo.id)}
+                onSchedule={() => onSchedule(day, todo)}
+                scheduleLabel="Schedule there"
+                onMoveAndSchedule={() => onMoveAndSchedule(day, todo)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MindSweepItem({
+  todo,
+  meta,
+  onToggle,
+  onSchedule,
+  onDelete,
+  scheduleLabel = "Schedule",
+  onMove,
+  onMoveAndSchedule,
+}: {
+  todo: TodoItem;
+  meta: string;
+  onToggle?: () => void;
+  onSchedule?: () => void;
+  onDelete?: () => void;
+  scheduleLabel?: string;
+  onMove?: () => void;
+  onMoveAndSchedule?: () => void;
+}) {
+  const windowLabel = formatTodoTimeWindow(todo);
+  return (
+    <div className="theme-card rounded-2xl px-4 py-3">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-white/10 bg-black/20 text-sm">
+          {getTaskIconSymbol(todo.icon, todo.text)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="theme-text break-words text-sm font-semibold">{todo.text}</p>
+          <p className="theme-muted mt-1 text-[10px] uppercase tracking-[0.22em]">{windowLabel || meta}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        {onToggle && <button type="button" onClick={onToggle} className="theme-button-secondary rounded-xl px-3 py-2 text-xs font-semibold">Done</button>}
+        {onMove && <button type="button" onClick={onMove} className="theme-button-secondary rounded-xl px-3 py-2 text-xs font-semibold">Move here</button>}
+        {onSchedule && <button type="button" onClick={onSchedule} className="theme-button-secondary rounded-xl px-3 py-2 text-xs font-semibold">{scheduleLabel}</button>}
+        {onMoveAndSchedule && <button type="button" onClick={onMoveAndSchedule} className="theme-button-primary rounded-xl px-3 py-2 text-xs font-semibold">Move and schedule</button>}
+        {onDelete && <button type="button" onClick={onDelete} className="rounded-xl border border-red-300/40 px-3 py-2 text-xs font-semibold text-red-200">Delete</button>}
+      </div>
     </div>
   );
 }
@@ -962,7 +1242,7 @@ function SelectField({
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full appearance-none rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none mobile-todos-input sm:text-sm"
+          className="theme-input mobile-todos-input w-full appearance-none rounded-2xl px-4 py-3 text-base font-medium focus:outline-none sm:text-sm"
         >
           {children}
         </select>
@@ -1144,7 +1424,7 @@ function TimePillSelector({
             onClick={() => moveBy(-1)}
             disabled={!canMoveEarlier}
             aria-label={`Move ${label} earlier`}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-sm text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-sm text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
           >
             -
           </button>
@@ -1153,7 +1433,7 @@ function TimePillSelector({
             onClick={() => moveBy(1)}
             disabled={!canMoveLater}
             aria-label={`Move ${label} later`}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-sm text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-sm text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
           >
             +
           </button>
@@ -1161,8 +1441,8 @@ function TimePillSelector({
       </div>
       <div className="relative rounded-2xl border border-white/10 bg-black/30 p-2 shadow-inner">
         <div className="pointer-events-none absolute inset-x-3 top-1/2 h-10 -translate-y-1/2 rounded-full border border-cyan-200/20 bg-white/[0.04]" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-8 rounded-t-2xl bg-gradient-to-b from-[#0b1121] via-[#0b1121]/85 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-2xl bg-gradient-to-t from-[#0b1121] via-[#0b1121]/85 to-transparent" />
+        <div className="theme-scroll-fade-top pointer-events-none absolute inset-x-0 top-0 h-8 rounded-t-2xl" />
+        <div className="theme-scroll-fade-bottom pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-2xl" />
         <div
           ref={listRef}
           onScroll={handleScroll}
@@ -1283,7 +1563,7 @@ function CustomEmojiField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         maxLength={4}
-        className="rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none mobile-todos-input sm:text-sm"
+        className="theme-input mobile-todos-input rounded-2xl px-4 py-3 text-base font-medium focus:outline-none sm:text-sm"
         placeholder="e.g. 🧠"
       />
     </div>
@@ -1358,7 +1638,7 @@ function DayTimeline({
     [scheduleSegments, nowMinutes],
   );
   return (
-    <div className="-mx-4 rounded-none border border-transparent bg-[#0b1224] px-4 py-5 text-white shadow-none mobile-todos-panel sm:mx-0 sm:rounded-3xl lg:hidden">
+    <div className="theme-workspace mobile-todos-panel rounded-[24px] border px-3 py-5 shadow-none sm:px-4 sm:rounded-3xl lg:hidden">
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -1366,7 +1646,7 @@ function DayTimeline({
             <button
               type="button"
               onClick={onOpenCalendar}
-              className="mt-1 inline-flex items-baseline gap-1 text-left text-2xl font-semibold leading-tight text-white underline-offset-4 hover:underline"
+              className="mt-1 inline-flex min-h-10 flex-wrap items-center gap-x-1 text-left text-2xl font-semibold leading-tight text-white underline-offset-4 hover:underline"
             >
               <span>{monthLabel}</span>
               <span>{dayNumber},</span>
@@ -1374,7 +1654,7 @@ function DayTimeline({
             </button>
             <p className="mt-1 text-[11px] text-white/50">Tap the date to open the calendar.</p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => onShiftDay(-1)}
@@ -1386,7 +1666,7 @@ function DayTimeline({
             <button
               type="button"
               onClick={onJumpToday}
-              className="rounded-full border border-white/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/80 transition hover:border-white/50"
+              className="min-h-10 rounded-full border border-white/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80 transition hover:border-white/50"
             >
               Today
             </button>
@@ -1401,44 +1681,13 @@ function DayTimeline({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Planned today</p>
-            <div className="mt-3 flex flex-wrap gap-2 text-sm text-white/80">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{taskCount} blocks</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{totalPlannedMinutes ? `${formatPlannedDuration(totalPlannedMinutes)} planned` : "No time set"}</span>
-              {recurringCount > 0 && (
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{recurringCount} recurring</span>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onAddTask}
-            className="flex items-center justify-center rounded-3xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/15"
-          >
-            New focus block
-          </button>
-        </div>
-
-        {isToday && (
-          <NowStatusCard
-            nowMinutes={nowMinutes}
-            context={nowContext}
-            onCurrentTaskClick={(todo) => {
-              setTimelineMode("schedule");
-              onFocusTodo(todo.id);
-            }}
-          />
-        )}
-
         <div className="flex flex-wrap gap-2">
           {(["list", "schedule"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setTimelineMode(mode)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-[0.25em] transition ${
+              className={`min-h-10 rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] transition ${
                 timelineMode === mode
                   ? "bg-cyan-300 text-zinc-950"
                   : "border border-white/10 bg-white/5 text-white/80 hover:border-white/30 hover:text-white"
@@ -1450,7 +1699,7 @@ function DayTimeline({
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-black/30 px-2 py-3 shadow-inner">
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-0.5">
             {weekDays.map((day) => {
               const active = day.key === selectedDay;
               const colors = dayColorMap[day.key] ?? [];
@@ -1459,11 +1708,11 @@ function DayTimeline({
                   key={day.key}
                   type="button"
                   onClick={() => onSelectDay(day.key)}
-                  className={`flex min-w-0 flex-col items-center rounded-2xl px-0.5 py-1 text-center transition ${
+                  className={`flex min-h-[4.75rem] min-w-0 flex-col items-center justify-center rounded-2xl px-0 py-1 text-center transition ${
                     active ? "text-white" : "text-white/60 hover:text-white"
                   }`}
                 >
-                  <span className="text-[9px] uppercase tracking-[0.45em] text-white/40">{day.weekday}</span>
+                  <span className="text-[9px] uppercase tracking-[0.18em] text-white/40">{day.weekday}</span>
                   <span
                     className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold ${
                       active ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30" : "border border-white/10 bg-white/5 text-white/80"
@@ -1484,6 +1733,37 @@ function DayTimeline({
             })}
           </div>
         </div>
+
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Planned today</p>
+            <div className="mt-3 flex flex-wrap gap-2 text-sm text-white/80">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{taskCount} blocks</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{totalPlannedMinutes ? `${formatPlannedDuration(totalPlannedMinutes)} planned` : "No time set"}</span>
+              {recurringCount > 0 && (
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{recurringCount} recurring</span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onAddTask}
+            className="flex min-h-12 items-center justify-center rounded-3xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/15"
+          >
+            New focus block
+          </button>
+        </div>
+
+        {isToday && (
+          <NowStatusCard
+            nowMinutes={nowMinutes}
+            context={nowContext}
+            onCurrentTaskClick={(todo) => {
+              setTimelineMode("schedule");
+              onFocusTodo(todo.id);
+            }}
+          />
+        )}
 
         <div className="mt-2">
           {timelineMode === "schedule" ? (
@@ -1540,8 +1820,8 @@ function DayTimeline({
                             showLabel={segment.type === "task"}
                           />
                         )}
-                        <div className="relative z-10 flex h-full flex-col justify-between gap-3">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="relative z-10 flex h-full min-w-0 flex-col justify-between gap-3">
+                          <div className="grid min-w-0 gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
                             <div className="flex min-w-0 items-center gap-3">
                               {segment.type === "task" && (
                                 <div
@@ -1552,7 +1832,7 @@ function DayTimeline({
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold uppercase tracking-[0.3em] text-white/70">
+                                <p className="max-w-full break-words text-sm font-semibold leading-snug text-white/80">
                                   {segment.type === "gap" ? "Free window" : segment.event.title}
                                 </p>
                                 <p className="mt-1 text-sm text-white/80">
@@ -1560,7 +1840,7 @@ function DayTimeline({
                                 </p>
                               </div>
                             </div>
-                            <div className="flex shrink-0 items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               {segment.type === "task" && (
                                 <button
                                   type="button"
@@ -1569,7 +1849,7 @@ function DayTimeline({
                                     onToggle(segment.event.todo.id);
                                   }}
                                   aria-pressed={segment.event.todo.done}
-                                  className={`min-h-10 rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] transition ${
+                                  className={`min-h-10 rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
                                     segment.event.todo.done
                                       ? "bg-emerald-300 text-emerald-950"
                                       : "border border-emerald-300/50 bg-emerald-300/10 text-emerald-100 hover:border-emerald-300"
@@ -1578,7 +1858,7 @@ function DayTimeline({
                                   {segment.event.todo.done ? "Done" : "Mark done"}
                                 </button>
                               )}
-                              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-white/70">
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-white/70">
                                 {formatPlannedDuration(segment.durationMinutes)}
                               </span>
                               {segment.type === "task" && (
@@ -1588,7 +1868,7 @@ function DayTimeline({
                                     eventClick.stopPropagation();
                                     onEdit(segment.event.todo);
                                   }}
-                                  className="rounded-full border border-cyan-300/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-200 hover:border-cyan-300"
+                                  className="min-h-9 rounded-full border border-cyan-300/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-200 hover:border-cyan-300"
                                 >
                                   Edit
                                 </button>
@@ -1600,7 +1880,7 @@ function DayTimeline({
                                     eventClick.stopPropagation();
                                     onDelete(segment.event.todo.id);
                                   }}
-                                  className="rounded-full border border-red-300/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-red-200 hover:border-red-300"
+                                  className="min-h-9 rounded-full border border-red-300/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-red-200 hover:border-red-300"
                                 >
                                   Delete
                                 </button>
@@ -1614,7 +1894,7 @@ function DayTimeline({
                                 : `Open time`}
                             </p>
                           ) : (
-                            <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-white/60">
+                            <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-white/60">
                               <span>{priorityLabel(segment.event.todo.priority)}</span>
                               <span>{segment.event.todo.done ? "Completed" : "Open"}</span>
                             </div>
@@ -1720,7 +2000,7 @@ function DayTimeline({
                                 onToggle(todo.id);
                               }}
                               aria-pressed={todo.done}
-                              className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] transition ${
+                              className={`min-h-9 rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
                                 todo.done
                                   ? "bg-emerald-300 text-emerald-950"
                                   : "border border-emerald-300/50 bg-emerald-300/10 text-emerald-100 hover:border-emerald-300"
@@ -1734,7 +2014,7 @@ function DayTimeline({
                                 eventClick.stopPropagation();
                                 onEdit(todo);
                               }}
-                              className="rounded-full border border-cyan-300/40 px-3 py-1 text-[10px] font-semibold text-cyan-200 hover:border-cyan-300"
+                              className="min-h-9 rounded-full border border-cyan-300/40 px-3 py-2 text-[10px] font-semibold text-cyan-200 hover:border-cyan-300"
                             >
                               Schedule
                             </button>
@@ -1744,7 +2024,7 @@ function DayTimeline({
                                 eventClick.stopPropagation();
                                 onDelete(todo.id);
                               }}
-                              className="rounded-full border border-red-300/40 px-3 py-1 text-[10px] font-semibold text-red-200 hover:border-red-300"
+                              className="min-h-9 rounded-full border border-red-300/40 px-3 py-2 text-[10px] font-semibold text-red-200 hover:border-red-300"
                             >
                               Delete
                             </button>
@@ -1999,7 +2279,7 @@ function TimeBlockingBoard({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col rounded-[28px] border border-white/10 bg-[#08101f]/85 p-5 text-white shadow-[0_24px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
+    <div className="theme-workspace flex min-h-0 min-w-0 flex-col rounded-[28px] border p-5 shadow-[0_24px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
       <div className="flex shrink-0 flex-col gap-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -2314,7 +2594,7 @@ function TaskList({ todos, onEdit, onDelete, onReorder, highlightId, onToggle, o
   };
 
   return (
-    <div className={`min-w-0 ${isRail ? "rounded-[24px] border border-white/10 bg-[#0b1224]/85 p-4 text-white shadow-[0_24px_70px_rgba(2,6,23,0.22)] backdrop-blur-xl" : "glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg"}`}>
+    <div className={`min-w-0 ${isRail ? "theme-workspace rounded-[24px] border p-4 shadow-[0_24px_70px_rgba(2,6,23,0.22)] backdrop-blur-xl" : "glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg"}`}>
       <div className={`flex flex-col gap-2 ${isRail ? "" : "sm:flex-row sm:items-center sm:justify-between"}`}>
         <div>
           <h3 className="text-lg font-medium text-white">Task stack</h3>
@@ -2478,11 +2758,11 @@ function TaskPanel({
   const durationMinutes = timeblock ?? computeTimeblockFromTimes(startTime, endTime);
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end overflow-x-hidden bg-black/60 backdrop-blur-sm mobile-todos-overlay"
+      className="theme-overlay mobile-todos-overlay fixed inset-0 z-40 flex justify-end overflow-x-hidden backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="h-full w-full max-w-md overflow-y-auto bg-[#0b1121] p-6 shadow-2xl mobile-todos-drawer sm:rounded-l-3xl lg:max-w-2xl"
+        className="theme-modal mobile-todos-drawer h-full w-full max-w-md overflow-y-auto p-6 shadow-2xl sm:rounded-l-3xl lg:max-w-2xl"
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)",
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -2565,7 +2845,7 @@ function TaskPanel({
                     type="date"
                     value={day}
                     onChange={(event) => onDayChange(event.target.value as DayKey)}
-                    className="w-full rounded-2xl border border-white/15 bg-[#111629] px-4 py-3 text-base font-medium text-white focus:border-cyan-400/60 focus:outline-none sm:text-sm"
+                    className="theme-input w-full rounded-2xl px-4 py-3 text-base font-medium focus:outline-none sm:text-sm"
                   />
                 </label>
               )}
@@ -2730,9 +3010,9 @@ function CalendarOverlay({ selectedDay, markers, onSelect, onClose }: CalendarOv
   const monthLabel = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const cells = useMemo(() => buildCalendarMatrix(viewDate), [viewDate]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 calendar-overlay px-4 py-6" onClick={onClose}>
+    <div className="theme-overlay calendar-overlay fixed inset-0 z-50 flex items-center justify-center px-4 py-6" onClick={onClose}>
       <div
-        className="calendar-panel w-full max-w-md rounded-3xl border border-white/10 bg-[#050912] p-6 text-white shadow-2xl"
+        className="theme-modal calendar-panel w-full max-w-md rounded-3xl p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3">

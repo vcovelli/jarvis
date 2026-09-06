@@ -217,7 +217,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
         <div className="flex flex-wrap gap-2">
           <Link
             href="/v2/documentation?doc=monitoring/health.md"
-            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
+            className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
           >
             Health docs
           </Link>
@@ -225,7 +225,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
             href={grafanaUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
+            className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
           >
             Grafana
           </a>
@@ -233,7 +233,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
             type="button"
             onClick={() => void handleManualRefresh()}
             disabled={isRefreshing}
-            className="rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-9 rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isRefreshing ? "Refreshing" : "Refresh"}
           </button>
@@ -532,7 +532,7 @@ function MonitoringSection({
             href={grafanaUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/50"
+            className="inline-flex min-h-9 items-center rounded-full border border-white/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/50"
           >
             Open Grafana
           </a>

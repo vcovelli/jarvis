@@ -3,11 +3,18 @@
 import { useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 
-import { applyTheme, getStoredTheme, onThemeChange, type ThemeMode } from "@/lib/theme";
+import {
+  getStoredTheme,
+  onThemeChange,
+  themeModeOptions,
+  themePaletteOptions,
+  updateThemePreference,
+  type ThemePreference,
+} from "@/lib/theme";
 
 export default function AccountPage() {
   const { data: session } = useSession();
-  const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
+  const [theme, setTheme] = useState<ThemePreference>(() => getStoredTheme());
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,6 +32,11 @@ export default function AccountPage() {
   useEffect(() => {
     return onThemeChange(setTheme);
   }, []);
+
+  function updateTheme(patch: Partial<ThemePreference>) {
+    const next = updateThemePreference(patch);
+    setTheme(next);
+  }
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-8">
@@ -48,28 +60,55 @@ export default function AccountPage() {
         </button>
       </section>
 
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-        <h2 className="text-lg font-medium text-white">Theme</h2>
-        <p className="mt-2 text-sm text-zinc-300">Switch between dark and light mode.</p>
-        <div className="mt-4 inline-flex rounded-full border border-white/10 bg-white/5 p-1 text-xs uppercase tracking-[0.3em]">
-          {(["dark", "light"] as const).map((option) => {
-            const active = theme === option;
-            return (
-              <button
-                key={option}
-                type="button"
-                  onClick={() => {
-                    setTheme(option);
-                    applyTheme(option);
-                  }}
-                className={`rounded-full px-4 py-2 font-semibold transition ${
-                  active ? "bg-white text-zinc-900" : "text-zinc-300 hover:text-white"
-                }`}
-              >
-                {option}
-              </button>
-            );
-          })}
+      <section className="theme-surface rounded-3xl p-6">
+        <h2 className="theme-text text-lg font-medium">Appearance</h2>
+        <p className="theme-muted mt-2 text-sm">Choose brightness and color independently. Every palette is designed for both light and dark foundations.</p>
+
+        <div className="mt-6">
+          <p className="theme-kicker text-[10px] font-semibold uppercase tracking-[0.3em]">Foundation</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {themeModeOptions.map((option) => {
+              const active = theme.mode === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => updateTheme({ mode: option.value })}
+                  className={"theme-card rounded-2xl p-4 text-left transition hover:-translate-y-0.5 " + (active ? "is-active" : "")}
+                >
+                  <span className="block h-9 w-full rounded-xl border border-[var(--border)]" style={{ background: option.swatch }} />
+                  <span className="theme-text mt-3 block text-sm font-semibold">{option.label}</span>
+                  <span className="theme-muted mt-1 block text-xs leading-5">{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <p className="theme-kicker text-[10px] font-semibold uppercase tracking-[0.3em]">Color palette</p>
+            {theme.mode === "contrast" && <p className="theme-muted text-xs">High Contrast uses a brighter version of each palette</p>}
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {themePaletteOptions.map((option) => {
+              const active = theme.palette === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => updateTheme({ palette: option.value })}
+                  className={"theme-card rounded-2xl p-4 text-left transition hover:-translate-y-0.5 " + (active ? "is-active" : "")}
+                >
+                  <span className="block h-10 w-full rounded-xl border border-[var(--border)]" style={{ background: option.swatch }} />
+                  <span className="theme-text mt-3 block text-sm font-semibold">{option.label}</span>
+                  <span className="theme-muted mt-1 block text-xs leading-5">{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 

@@ -133,7 +133,7 @@ export function PullToRefresh() {
       aria-live="polite"
       aria-label={isRefreshing ? "Refreshing state" : "State refresh gesture"}
     >
-      <div className="flex h-11 items-center gap-2 rounded-full border border-cyan-200/25 bg-slate-950/88 px-2.5 pr-3.5 shadow-[0_14px_34px_rgba(2,6,23,0.38)] backdrop-blur-2xl">
+      <div className="theme-workspace-chrome flex h-11 items-center gap-2 rounded-full border px-2.5 pr-3.5 backdrop-blur-2xl">
         <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-white/8">
           <span
             className={"absolute inset-0 rounded-full " + (isRefreshing ? "animate-spin" : "")}

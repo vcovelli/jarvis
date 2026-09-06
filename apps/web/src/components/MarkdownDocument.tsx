@@ -47,9 +47,9 @@ export function MarkdownDocument({ content }: MarkdownDocumentProps) {
           return (
             <pre
               key={`${block.type}-${index}`}
-              className="overflow-x-auto rounded-2xl border border-white/10 bg-black/50 p-4 text-xs leading-6 text-zinc-200"
+              className="overflow-x-auto whitespace-pre-wrap break-words rounded-2xl border border-white/10 bg-black/50 p-4 text-xs leading-6 text-zinc-200"
             >
-              <code>{block.text}</code>
+              <code className="block max-w-full whitespace-pre-wrap break-words">{block.text}</code>
             </pre>
           );
         }
@@ -187,7 +187,7 @@ function renderInline(value: string) {
   return parts.map((part, index) => {
     if (part.startsWith("`") && part.endsWith("`")) {
       return (
-        <code key={`${part}-${index}`} className="rounded bg-white/10 px-1.5 py-0.5 text-cyan-100">
+        <code key={`${part}-${index}`} className="break-words rounded bg-white/10 px-1.5 py-0.5 text-cyan-100">
           {part.slice(1, -1)}
         </code>
       );

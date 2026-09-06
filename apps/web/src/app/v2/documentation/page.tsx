@@ -76,7 +76,7 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
       <div className="grid min-w-0 gap-6 lg:grid-cols-[20rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
         <aside className="glass-panel h-fit rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg lg:sticky lg:top-10">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Categories</p>
-          <nav className="mt-4 max-h-[70dvh] space-y-5 overflow-y-auto pr-1">
+          <nav className="mt-4 space-y-5 pr-1 lg:max-h-[70dvh] lg:overflow-y-auto">
             {Object.entries(groupedDocs).map(([category, docs]) => (
               <div key={category}>
                 <p className="text-[11px] uppercase tracking-[0.25em] text-cyan-200/80">
@@ -87,7 +87,7 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
                     <Link
                       key={doc.id}
                       href={`/v2/documentation?doc=${encodeURIComponent(doc.id)}`}
-                      className={`block rounded-xl px-3 py-2 text-sm ${
+                      className={`block min-h-10 rounded-xl px-3 py-2 text-sm ${
                         document?.id === doc.id
                           ? "bg-cyan-300/15 text-cyan-100"
                           : "text-zinc-300 hover:bg-white/5 hover:text-white"
@@ -107,7 +107,7 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
           </nav>
         </aside>
 
-        <main className="glass-panel min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+        <section className="glass-panel min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           {document ? (
             <>
               <div className="mb-6 flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-5">
@@ -126,15 +126,15 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
                 <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.25em] text-white/80">
                   Raw Markdown
                 </summary>
-                <pre className="mt-4 max-h-96 overflow-auto rounded-2xl bg-black/40 p-4 text-xs leading-6 text-zinc-200">
-                  <code>{document.content}</code>
+                <pre className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-black/40 p-4 text-xs leading-6 text-zinc-200">
+                  <code className="block max-w-full whitespace-pre-wrap break-words">{document.content}</code>
                 </pre>
               </details>
             </>
           ) : (
             <p className="text-sm text-zinc-300">No documentation files found.</p>
           )}
-        </main>
+        </section>
       </div>
     </div>
   );

@@ -315,11 +315,11 @@ export default function HabitsPage() {
   });
 
   return (
-    <div className="fixed inset-0 z-30 h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_top_right,rgba(129,140,248,0.14),transparent_26%),#060912] text-zinc-50 lg:relative lg:inset-auto lg:z-auto lg:h-full lg:rounded-[28px]">
+    <div className="theme-immersive-shell fixed inset-0 z-30 h-dvh overflow-hidden lg:relative lg:inset-auto lg:z-auto lg:h-full lg:rounded-[28px]">
       <div className="grid h-full max-h-full w-full min-w-0 gap-4 px-3 pb-0 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pb-0 sm:pt-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <section
           className={
-            "relative flex h-full min-h-0 touch-pan-y flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/74 shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl transition-[transform] " +
+            "theme-workspace relative flex h-full min-h-0 touch-pan-y flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl transition-[transform] " +
             (swipeDragging ? "duration-0" : "duration-200 ease-out")
           }
           style={{ transform: `translate3d(${swipeOffset}px, 0, 0)` }}
@@ -330,7 +330,7 @@ export default function HabitsPage() {
           onClickCapture={handleSwipeClickCapture}
         >
           <SwipeHint direction={swipeOffset < 0 ? 1 : swipeOffset > 0 ? -1 : 0} ready={swipeReady} viewMode={viewMode} />
-          <header className="z-30 shrink-0 border-b border-white/10 bg-slate-950/84 px-3 py-3 backdrop-blur-2xl sm:px-4">
+          <header className="theme-workspace-chrome z-30 shrink-0 border-b px-3 py-3 backdrop-blur-2xl sm:px-4">
             <div className="grid grid-cols-[2.6rem_minmax(0,1fr)_2.6rem] items-center gap-2">
               <button
                 type="button"
@@ -344,7 +344,7 @@ export default function HabitsPage() {
                 <button
                   type="button"
                   onClick={() => selectDay(todayKey)}
-                  className="max-w-full truncate text-[17px] font-semibold leading-tight text-zinc-50 transition hover:text-cyan-100"
+                  className="min-h-10 max-w-full truncate rounded-full px-3 text-[17px] font-semibold leading-tight text-zinc-50 transition hover:bg-white/5 hover:text-cyan-100"
                 >
                   {selectedDayLabel}
                 </button>
@@ -368,7 +368,7 @@ export default function HabitsPage() {
                 type="button"
                 onClick={() => shiftDay(-1)}
                 aria-label="Previous day"
-                className="ml-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:text-white active:scale-95"
+                className="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:text-white active:scale-95"
               >
                 <ChevronLeftIcon />
               </button>
@@ -376,7 +376,7 @@ export default function HabitsPage() {
                 type="button"
                 onClick={() => shiftDay(1)}
                 aria-label="Next day"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:text-white active:scale-95"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:text-white active:scale-95"
               >
                 <ChevronRightIcon />
               </button>
@@ -385,8 +385,8 @@ export default function HabitsPage() {
             <DayStrip days={visibleDays} viewMode={viewMode} onSelectDay={selectDay} />
           </header>
 
-          <div className="shrink-0 border-b border-white/10 bg-slate-950/58 px-3 py-3 sm:px-4">
-            <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="theme-workspace-subtle shrink-0 border-b px-3 py-3 sm:px-4">
+            <div className="flex flex-wrap gap-2 pb-1">
               {categories.map((category) => {
                 const active = category === categoryFilter;
                 const count = category === "All" ? orderedHabits.length : orderedHabits.filter((habit) => habit.category === category).length;
@@ -399,7 +399,7 @@ export default function HabitsPage() {
                       pulse(8);
                     }}
                     className={
-                      "flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition active:scale-[0.98] " +
+                      "flex min-h-10 items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition active:scale-[0.98] " +
                       (active
                         ? "border-cyan-200/50 bg-cyan-300/14 text-cyan-100"
                         : "border-white/10 bg-white/5 text-zinc-400 hover:border-white/20 hover:text-zinc-100")
@@ -442,7 +442,7 @@ export default function HabitsPage() {
             )}
           </main>
 
-          <footer data-no-pull-refresh="true" data-no-swipe="true" className="shrink-0 border-t border-white/10 bg-slate-950/86 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.55rem)] pt-2 shadow-[0_-18px_45px_rgba(2,6,23,0.36)] backdrop-blur-2xl lg:hidden">
+          <footer data-no-pull-refresh="true" data-no-swipe="true" className="theme-workspace-chrome shrink-0 border-t px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.55rem)] pt-2 shadow-[0_-18px_45px_rgba(2,6,23,0.36)] backdrop-blur-2xl lg:hidden">
             <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
               <ToolbarButton label="Home" href="/v2" icon={<HomeIcon />} />
               <ToolbarButton label="Today" onClick={() => selectDay(todayKey)} icon={<CalendarIcon />} />
@@ -454,7 +454,7 @@ export default function HabitsPage() {
         </section>
 
         <aside className="hidden min-h-0 flex-col gap-4 lg:flex">
-          <section className="rounded-[28px] border border-white/10 bg-white/[0.055] p-4 shadow-[0_24px_80px_rgba(2,6,23,0.22)] backdrop-blur-2xl">
+          <section className="theme-card rounded-[28px] p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-200/70">Habits</p>
@@ -476,7 +476,7 @@ export default function HabitsPage() {
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-white/10 bg-white/[0.055] p-4 shadow-[0_24px_80px_rgba(2,6,23,0.22)] backdrop-blur-2xl">
+          <section className="theme-card rounded-[28px] p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Active</p>
@@ -506,7 +506,7 @@ export default function HabitsPage() {
             )}
           </section>
 
-          <section className="min-h-0 flex-1 rounded-[28px] border border-white/10 bg-white/[0.055] p-4 shadow-[0_24px_80px_rgba(2,6,23,0.22)] backdrop-blur-2xl">
+          <section className="theme-card min-h-0 flex-1 rounded-[28px] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Day</p>
@@ -637,7 +637,7 @@ function InlineActionBar({
   onApply: (status: HabitLogStatus | "erase") => void;
 }) {
   return (
-    <div data-no-swipe="true" className="mt-3 grid grid-cols-4 gap-2 rounded-[20px] border border-white/10 bg-slate-950/62 p-2 shadow-inner">
+    <div data-no-swipe="true" className="theme-workspace-subtle mt-3 grid grid-cols-4 gap-2 rounded-[20px] border p-2 shadow-inner">
       <ActionButton label="Erase" icon={<EraseIcon />} active={false} onClick={() => onApply("erase")} tone="neutral" disabled={!isRecordedStatus(currentStatus)} />
       <ActionButton label="Yes" icon={<CheckIcon />} active={currentStatus === "yes"} onClick={() => onApply("yes")} tone="yes" />
       <ActionButton label="No" icon={<XIcon />} active={currentStatus === "no"} onClick={() => onApply("no")} tone="no" />
@@ -706,10 +706,10 @@ function HabitEditor({
   onDelete?: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-slate-950/74 p-0 backdrop-blur-md sm:items-center sm:justify-center sm:p-6">
+    <div className="theme-overlay fixed inset-0 z-50 flex items-end p-0 backdrop-blur-md sm:items-center sm:justify-center sm:p-6">
       <form
         onSubmit={onSubmit}
-        className="w-full rounded-t-[30px] border border-white/10 bg-[linear-gradient(145deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.15rem)] text-white shadow-[0_-24px_80px_rgba(2,6,23,0.45)] sm:max-w-lg sm:rounded-[30px] sm:pb-5"
+        className="theme-modal w-full rounded-t-[30px] p-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.15rem)] shadow-[0_-24px_80px_rgba(2,6,23,0.45)] sm:max-w-lg sm:rounded-[30px] sm:pb-5"
       >
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -857,7 +857,7 @@ function SegmentedControl({ value, onChange }: { value: ViewMode; onChange: (val
             pulse(8);
           }}
           className={
-            "rounded-full px-3 py-2 capitalize transition " +
+            "min-h-9 rounded-full px-3 py-2 capitalize transition " +
             (value === mode ? "bg-white text-slate-950 shadow-sm" : "hover:text-zinc-100")
           }
         >
@@ -871,7 +871,7 @@ function SegmentedControl({ value, onChange }: { value: ViewMode; onChange: (val
 function EmptyState({ onAdd, onStarters }: { onAdd: () => void; onStarters: () => void }) {
   return (
     <div className="grid min-h-[48dvh] place-items-center px-3 py-10">
-      <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-white/[0.055] p-5 text-center shadow-[0_24px_80px_rgba(2,6,23,0.25)]">
+      <div className="theme-card w-full max-w-sm rounded-[28px] p-5 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-cyan-300/12 text-cyan-100">
           <CheckIcon />
         </div>
@@ -900,7 +900,7 @@ function SwipeHint({ direction, ready, viewMode }: { direction: -1 | 0 | 1; read
           "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] shadow-[0_16px_40px_rgba(2,6,23,0.34)] backdrop-blur-2xl transition " +
           (ready
             ? "border-cyan-200/60 bg-cyan-300 text-slate-950"
-            : "border-white/10 bg-slate-950/82 text-cyan-100")
+            : "theme-workspace-chrome border-white/10 text-cyan-100")
         }
       >
         {ready ? `Release for ${target}` : `Swipe for ${target}`}

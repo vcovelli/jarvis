@@ -13,12 +13,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#1b2235,#060912)] px-4 py-10 text-zinc-100 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-[0_30px_90px_rgba(2,6,23,0.35)] backdrop-blur-2xl sm:p-8">
-        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-cyan-400/12 via-white/6 to-indigo-400/10 p-4">
-          <p className="text-[10px] uppercase tracking-[0.45em] text-cyan-200/80">Jarvis OS</p>
-          <h1 className="mt-3 text-3xl font-semibold text-white">Welcome back</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">Sign in to your personal console and keep your day moving smoothly.</p>
+    <div className="theme-shell flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+      <div className="theme-surface w-full max-w-md rounded-[32px] p-6 sm:p-8">
+        <div className="theme-card rounded-[24px] p-4">
+          <p className="theme-kicker text-[10px] uppercase tracking-[0.45em]">Jarvis OS</p>
+          <h1 className="theme-text mt-3 text-3xl font-semibold">Welcome back</h1>
+          <p className="theme-muted mt-2 text-sm leading-6">Sign in to your personal console and keep your day moving smoothly.</p>
         </div>
 
         <form
@@ -41,40 +41,40 @@ export default function LoginPage() {
           }}
         >
           <div className="space-y-2">
-            <label className="text-xs uppercase tracking-[0.3em] text-zinc-400">Email</label>
+            <label className="theme-muted text-xs uppercase tracking-[0.3em]">Email</label>
             <input
               type="email"
               autoComplete="email"
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
+              className="theme-input w-full rounded-2xl px-4 py-3 text-sm outline-none transition"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs uppercase tracking-[0.3em] text-zinc-400">Password</label>
+            <label className="theme-muted text-xs uppercase tracking-[0.3em]">Password</label>
             <input
               type="password"
               autoComplete="current-password"
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
+              className="theme-input w-full rounded-2xl px-4 py-3 text-sm outline-none transition"
             />
           </div>
           {error && <p className="text-sm text-rose-200">{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-full bg-cyan-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-900 transition hover:bg-cyan-200 disabled:opacity-70"
+            className="theme-button-primary w-full rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] transition disabled:opacity-70"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
-        <p className="mt-6 text-xs text-zinc-400">
+        <p className="theme-muted mt-6 text-xs">
           New here?{" "}
-          <Link href="/register" className="font-semibold text-cyan-200 hover:text-cyan-100">
+          <Link href="/register" className="theme-accent-text font-semibold">
             Create an account
           </Link>
         </p>
