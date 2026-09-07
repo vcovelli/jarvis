@@ -27,17 +27,22 @@ export default function LoginPage() {
             event.preventDefault();
             setError(null);
             setLoading(true);
-            const result = await signIn("credentials", {
-              redirect: false,
-              email,
-              password,
-            });
-            setLoading(false);
-            if (result?.error) {
-              setError("Invalid email or password.");
-              return;
+            try {
+              const result = await signIn("credentials", {
+                redirect: false,
+                email,
+                password,
+              });
+              if (result?.error) {
+                setError("Invalid email or password.");
+                return;
+              }
+              router.push("/v2");
+            } catch {
+              setError("Sign-in is temporarily unavailable. Please try again.");
+            } finally {
+              setLoading(false);
             }
-            router.push("/v2");
           }}
         >
           <div className="space-y-2">
