@@ -12,6 +12,8 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [accessCode, setAccessCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [developmentUrl, setDevelopmentUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   return (
@@ -28,16 +30,23 @@ export default function RegisterPage() {
           onSubmit={async (event) => {
             event.preventDefault();
             setError(null);
+            setMessage(null);
             setLoading(true);
             const response = await fetch("/api/auth/register", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name, email, password, accessCode }),
             });
+            const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-              const data = await response.json().catch(() => ({}));
               setError(data.error ?? "Failed to register.");
               setLoading(false);
+              return;
+            }
+            if (data.verificationRequired) {
+              setLoading(false);
+              setMessage("Account created. Verify your email before signing in.");
+              setDevelopmentUrl(data.developmentVerificationUrl ?? null);
               return;
             }
             await signIn("credentials", {
@@ -94,6 +103,8 @@ export default function RegisterPage() {
             />
           </div>
           {error && <p className="text-sm text-rose-200">{error}</p>}
+          {message && <p className="text-sm text-emerald-200">{message}</p>}
+          {developmentUrl && <a className="theme-accent-text block break-all text-xs" href={developmentUrl}>Developer verification link</a>}
           <button
             type="submit"
             disabled={loading}
@@ -107,6 +118,10 @@ export default function RegisterPage() {
           Already have an account?{" "}
           <Link href="/login" className="theme-accent-text font-semibold">
             Sign in
+          </Link>
+          {" · "}
+          <Link href="/verify-email" className="theme-accent-text font-semibold">
+            Resend verification
           </Link>
         </p>
       </div>

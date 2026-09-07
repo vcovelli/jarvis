@@ -21,6 +21,7 @@ export default function AccountPage() {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [sessionBusy, setSessionBusy] = useState(false);
 
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -58,6 +59,28 @@ export default function AccountPage() {
         >
           Sign out
         </button>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <a
+            href="/api/account/export"
+            className="theme-button-secondary inline-flex min-h-10 items-center rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em]"
+          >
+            Export my data
+          </a>
+          <button
+            type="button"
+            disabled={sessionBusy}
+            onClick={async () => {
+              if (!window.confirm("Sign out every Jarvis session, including this device?")) return;
+              setSessionBusy(true);
+              const response = await fetch("/api/account/sessions/revoke", { method: "POST" });
+              if (response.ok) await signOut({ callbackUrl: "/login" });
+              else setSessionBusy(false);
+            }}
+            className="theme-button-secondary min-h-10 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] disabled:opacity-60"
+          >
+            {sessionBusy ? "Signing out…" : "Sign out all sessions"}
+          </button>
+        </div>
       </section>
 
       <section className="theme-surface rounded-3xl p-6">
@@ -139,10 +162,8 @@ export default function AccountPage() {
               setPasswordError(data.error ?? "Failed to update password.");
               return;
             }
-            setCurrentPassword("");
-            setNextPassword("");
-            setConfirmPassword("");
-            setPasswordMessage("Password updated.");
+            setPasswordMessage("Password updated. Signing in again…");
+            await signOut({ callbackUrl: "/login" });
           }}
         >
           <div className="space-y-2">

@@ -65,4 +65,4 @@ jarvis/
 
 ## Current deployment posture
 
-Jarvis is suitable for controlled personal or invited-user deployment. Keep public registration disabled or access-code gated until account recovery, email verification, abuse controls, billing entitlements, formal policies, and operational runbooks are complete. See [deployment readiness](docs/deployment-readiness.md) for the detailed gap list.
+Jarvis is suitable for controlled personal or invited-user deployment. Recovery, optional email verification, route rate limits, security headers, audit events, health/readiness checks, backups, signed Plaid webhooks, scheduled finance sync, export, session revocation, and entitlement records now have an application foundation. Keep registration disabled, access-code gated, or invitation-only until the target host's mail, proxy, backup, scheduler, monitoring, and smoke tests are complete. Billing and public-SaaS policy/support work remain out of scope; see [deployment readiness](docs/deployment-readiness.md).

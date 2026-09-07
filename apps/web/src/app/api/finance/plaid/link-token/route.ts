@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rateLimit";
 import {
   callPlaid,
   createPlaidLinkSession,
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = enforceRateLimit(request, "plaidLink", userId);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null);
   const connectionType = parsePlaidConnectionType(body?.connectionType);
@@ -66,7 +69,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message, setup }, { status: error.status });
     }
     if (error instanceof PlaidApiError) {
-      return NextResponse.json({ error: error.message, payload: error.payload }, { status: error.status });
+      console.error("[plaid] link_token_failed", { userId, providerStatus: error.status, errorType: error.name });
+      return NextResponse.json({ error: "The finance provider could not create a link session." }, { status: error.status });
     }
     throw error;
   }

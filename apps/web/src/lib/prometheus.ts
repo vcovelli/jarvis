@@ -276,7 +276,7 @@ async function safeQueryNumber(query: string) {
   try {
     return await queryNumber(query);
   } catch (error) {
-    console.warn("Prometheus query failed", { query, error });
+    console.warn("[monitoring] prometheus_query_failed", { query, errorType: error instanceof Error ? error.name : "UnknownError" });
     return null;
   }
 }
@@ -285,7 +285,7 @@ async function safeQueryHistory(query: string) {
   try {
     return await queryHistory(query);
   } catch (error) {
-    console.warn("Prometheus range query failed", { query, error });
+    console.warn("[monitoring] prometheus_range_query_failed", { query, errorType: error instanceof Error ? error.name : "UnknownError" });
     return [];
   }
 }

@@ -8,7 +8,7 @@ import { formatTodoTimeWindow } from "@/lib/timeDisplay";
 import { useToast } from "@/components/Toast";
 
 export default function MustWinPage() {
-  const { state, hydrated, setMustWin, toggleMustWin } = useJarvisState();
+  const { state, hydrated, syncStatus, setMustWin, toggleMustWin } = useJarvisState();
   const { showToast } = useToast();
   const todayKey = getDayKey();
   const todaysMustWin = state.mustWin[todayKey];
@@ -20,20 +20,32 @@ export default function MustWinPage() {
   const [draftTimeBound, setDraftTimeBound] = useState<string | null>(null);
   const text = draftText ?? todaysMustWin?.text ?? "";
   const timeBound = draftTimeBound ?? todaysMustWin?.timeBound ?? "";
+  const hasUnsavedDraft = draftText !== null && (
+    text.trim() !== (todaysMustWin?.text ?? "")
+    || timeBound.trim() !== (todaysMustWin?.timeBound ?? "")
+  );
 
   if (!hydrated) {
     return <p className="theme-muted text-sm uppercase tracking-[0.3em]">Loading Must Win...</p>;
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function commitDraft(notify: boolean) {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed) return false;
     const trimmedTimeBound = timeBound.trim();
-    setMustWin({ day: todayKey, text: trimmed, timeBound: trimmedTimeBound || undefined });
+    const changed = trimmed !== todaysMustWin?.text || trimmedTimeBound !== (todaysMustWin?.timeBound ?? "");
+    if (changed) {
+      setMustWin({ day: todayKey, text: trimmed, timeBound: trimmedTimeBound || undefined });
+    }
     setDraftText(trimmed);
     setDraftTimeBound(trimmedTimeBound);
-    showToast(todaysMustWin ? "Must Win updated" : "Must Win locked");
+    if (notify) showToast(changed ? (todaysMustWin ? "Must Win updated" : "Must Win locked") : "Must Win already saved");
+    return changed;
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    commitDraft(true);
   }
 
   function promoteTodo(todo: TodoItem) {
@@ -65,7 +77,16 @@ export default function MustWinPage() {
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
-        <form className="theme-surface rounded-[28px] p-5" onSubmit={submit}>
+        <form
+          className="theme-surface rounded-[28px] p-5"
+          onSubmit={submit}
+          onBlur={(event) => {
+            const nextTarget = event.relatedTarget;
+            if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+              commitDraft(false);
+            }
+          }}
+        >
           <p className="theme-kicker text-[10px] uppercase tracking-[0.32em]">Lock or refine</p>
           <div className="mt-4 grid gap-3">
             <textarea
@@ -84,6 +105,19 @@ export default function MustWinPage() {
             <button type="submit" className="theme-button-primary rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.24em]">
               {todaysMustWin ? "Update win" : "Lock the day"}
             </button>
+            <p className="theme-muted text-center text-xs" aria-live="polite">
+              {hasUnsavedDraft
+                ? "Editing · save or leave the form to keep changes"
+                : syncStatus.local === "error"
+                ? "Could not save on this device"
+                : syncStatus.remote === "saved"
+                  ? "Saved and synced"
+                  : syncStatus.remote === "saving" || syncStatus.remote === "pending"
+                    ? "Saved on this device · syncing"
+                    : syncStatus.remote === "offline" || syncStatus.remote === "error"
+                      ? "Saved on this device · sync pending"
+                      : "Changes save when you leave this form"}
+            </p>
           </div>
         </form>
 

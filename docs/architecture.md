@@ -85,7 +85,7 @@ Demo mode has its own generated reducer state and never sends demo mutations to 
 
 ## Relational data
 
-The Prisma schema separates four concerns.
+The Prisma schema separates daily product data from identity, security, operations, finance, and assistant concerns.
 
 ### Identity
 
@@ -93,8 +93,17 @@ The Prisma schema separates four concerns.
 - `Account`
 - `Session`
 - `VerificationToken`
+- `AuthToken` — hashed password-reset and email-verification tokens
+- `Entitlement` — non-billing access tier/status foundation
+- `RegistrationInvite` — hashed, expiring, single-use registration codes
 
-Credentials users store a bcrypt password hash. NextAuth uses JWT sessions; adapter models remain available for provider/session compatibility.
+Credentials users store a bcrypt password hash. NextAuth uses seven-day JWT sessions; `User.sessionVersion` is checked server-side so password reset/change and global sign-out invalidate prior tokens. Adapter models remain available for provider/session compatibility.
+
+### Security and operations
+
+- `AuditLog` — sanitized auth/account/finance events
+- `ExternalWebhookEvent` — Plaid delivery idempotency and processing status
+- `JobLease` — database-backed overlap prevention for scheduled/global and per-connection sync
 
 ### Daily workspace
 
@@ -131,8 +140,12 @@ All workspace mutation and sensitive-data APIs derive the user from the server s
 | --- | --- | --- | --- |
 | Auth | `/api/auth/[...nextauth]` | NextAuth handlers | Login, JWT session, sign-out callbacks |
 | Auth | `/api/auth/register` | POST | Controlled credentials registration |
+| Auth | `/api/auth/password-reset/request`, `/confirm` | POST | Enumeration-safe request and single-use reset |
+| Auth | `/api/auth/email-verification/request`, `/confirm` | POST | Verification/resend and token confirmation |
 | Account | `/api/account` | DELETE | Delete the signed-in user |
 | Account | `/api/account/password` | PATCH | Change the current password |
+| Account | `/api/account/export` | GET | Download a redacted portable user export |
+| Account | `/api/account/sessions/revoke` | POST | Invalidate all current JWT sessions |
 | State | `/api/state` | GET, PUT, POST | Fetch and conditionally save `UserState` |
 | Assistant | `/api/assistant/conversations` | GET, POST | List or create conversations |
 | Assistant | `/api/assistant/conversations/:id` | GET, PATCH | Read or update a conversation |
@@ -142,6 +155,7 @@ All workspace mutation and sensitive-data APIs derive the user from the server s
 | Assistant | `/api/assistant/transcribe` | POST | OpenAI audio transcription fallback |
 | Finance | `/api/finance/plaid/link-token` | POST | Create a scoped Plaid Link token |
 | Finance | `/api/finance/plaid/exchange` | POST | Exchange and encrypt a public token |
+| Finance | `/api/finance/plaid/webhook` | POST | Verify/idempotently process Plaid webhooks |
 | Finance | `/api/finance/sync` | POST | Sync accounts, transactions, holdings, and snapshots |
 | Finance | `/api/finance/summary` | GET | Return the read-only analytics view |
 | Finance | `/api/finance/events/:id` | PATCH | Review/reclassify an event |
@@ -151,6 +165,8 @@ All workspace mutation and sensitive-data APIs derive the user from the server s
 | Real estate | `/api/real-estate/listings` | GET | Return demo listings or an authenticated live search |
 | Homelab | `/api/homelab/snapshot`, `/api/homelab/summary` | GET | Return filesystem-backed operational context |
 | Monitoring | `/api/monitoring/summary` | GET | Return the Prometheus-derived summary |
+| Operations | `/api/internal/finance-sync` | POST | Bearer-authenticated leased all-user sync |
+| Operations | `/api/health`, `/api/ready` | GET | Liveness and database/config readiness |
 
 The demo listing endpoint can return built-in public data, but a live provider request requires a session. Treat that exception deliberately when changing route guards.
 
@@ -191,6 +207,10 @@ The shell has one internal scroll region. `PageViewport` supplies shared safe-ar
 - Derive resource ownership from `session.user.id`; do not accept an arbitrary user id from request bodies.
 - Preserve private/no-store caching on personal state and sensitive summaries.
 - Keep registration gates enforced server-side.
+- Keep recovery/verification tokens hashed, short-lived, type-scoped, and single-use.
+- Apply high-risk route rate limits by IP and authenticated user; replace the local store before multi-instance use.
+- Sanitize audit metadata and logs; never log raw provider bodies, cookies, bearer credentials, or token URLs.
+- Verify Plaid webhook signatures/body hashes before parsing or matching items, and preserve event idempotency.
 - Keep finance write capabilities out of scope unless the security model is explicitly redesigned.
 - Validate external URLs, request limits, payload sizes, and provider errors at API boundaries.
 

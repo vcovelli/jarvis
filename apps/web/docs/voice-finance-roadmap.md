@@ -54,20 +54,20 @@ Removing a connection deletes its connection-scoped Jarvis records and attempts 
 
 ## Known limitations
 
-- Plaid synchronization is user-triggered; `PLAID_WEBHOOK_URL` can be supplied to Link, but the repository has no webhook receiver yet.
-- There is no background scheduler for transaction or holding refresh.
+- Signed, idempotent Plaid webhook handling and a protected leased all-connection sync job are implemented, but the operator must configure the public webhook and install cron/systemd/platform scheduling.
+- Application rate limits cover assistant, transcription, Plaid, and finance-sync routes; the in-memory store is single-process and needs a shared replacement for multi-instance deployment.
 - Classification rules can be created and applied by the system, but full rule editing/deletion and conflict-management UX should be audited before calling the workflow complete.
 - Finance analytics are informational and are not financial advice.
 - Browser speech support varies, and transcription fallback depends on microphone permission, browser recording support, network access, and OpenAI configuration.
 - General chat depends on OpenClaw availability and deployment-specific credentials/device identity.
-- Assistant/provider endpoints do not yet have a complete product-level quota and rate-limit system.
+- User-visible usage budgets and a shared cross-instance provider quota are not implemented.
 
 ## Next work
 
-1. Add signed Plaid webhook handling and idempotent background sync.
-2. Expand automated tests for sync deltas, route ownership, encryption/key failure, event review, and rule precedence.
+1. Add provider-contract and database-backed integration tests for webhook verification, sync deltas, route ownership, encryption/key failure, event review, and rule precedence.
+2. Replace process-local rate limits and host-local quotas when horizontal scaling is needed.
 3. Complete classification-rule management and explain which rule changed each event.
 4. Add recurring bill/subscription detection and cash-flow projections.
-5. Add user-visible assistant/provider usage controls, privacy disclosures, and rate limits.
+5. Add user-visible assistant/provider budgets and privacy disclosures.
 6. Improve voice interruption, correction, and accessibility behavior across supported browsers.
 7. Consider realtime voice conversation only after the command-confirmation and operational safety model is stable.
