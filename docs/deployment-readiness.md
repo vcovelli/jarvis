@@ -37,7 +37,7 @@ Repository verification for this pass:
 
 - `npx prisma validate` — passed.
 - `npx prisma generate` — passed with Prisma 5.22.0.
-- `npm test` — 22/22 tests passed.
+- `npm test` — 24/24 tests passed.
 - `npm run lint` — passed.
 - `npm run build` — passed with Next.js 16.0.10.
 - Shell helpers passed `bash -n`.

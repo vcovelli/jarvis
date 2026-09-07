@@ -176,3 +176,4 @@ The layout accounts for safe-area insets and reserves space for the mobile botto
 - **Plaid controls say setup is needed:** configure the Plaid variables and restart the server.
 - **Real Estate stays in demo mode:** configure `RENTCAST_API_KEY`, select live mode, and run a scan.
 - **Homelab docs are empty:** point `HOMELAB_DOCS_ROOT` to a readable Markdown tree.
+- **A containerized media service is shown inactive:** refresh `live/containers.md` and confirm its Docker name matches `HOMELAB_JELLYFIN_CONTAINER` or `HOMELAB_NAVIDROME_CONTAINER`.
