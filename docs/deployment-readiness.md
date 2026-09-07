@@ -42,16 +42,22 @@ Repository verification for this pass:
 - `npm run build` — passed with Next.js 16.0.10.
 - Shell helpers passed `bash -n`.
 
-No migration was deployed, no deployment helper was executed, no PM2 process was restarted, and no production data or configuration was changed.
+Production authentication repair completed on 2026-09-07:
+
+- Created and catalog-verified the pre-migration backup `/var/backups/jarvis/jarvis-20260907T182320Z.dump`.
+- Applied `20260906190000_deployment_security_foundation`; `npx prisma migrate status` then reported the database schema up to date.
+- Corrected the credentials-route wrapper to preserve the NextAuth App Router context and added a resilient client-side sign-in error fallback.
+- Restarted only the existing `jarvis` PM2 process. The deployment helper was not executed and production configuration was not changed.
+- `/api/health`, `/api/ready`, and `/api/auth/providers` returned 200 after restart. A CSRF-protected synthetic invalid credentials request returned structured JSON with 401, confirming the callback no longer returned a blank 500.
 
 ## Required environment-specific work
 
-Before first controlled production use:
+Remaining environment-specific work before broader controlled production use:
 
-1. Take a verified database backup and rehearse restore into a `jarvis_restore_check_*` database.
+1. Rehearse the verified backup restore into a `jarvis_restore_check_*` database and configure encrypted off-host retention.
 2. Configure stable secrets, HTTPS, proxy header trust, and closed/invited registration.
 3. Configure/test the email relay before setting `EMAIL_VERIFICATION_REQUIRED=true`.
-4. Apply the committed migration in an approved release window.
+4. Confirm `npx prisma migrate status` remains current during every subsequent release.
 5. Configure the Plaid webhook URL and verify signed sandbox/development delivery.
 6. Store `INTERNAL_JOB_SECRET` securely and install a single scheduler invocation.
 7. Verify audit/log collection and alerts for readiness, auth abuse, provider failures, and backups.
