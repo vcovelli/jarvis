@@ -193,6 +193,8 @@ The browser attempts native speech recognition first. Unsupported browsers uploa
 - **Prometheus/Grafana:** optional homelab metrics and links.
 - **Homelab docs:** optional filesystem tree rooted at `HOMELAB_DOCS_ROOT`.
 
+Homelab service state comes from the generated live documentation. System services use `live/services.md` and `monitoring/health.md`; Jellyfin and Navidrome prefer their configured names in `live/containers.md`, so healthy Docker workloads are not misreported from intentionally inactive legacy systemd units.
+
 Integration failures should remain isolated. A missing optional service must produce an explicit setup or unavailable state, not crash unrelated daily modules.
 
 ## Theme and shell architecture

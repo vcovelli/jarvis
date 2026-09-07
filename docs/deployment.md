@@ -119,7 +119,7 @@ Run that command from cron or a systemd timer at the desired interval. Protect t
 - OpenAI: `OPENAI_API_KEY`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_INTENT_MODEL`.
 - OpenClaw: gateway URL/credentials, agent/session settings, and optional local state paths from `.env.example`.
 - RentCast: API key, monthly limit/reserve, and cache TTL. Its usage ledger is host-local, so multi-instance deployment needs a shared quota.
-- Homelab: documentation root, Prometheus URL, and Grafana URL. Filesystem and private-network access are intentional host capabilities.
+- Homelab: documentation root, Prometheus URL, Grafana URL, and optional `HOMELAB_JELLYFIN_CONTAINER` / `HOMELAB_NAVIDROME_CONTAINER` name overrides. When `live/containers.md` exists, those Docker states take precedence over legacy systemd units. Filesystem and private-network access are intentional host capabilities.
 
 ## Security headers and external domains
 

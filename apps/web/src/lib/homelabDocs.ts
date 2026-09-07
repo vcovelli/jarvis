@@ -2,6 +2,8 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { cache } from "react";
 
+import { parseDockerContainerStatuses, type DockerContainerState } from "@/lib/homelabStatus";
+
 export type HomelabAttentionSeverity = "info" | "warning" | "critical";
 
 export type HomelabAttentionItem = {
@@ -76,6 +78,7 @@ type ServiceDefinition = {
   urlPort?: string;
   urlPath?: string;
   command?: (tailscaleIp: string) => string;
+  containerName?: string;
 };
 
 const HOMELAB_DOCS_ROOT =
@@ -86,6 +89,7 @@ const liveDocs = {
   network: "live/network.md",
   ports: "live/ports.md",
   services: "live/services.md",
+  containers: "live/containers.md",
   health: "monitoring/health.md",
 };
 
@@ -118,6 +122,7 @@ const serviceDefinitions: ServiceDefinition[] = [
     docs: "services/jellyfin.md",
     ports: ["8096", "7359"],
     urlPort: "8096",
+    containerName: process.env.HOMELAB_JELLYFIN_CONTAINER?.trim() || "jellyfin",
   },
   {
     id: "navidrome",
@@ -127,6 +132,7 @@ const serviceDefinitions: ServiceDefinition[] = [
     docs: "services/navidrome.md",
     ports: ["4533"],
     urlPort: "4533",
+    containerName: process.env.HOMELAB_NAVIDROME_CONTAINER?.trim() || "navidrome",
   },
   {
     id: "jarvis",
@@ -192,10 +198,11 @@ const serviceDefinitions: ServiceDefinition[] = [
 export const getHomelabSnapshot = cache(getFreshHomelabSnapshot);
 
 export async function getFreshHomelabSnapshot(): Promise<HomelabSnapshot> {
-  const [systemDoc, networkDoc, servicesDoc, healthDoc, docsIndex] = await Promise.all([
+  const [systemDoc, networkDoc, servicesDoc, containersDoc, healthDoc, docsIndex] = await Promise.all([
     readDoc(liveDocs.system),
     readDoc(liveDocs.network),
     readDoc(liveDocs.services),
+    readDoc(liveDocs.containers),
     readDoc(liveDocs.health),
     getHomelabDocIndex(),
   ]);
@@ -218,8 +225,11 @@ export async function getFreshHomelabSnapshot(): Promise<HomelabSnapshot> {
     tailscaleHealth: extractTailscaleHealth(networkDoc),
   };
   const statusByUnit = parseServiceStatuses(servicesDoc, healthDoc);
+  const containerTable = extractCodeBlockAfterHeading(containersDoc, "Docker containers");
+  const statusByContainer = containerTable === null ? null : parseDockerContainerStatuses(containerTable);
+  const containerCheckedAt = extractLastRefreshed(containersDoc);
   const services = serviceDefinitions.map((definition) =>
-    buildService(definition, statusByUnit, network.lanIp, network.tailscaleIp),
+    buildService(definition, statusByUnit, statusByContainer, containerCheckedAt, network.lanIp, network.tailscaleIp),
   );
   const generatedAt =
     extractLastRefreshed(healthDoc) ??
@@ -309,10 +319,18 @@ export function severityTone(severity: HomelabAttentionSeverity) {
 function buildService(
   definition: ServiceDefinition,
   statusByUnit: Map<string, string>,
+  statusByContainer: Map<string, DockerContainerState> | null,
+  containerCheckedAt: string | null,
   lanIp: string,
   tailscaleIp: string,
 ): HomelabService {
-  const status = statusByUnit.get(definition.unit) ?? "unknown";
+  const container = definition.containerName && statusByContainer
+    ? statusByContainer.get(definition.containerName.toLowerCase())
+    : undefined;
+  const usesContainerInventory = Boolean(definition.containerName && statusByContainer);
+  const status = usesContainerInventory
+    ? container?.status ?? "inactive"
+    : statusByUnit.get(definition.unit) ?? "unknown";
   const urlPath = definition.urlPath ?? "/";
   const localUrl = definition.urlPort
     ? formatServiceUrl(lanIp, definition.urlPort, urlPath)
@@ -325,14 +343,14 @@ function buildService(
     id: definition.id,
     name: definition.name,
     purpose: definition.purpose,
-    unit: definition.unit,
+    unit: usesContainerInventory ? `docker:${definition.containerName}` : definition.unit,
     status,
     ports: definition.ports,
     localUrl,
     tailscaleUrl,
     command: definition.command?.(tailscaleIp),
     docId: definition.docs,
-    lastChecked: null,
+    lastChecked: usesContainerInventory ? containerCheckedAt : null,
   };
 }
 
