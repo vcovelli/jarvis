@@ -43,7 +43,7 @@ export async function resolveAssistantIntent(params: {
     const result = await parseWithOpenAI(apiKey, params.input, context, fallback);
     return { result, used: result.source ?? "openai", context };
   } catch (error) {
-    console.warn("OpenAI assistant intent parsing failed", error);
+    console.warn("[assistant] intent_provider_failed", { errorType: error instanceof Error ? error.name : "UnknownError" });
     return { result: fallback, used: "fallback", context };
   }
 }

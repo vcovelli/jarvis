@@ -4,9 +4,10 @@ Jarvis is organized around a simple loop: choose the day’s Must Win, turn loos
 
 ## Getting in
 
-1. Open `/register` to create an account, unless registration is closed or requires the configured access code.
-2. Sign in at `/login` with the account email and password.
-3. Complete the first-run walkthrough when it appears.
+1. Open `/register` to create an account, unless registration is closed or requires the configured access code/invitation.
+2. If verification is required, follow the email link. `/verify-email` can request another link without revealing whether an account exists.
+3. Sign in at `/login` with the account email and password. Use **Forgot password?** for an enumeration-safe reset flow.
+4. Complete the first-run walkthrough when it appears.
 
 Every `/v2` workspace route requires an authenticated session. The public root page redirects an already signed-in user into the console.
 
@@ -34,7 +35,7 @@ The full dashboard combines today’s readiness, tasks, mood, sleep, Must Win, w
 
 ### 2. Lock the Must Win
 
-Open **Must Win** and enter the one outcome that would make the day count. The primary input is the first working area on the page. An optional time boundary makes the commitment concrete; mark it complete when finished.
+Open **Must Win** and enter the one outcome that would make the day count. The primary input is the first working area on the page. Use the save button or simply leave the form; Jarvis commits the draft locally first and shows whether server sync is complete or pending. An optional time boundary makes the commitment concrete; mark it complete when finished.
 
 The same Must Win appears in the planner and contributes to review metrics.
 
@@ -152,7 +153,9 @@ Browser storage is a responsive cache, not a substitute for production database 
 
 ## Account and security
 
-The Account page shows the signed-in identity, duplicates the appearance controls, supports password changes, and provides confirmed account deletion. Account deletion is destructive: relational records use cascading ownership rules, and the user should not expect recovery without an operator-managed backup.
+The Account page shows the signed-in identity, duplicates the appearance controls, downloads a portable redacted JSON export, supports password changes, and provides **Sign out everywhere**. Password change/reset and global sign-out invalidate existing sessions, so sign in again afterward.
+
+Account deletion requires the current password. Jarvis attempts to unlink connected Plaid items, then deletes user-owned relational data through cascading ownership rules. Provider revocation is best effort, and deleted data is not user-recoverable without an operator-managed backup.
 
 The Settings page controls demo mode. Sign out from the expanded shell controls.
 

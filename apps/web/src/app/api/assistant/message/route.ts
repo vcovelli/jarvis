@@ -11,6 +11,7 @@ import {
 import { classifyAssistantMessage } from "@/lib/assistant/router";
 import { resolveAssistantIntent } from "@/lib/assistant/serverIntent";
 import { authOptions } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rateLimit";
 import { getFinanceAnalytics } from "@/lib/finance/analytics";
 import { normalizeFinancialTransactions } from "@/lib/finance/normalization";
 import { prisma } from "@/lib/prisma";
@@ -29,6 +30,8 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = enforceRateLimit(request, "assistant", userId);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null);
   const input = typeof body?.input === "string" ? body.input.trim() : "";

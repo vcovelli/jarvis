@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rateLimit";
 import { createListingProvider } from "@/lib/realEstate/providers";
 
 export async function GET(request: Request) {
@@ -25,6 +26,8 @@ export async function GET(request: Request) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized live listing request." }, { status: 401 });
     }
+    const limited = enforceRateLimit(request, "realEstateLive", session.user.id);
+    if (limited) return limited;
   }
 
   const provider = createListingProvider({

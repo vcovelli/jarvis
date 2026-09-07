@@ -70,6 +70,11 @@ export default function LoginPage() {
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
+          <div className="text-right">
+            <Link href="/forgot-password" className="theme-accent-text text-xs font-semibold">
+              Forgot password?
+            </Link>
+          </div>
         </form>
 
         <p className="theme-muted mt-6 text-xs">

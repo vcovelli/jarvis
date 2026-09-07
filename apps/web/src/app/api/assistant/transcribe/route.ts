@@ -2,15 +2,19 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const OPENAI_TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+  const userId = session?.user?.id;
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = enforceRateLimit(request, "transcription", userId);
+  if (limited) return limited;
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {

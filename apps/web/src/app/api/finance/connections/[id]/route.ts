@@ -3,31 +3,26 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getAuthenticatedUserId, ownedWhere } from "@/lib/authBoundary";
+import { writeAuditLog } from "@/lib/audit";
 import { snapshotNetWorth } from "@/lib/finance/analytics";
-import { callPlaid } from "@/lib/plaid";
 import { prisma } from "@/lib/prisma";
-import { decryptSecret } from "@/lib/serverCrypto";
+import { removePlaidItem } from "@/lib/plaidRemoval";
 
 type RouteContext = {
   params: Promise<{ id: string }> | { id: string };
 };
 
-type PlaidRemovalResult = {
-  attempted: boolean;
-  removed: boolean;
-  warning: string | null;
-};
-
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  const userId = getAuthenticatedUserId(session);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await context.params;
   if (!id) return NextResponse.json({ error: "Missing connection id." }, { status: 400 });
 
   const connection = await prisma.financialConnection.findFirst({
-    where: { id, userId },
+    where: ownedWhere(userId, id),
     select: {
       id: true,
       provider: true,
@@ -79,6 +74,12 @@ export async function DELETE(_request: Request, context: RouteContext) {
   });
 
   await snapshotNetWorth(userId, "sync");
+  await writeAuditLog({
+    action: "finance.plaid_connection_removed",
+    userId,
+    request,
+    metadata: { connectionId: connection.id, provider: connection.provider, providerRevoked: plaidRemoval.removed, deleted },
+  });
 
   return NextResponse.json({
     connectionId: connection.id,
@@ -87,19 +88,4 @@ export async function DELETE(_request: Request, context: RouteContext) {
     deleted,
     updatedAt: Date.now(),
   });
-}
-
-async function removePlaidItem(provider: string, accessTokenEncrypted: string): Promise<PlaidRemovalResult> {
-  if (provider !== "plaid") return { attempted: false, removed: false, warning: null };
-
-  try {
-    await callPlaid("/item/remove", { access_token: decryptSecret(accessTokenEncrypted) });
-    return { attempted: true, removed: true, warning: null };
-  } catch (error) {
-    return {
-      attempted: true,
-      removed: false,
-      warning: error instanceof Error ? error.message : "Plaid item removal failed.",
-    };
-  }
 }

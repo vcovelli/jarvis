@@ -1816,14 +1816,6 @@ function useJarvisStoreInternal() {
         error: undefined,
       }
     : syncStatus;
-  const dispatchUserAction = useCallback((action: Action) => {
-    if (demoMode) {
-      demoDispatch(action);
-      return;
-    }
-    dispatch(action);
-  }, [demoMode]);
-
   useEffect(() => {
     if (!readStoredDemoMode()) return;
     demoDispatch({ type: "HYDRATE", payload: buildDemoJarvisState() });
@@ -1890,6 +1882,21 @@ function useJarvisStoreInternal() {
     [scheduleSyncStatus, session?.user?.id, status],
   );
 
+  const dispatchUserAction = useCallback((action: Action) => {
+    if (demoMode) {
+      demoDispatch(action);
+      return;
+    }
+
+    // Commit to the ref and local cache before React effects run. This closes
+    // the short loss window when a user saves and immediately navigates away,
+    // backgrounds the PWA, or closes the page.
+    const nextState = reducer(stateRef.current, action);
+    stateRef.current = nextState;
+    persistLocalSnapshot(nextState, { pendingRemoteSave: true });
+    dispatch(action);
+  }, [demoMode, persistLocalSnapshot]);
+
   const handleSaveConflict = useCallback(
     (
       context: StorageContext,
@@ -1903,6 +1910,7 @@ function useJarvisStoreInternal() {
       const mergedState = mergeJarvisStates(serverState, localState);
 
       lastRemoteSaveRef.current = `${context.storageKey}:${serverStateJson}`;
+      stateRef.current = mergedState;
       persistLocalSnapshot(mergedState, {
         etag: serverEtag,
         pendingRemoteSave: true,
@@ -2313,6 +2321,7 @@ function useJarvisStoreInternal() {
         const nextEtag = createETagFromJson(nextStateJson);
 
         if (nextStateJson !== latestLocalStateJson) {
+          stateRef.current = nextState;
           dispatch({ type: "HYDRATE", payload: nextState });
         }
         writeStoredState(context.storageKey, nextStateJson);

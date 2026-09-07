@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { snapshotNetWorth } from "@/lib/finance/analytics";
 import { inferAccountRole } from "@/lib/finance/classification";
 import { normalizeFinancialTransactions, snapshotAccountBalances } from "@/lib/finance/normalization";
+import { acquireJobLease, releaseJobLease } from "@/lib/jobLease";
 import { prisma } from "@/lib/prisma";
 import { callPlaid } from "@/lib/plaid";
 import { decryptSecret } from "@/lib/serverCrypto";
@@ -92,6 +93,10 @@ export type FinanceSyncResult = {
   balanceSnapshots: number;
 };
 
+export class FinanceSyncInProgressError extends Error {
+  status = 409;
+}
+
 export async function syncAllFinancialConnections(userId: string) {
   const connections = await prisma.financialConnection.findMany({
     where: { userId, status: "active" },
@@ -105,6 +110,16 @@ export async function syncAllFinancialConnections(userId: string) {
 }
 
 export async function syncFinancialConnection(userId: string, connectionId: string) {
+  const lease = await acquireJobLease(`finance-connection:${connectionId}`, 10 * 60_000);
+  if (!lease) throw new FinanceSyncInProgressError("This financial connection is already syncing.");
+  try {
+    return await syncFinancialConnectionUnlocked(userId, connectionId);
+  } finally {
+    await releaseJobLease(lease);
+  }
+}
+
+async function syncFinancialConnectionUnlocked(userId: string, connectionId: string) {
   const connection = await prisma.financialConnection.findFirst({
     where: { id: connectionId, userId, status: "active" },
   });

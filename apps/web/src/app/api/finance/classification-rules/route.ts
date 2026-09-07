@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { normalizeRuleMatchValue } from "@/lib/finance/classification";
 import { normalizeFinancialTransactions } from "@/lib/finance/normalization";
 import { prisma } from "@/lib/prisma";
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
     },
   });
   const backfill = await normalizeFinancialTransactions(userId, { all: true, limit: 5000 });
+  await writeAuditLog({ action: "finance.classification_rule_created", userId, request, metadata: { ruleId: rule.id, matchType: rule.matchType, eventType: rule.eventType } });
   return NextResponse.json({ rule, backfill }, { status: 201 });
 }
 

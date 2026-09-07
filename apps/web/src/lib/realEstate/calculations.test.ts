@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { calculateFhaAnalysis, calculateMortgagePayment } from "./calculations";
+import { calculateFhaAnalysis, calculateMortgagePayment } from "./calculations.ts";
 
 test("calculateMortgagePayment builds a 30-year FHA payment from principal and rate", () => {
   const payment = calculateMortgagePayment({ principal: 250000, annualRate: 0.065, years: 30 });

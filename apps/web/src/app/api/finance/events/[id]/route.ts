@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { FINANCIAL_EVENT_TYPES, buildEventFlags, getDefaultCategoryForEventType, normalizeMerchantName } from "@/lib/finance/classification";
 import { prisma } from "@/lib/prisma";
 
@@ -61,6 +62,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       userReviewedAt: new Date(),
     },
   });
+
+  await writeAuditLog({ action: "finance.event_reviewed", userId, request, metadata: { eventId: event.id, eventType: event.eventType } });
 
   return NextResponse.json({ event });
 }

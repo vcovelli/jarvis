@@ -38,6 +38,8 @@ Open [http://localhost:3000](http://localhost:3000). The public landing page sen
 | `npm run start` | Serve the build on `127.0.0.1:3000`. |
 | `npm run prisma:generate` | Regenerate Prisma Client. |
 | `npm run prisma:migrate:deploy` | Apply committed migrations in production. |
+| `npm run config:validate -- --production` | Validate required production variable names and formats without printing values. |
+| `npm run invite:create -- --email=user@example.com --days=7` | Create a hashed, single-use registration invite. |
 | `npm run verify` | Run lint, tests, and the production build. |
 
 Use `npx prisma migrate dev --name <description>` only when creating a deliberate schema change. Existing installations should apply the committed migration history.
@@ -80,7 +82,8 @@ src/lib/
 
 [`./.env.example`](./.env.example) is the canonical variable template. Optional groups are:
 
-- Registration: `REGISTRATION_DISABLED`, `REGISTRATION_ACCESS_CODE`
+- Registration/auth: registration mode/access code, email verification/mail relay, trusted proxy headers, and development token exposure
+- Operations: internal job secret, admin emails, and rate-limit profile overrides
 - OpenAI: `OPENAI_API_KEY`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_INTENT_MODEL`
 - OpenClaw: gateway URL/credentials, agent, session prefix, and optional local config/device paths
 - Plaid: environment, credentials, country codes, webhook metadata, and redirect URI
@@ -135,6 +138,19 @@ Plaid connection modes request only the relevant products:
 - Investment Account → `transactions,investments`
 
 Tokens are encrypted server-side with `FINANCIAL_DATA_KEY`, falling back to `NEXTAUTH_SECRET`. Never expose either key or an access token to a client component. The finance dashboard supports synchronization, analytics, manual positions, event review, stored classification rules, and assistant questions; it cannot move money or place trades.
+
+`/api/finance/plaid/webhook` verifies Plaid's signed JWT and exact body hash, stores an idempotency key, and syncs only matching user-owned items. `/api/internal/finance-sync` is protected by `INTERNAL_JOB_SECRET`; database leases prevent overlapping global and per-connection runs. The repository supplies `scripts/finance-sync.sh` but does not install a scheduler.
+
+## Deployment-security foundation
+
+- Password reset and optional email verification use hashed, expiring, single-use tokens and a provider-neutral mail relay.
+- Password change/reset and **Sign out everywhere** invalidate previous JWT sessions through `User.sessionVersion`.
+- High-risk routes have per-IP and authenticated per-user limits with 429/`Retry-After`; the default store is single-process and replaceable.
+- Account includes a redacted portable JSON export and password-confirmed deletion with best-effort Plaid revocation.
+- `AuditLog`, `Entitlement`, `RegistrationInvite`, `ExternalWebhookEvent`, and `JobLease` support security and operations without enabling billing or feature lockout.
+- `/api/health` provides liveness; `/api/ready` checks core configuration and PostgreSQL.
+
+See the [deployment and recovery runbook](../../docs/deployment.md) before applying the additive security migration or restarting a service.
 
 ## Progressive web app
 

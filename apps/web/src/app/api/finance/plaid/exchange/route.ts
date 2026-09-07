@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import {
   callPlaid,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/plaid";
 import { encryptSecret } from "@/lib/serverCrypto";
 import { syncFinancialConnection } from "@/lib/financeSync";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 type ExchangeResponse = {
   access_token: string;
@@ -33,6 +35,8 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = enforceRateLimit(request, "plaidLink", userId);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null);
   const publicToken = typeof body?.publicToken === "string" ? body.publicToken : "";
@@ -89,6 +93,12 @@ export async function POST(request: Request) {
     });
 
     const sync = await syncFinancialConnection(userId, connection.id);
+    await writeAuditLog({
+      action: "finance.plaid_connection_added",
+      userId,
+      request,
+      metadata: { connectionId: connection.id, institutionId: connection.institutionId, products: connection.products },
+    });
     return NextResponse.json({
       connectionId: connection.id,
       connectionType: plaidLinkSession.connectionType,
@@ -103,7 +113,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message, setup }, { status: error.status });
     }
     if (error instanceof PlaidApiError) {
-      return NextResponse.json({ error: error.message, payload: error.payload }, { status: error.status });
+      await writeAuditLog({ action: "finance.plaid_connection_add", outcome: "failure", userId, request, metadata: { providerStatus: error.status } });
+      console.error("[plaid] connection_add_failed", { userId, providerStatus: error.status, errorType: error.name });
+      return NextResponse.json({ error: "The finance provider could not connect this account." }, { status: error.status });
     }
     throw error;
   }

@@ -14,6 +14,7 @@ model User {
   emailVerified                     DateTime?
   image                             String?
   passwordHash                      String?
+  sessionVersion                    Int                                @default(0)
   createdAt                         DateTime                           @default(now())
   updatedAt                         DateTime                           @updatedAt
   accounts                          Account[]
@@ -32,6 +33,90 @@ model User {
   assistantConversations            AssistantConversation[]
   assistantMessages                 AssistantMessage[]
   assistantMemories                 AssistantMemory[]
+  authTokens                        AuthToken[]
+  auditLogs                         AuditLog[]
+  entitlement                       Entitlement?
+}
+
+model AuthToken {
+  id         String    @id @default(cuid())
+  userId     String
+  type       String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, expiresAt])
+  @@index([type, expiresAt, consumedAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  outcome   String   @default("success")
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
+
+model Entitlement {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  tier      String    @default("INVITED")
+  status    String    @default("active")
+  expiresAt DateTime?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, tier])
+}
+
+model RegistrationInvite {
+  id           String    @id @default(cuid())
+  codeHash     String    @unique
+  email        String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  usedByUserId String?
+  createdAt    DateTime  @default(now())
+
+  @@index([email, expiresAt, usedAt])
+  @@index([expiresAt, usedAt])
+}
+
+model ExternalWebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventKey    String    @unique
+  eventType   String?
+  eventCode   String?
+  status      String    @default("received")
+  attempts    Int       @default(0)
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([provider, status, createdAt])
+}
+
+model JobLease {
+  id          String   @id
+  runId       String
+  lockedUntil DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([lockedUntil])
 }
 
 model UserState {
