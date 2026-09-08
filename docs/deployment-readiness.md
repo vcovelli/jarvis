@@ -28,6 +28,7 @@ It is not yet a turnkey public SaaS or commercial self-host package. Billing is 
 - Structured provider/job/account failure logs that avoid raw provider payloads and secrets.
 - Focused tests for registration, rate limiting, token expiry/reuse/type, ownership helpers, export redaction, entitlement policy, and readiness configuration.
 - A dry-run-capable deployment helper, backup/restore procedures, rollback steps, and pre/post-deploy checklists.
+- Mobile-first workspace lifecycle feedback, embedded pull-to-refresh, resume/reconnect synchronization, session refresh, and installed-PWA runtime update detection without caching authenticated HTML or APIs.
 
 The additive migration is `20260906190000_deployment_security_foundation`. It adds `sessionVersion`, auth tokens, audit logs, entitlements, registration invites, webhook events, and job leases. Existing users are backfilled with active `INVITED` entitlement and email-verification enforcement remains disabled unless explicitly enabled.
 

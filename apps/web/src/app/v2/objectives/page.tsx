@@ -2,6 +2,8 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
+import { MobileSectionNav } from "@/components/MobileSectionNav";
+
 import { Objective, ObjectiveStatus, useJarvisState } from "@/lib/jarvisStore";
 
 const statusOptions: Array<{ id: ObjectiveStatus; label: string }> = [
@@ -9,6 +11,8 @@ const statusOptions: Array<{ id: ObjectiveStatus; label: string }> = [
   { id: "paused", label: "Paused" },
   { id: "done", label: "Done" },
 ];
+
+type ObjectivesMobileView = "overview" | "objectives" | "new";
 
 export default function ObjectivesPage() {
   const {
@@ -26,6 +30,7 @@ export default function ObjectivesPage() {
   const [nextAction, setNextAction] = useState("");
   const [projectText, setProjectText] = useState<Record<string, string>>({});
   const [milestoneText, setMilestoneText] = useState<Record<string, string>>({});
+  const [mobileView, setMobileView] = useState<ObjectivesMobileView>("overview");
 
   const activeObjectives = useMemo(
     () =>
@@ -54,6 +59,7 @@ export default function ObjectivesPage() {
     setArea("");
     setTarget("");
     setNextAction("");
+    setMobileView("objectives");
   }
 
   function handleAddProject(objectiveId: string) {
@@ -73,30 +79,40 @@ export default function ObjectivesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div className="flex flex-col gap-4 lg:gap-8">
+      <header className="mobile-compact-header flex flex-wrap items-end justify-between gap-3 lg:gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Objectives</p>
-          <h1 className="mt-3 text-3xl font-semibold text-white">Outcome map</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-white lg:mt-3">Outcome map</h1>
         </div>
         <p className="max-w-xl text-sm leading-6 text-zinc-300">
           Objectives connect projects, milestones, and daily actions without turning the planner into another backlog.
         </p>
       </header>
+      <MobileSectionNav
+        label="Objective sections"
+        value={mobileView}
+        onChange={setMobileView}
+        options={[
+          { value: "overview", label: "Overview" },
+          { value: "objectives", label: "Objectives", badge: activeObjectives.length },
+          { value: "new", label: "New" },
+        ]}
+      />
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+      <section className={(mobileView === "overview" ? "" : "hidden lg:grid ") + "grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-6"}>
+        <div className="glass-panel mobile-card-padding rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Current state</p>
           <p className="mt-4 text-4xl font-semibold text-white">{activeObjectives.length}</p>
           <p className="mt-2 text-sm text-zinc-300">Tracked objectives.</p>
         </div>
-        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+        <div className="glass-panel mobile-card-padding order-first col-span-2 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:order-none lg:col-span-1">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Recommended action</p>
           <p className="mt-4 text-lg font-semibold text-cyan-100">
             {activeObjectives[0]?.nextAction || "Create one active objective with a clear next action."}
           </p>
         </div>
-        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+        <div className="glass-panel mobile-card-padding rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Historical trend</p>
           <p className="mt-4 text-4xl font-semibold text-amber-200">{atRiskCount}</p>
           <p className="mt-2 text-sm text-zinc-300">Active objectives below 35% project completion.</p>
@@ -104,8 +120,9 @@ export default function ObjectivesPage() {
       </section>
 
       <form
+        data-guide="objective-form"
         onSubmit={handleAddObjective}
-        className="glass-panel grid gap-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:grid-cols-2"
+        className={(mobileView === "new" ? "" : "hidden lg:grid ") + "glass-panel mobile-card-padding grid gap-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:grid-cols-2"}
       >
         <div className="lg:col-span-2">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">New objective</p>
@@ -142,7 +159,7 @@ export default function ObjectivesPage() {
         </button>
       </form>
 
-      <section className="grid gap-6">
+      <section className={(mobileView === "objectives" ? "" : "hidden lg:grid ") + "grid gap-4 lg:gap-6"}>
         {activeObjectives.length === 0 ? (
           <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-zinc-300 backdrop-blur-lg">
             No objectives yet. Start with one outcome and one next action.
@@ -153,7 +170,7 @@ export default function ObjectivesPage() {
             return (
               <article
                 key={objective.id}
-                className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg"
+                className="glass-panel mobile-card-padding rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg"
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">

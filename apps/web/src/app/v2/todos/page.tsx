@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   Day,
@@ -633,6 +634,9 @@ export default function TodosPage() {
     return <p className="text-sm uppercase tracking-[0.3em] text-zinc-400">Loading planner…</p>;
   }
 
+  // Keep viewport-fixed controls outside the pull-to-refresh transform.
+  const overlayRoot = typeof document !== "undefined" ? document.querySelector(".app-shell") : null;
+
   let panelState: TaskPanelState | null = null;
   if (panelMode === "add") {
     panelState = {
@@ -714,7 +718,7 @@ export default function TodosPage() {
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-6 pb-6 lg:h-full lg:min-h-0 lg:gap-0 lg:overflow-hidden lg:pb-0">
+    <div className="flex w-full min-w-0 flex-col gap-6 pb-20 lg:h-full lg:min-h-0 lg:gap-0 lg:overflow-hidden lg:pb-0">
         <div className={backlogMode ? "order-2 lg:contents" : "order-1 lg:contents"}>
           <DayTimeline
             todos={todosForDay}
@@ -733,7 +737,7 @@ export default function TodosPage() {
             onJumpToday={jumpToToday}
           />
         </div>
-        <div className="hidden lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-5 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="hidden lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-stretch lg:gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
           <TimeBlockingBoard
             todos={todosForDay}
             selectedDay={selectedDay}
@@ -812,23 +816,32 @@ export default function TodosPage() {
           />
         </div>
 
-      {panelState && <TaskPanel {...panelState} onClose={closePanel} />}
-      {calendarOpen && (
-        <CalendarOverlay
-          selectedDay={selectedDay}
-          markers={dayColorMap}
-          onSelect={handleCalendarSelect}
-          onClose={() => setCalendarOpen(false)}
-        />
+      {overlayRoot && createPortal(
+        <>
+          {panelState && <TaskPanel {...panelState} onClose={closePanel} />}
+          {calendarOpen && (
+            <CalendarOverlay
+              selectedDay={selectedDay}
+              markers={dayColorMap}
+              onSelect={handleCalendarSelect}
+              onClose={() => setCalendarOpen(false)}
+            />
+          )}
+          {!panelState && !calendarOpen && (
+            <button
+              type="button"
+              aria-label="Add task"
+              data-guide="plan-add"
+              aria-haspopup="dialog"
+              onClick={openAddPanel}
+              className="planner-add-button fixed bottom-[calc(var(--jarvis-mobile-nav-height)+1rem)] right-[max(1rem,env(safe-area-inset-right,0px))] z-30 flex h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full bg-emerald-400 text-2xl font-semibold text-zinc-900 shadow-2xl [-webkit-tap-highlight-color:transparent] active:transform-none lg:hidden"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
+          )}
+        </>,
+        overlayRoot,
       )}
-      <button
-        type="button"
-        onClick={openAddPanel}
-        className="fixed bottom-[calc(var(--jarvis-mobile-nav-height)+1rem)] right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400 text-2xl font-semibold text-zinc-900 shadow-2xl lg:hidden"
-      >
-        <span className="sr-only">Add task</span>
-        +
-      </button>
     </div>
   );
 }
@@ -898,6 +911,7 @@ function DesktopPlannerRail({
           </div>
           <button
             type="button"
+            data-guide="plan-add"
             onClick={onAddTask}
             className="rounded-full bg-emerald-400 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-emerald-950 shadow-lg shadow-emerald-500/20"
           >
@@ -1016,6 +1030,7 @@ function MindSweepCard({
         }}
       >
         <textarea
+          data-guide="plan-capture"
           value={text}
           onChange={(event) => onTextChange(event.target.value)}
           rows={3}
@@ -1707,6 +1722,7 @@ function DayTimeline({
                 <button
                   key={day.key}
                   type="button"
+                  data-guide="plan-days"
                   onClick={() => onSelectDay(day.key)}
                   className={`flex min-h-[4.75rem] min-w-0 flex-col items-center justify-center rounded-2xl px-0 py-1 text-center transition ${
                     active ? "text-white" : "text-white/60 hover:text-white"
@@ -1747,6 +1763,7 @@ function DayTimeline({
           </div>
           <button
             type="button"
+            data-guide="plan-add"
             onClick={onAddTask}
             className="flex min-h-12 items-center justify-center rounded-3xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/15"
           >
@@ -2040,7 +2057,8 @@ function DayTimeline({
         </div>
         <button
           type="button"
-          onClick={onAddTask}
+          data-guide="plan-add"
+            onClick={onAddTask}
           className="mt-1 flex w-full items-center justify-center gap-3 rounded-full bg-emerald-400 px-5 py-3 text-base font-semibold text-emerald-950 shadow-lg shadow-emerald-500/40"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base text-emerald-700">+</span>
@@ -2281,11 +2299,11 @@ function TimeBlockingBoard({
   return (
     <div className="theme-workspace flex min-h-0 min-w-0 flex-col rounded-[28px] border p-5 shadow-[0_24px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
       <div className="flex shrink-0 flex-col gap-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-start 2xl:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Day planner</p>
             <h2 className="text-2xl font-semibold text-white">{selectedDayLabel}</h2>
-            <p className="mt-2 text-sm text-zinc-400">
+            <p className="mt-2 hidden text-sm text-zinc-400 2xl:block">
               Drag and resize the day while your control rail stays in view.
             </p>
             <div className="mt-4 flex flex-wrap gap-2 text-sm text-white/80">
@@ -2330,7 +2348,8 @@ function TimeBlockingBoard({
             </button>
             <button
               type="button"
-              onClick={onAddTask}
+              data-guide="plan-add"
+            onClick={onAddTask}
               className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 px-4 py-2 text-[11px] font-semibold text-white transition hover:bg-emerald-400/20"
             >
               <span className="text-base leading-none text-emerald-300">+</span>
@@ -2339,23 +2358,25 @@ function TimeBlockingBoard({
           </div>
         </div>
         <div className="rounded-2xl border border-white/5 bg-black/30 px-3 py-3">
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1">
             {weekDays.map((day) => {
               const active = day.key === selectedDay;
               return (
                 <button
                   key={day.key}
                   type="button"
+                  data-guide="plan-days"
                   onClick={() => onSelectDay(day.key)}
-                  className={`flex flex-col rounded-2xl px-3 py-3 text-left transition ${
+                  aria-pressed={active}
+                  className={`flex min-w-0 flex-col items-center rounded-2xl px-1 py-2 text-center transition ${
                     active ? "bg-cyan-300 text-zinc-900" : "bg-black/0 text-white/80 hover:bg-white/10"
                   }`}
                 >
-                  <span className="text-[10px] uppercase tracking-[0.4em]">
+                  <span className="text-[10px] uppercase tracking-[0.08em]">
                     {day.weekday}
                   </span>
-                  <span className="text-base font-semibold">{day.label}</span>
-                  <div className="mt-1 flex items-center gap-1 text-[10px] uppercase tracking-[0.3em]">
+                  <span className="text-sm font-semibold">{day.label}</span>
+                  <div className="mt-1 flex items-center gap-1 text-[9px] uppercase tracking-normal">
                     {day.isToday && <span className="font-bold text-red-400">Today</span>}
                     {!day.isToday && day.hasTodos && (
                       <span className="text-emerald-300">Focus</span>
@@ -2369,7 +2390,7 @@ function TimeBlockingBoard({
       </div>
       <div
         ref={boardScrollRef}
-        className={`planner-board-scroll mt-5 min-h-[320px] flex-1 overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40 ${
+        className={`planner-board-scroll mt-4 min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40 ${
           dragState ? "planner-board-dragging" : ""
         }`}
       >
@@ -2762,6 +2783,9 @@ function TaskPanel({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-panel-title"
         className="theme-modal mobile-todos-drawer h-full w-full max-w-md overflow-y-auto p-6 shadow-2xl sm:rounded-l-3xl lg:max-w-2xl"
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)",
@@ -2772,7 +2796,7 @@ function TaskPanel({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">{subtitle}</p>
-            <h3 className="mt-1 text-2xl font-semibold text-white">{title}</h3>
+            <h3 id="task-panel-title" className="mt-1 text-2xl font-semibold text-white">{title}</h3>
           </div>
           <button
             type="button"

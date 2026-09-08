@@ -159,6 +159,10 @@ See the [deployment and recovery runbook](../../docs/deployment.md) before apply
 - Android/Chrome: use **Install app** or **Add to Home screen**.
 - iPhone/iPad: use Safari’s **Share → Add to Home Screen** flow.
 
+The installed app checks the no-cache `/api/version` runtime marker on launch, resume, reconnect, and back/forward restoration. When the server runtime changes, Jarvis first attempts a workspace sync, explains that an update is ready, and reloads the standalone app. Session and workspace state also refresh on resume and reconnect.
+
+Mobile pull-to-refresh is embedded in the page scroller. It follows the gesture and reports pull, release, checking, success, and failure states. A separate mobile status notice explains workspace opening, local saves, server synchronization, offline safety, retry needs, and completion. Desktop retains the browser's native refresh workflow.
+
 Jarvis does not currently register a custom offline service worker. Installation and local-first editing should not be described as complete offline application support.
 
 ## UI contract

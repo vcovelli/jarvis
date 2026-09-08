@@ -40,7 +40,7 @@ apps/web/
 
 The root page is a public landing page and redirects an already authenticated user to `/v2`. The `/v2` layout calls `getServerSession`; unauthenticated requests are redirected to `/login` before the workspace renders.
 
-`src/app/v2/layout.tsx` composes the first-run walkthrough, pull-to-refresh behavior, grouped sidebar/mobile navigation, `PageViewport`, and `JarvisStateProvider`. `/v2/daily` is an alias of the planner implementation at `/v2/todos`.
+`src/app/v2/layout.tsx` composes the first-run walkthrough, mobile sync notice, grouped sidebar/mobile navigation, `PageViewport`, and `JarvisStateProvider`. `PageViewport` owns the embedded mobile pull-to-refresh surface. The status notice also checks the no-cache `/api/version` runtime marker in standalone display mode and syncs before reloading after a detected server release. `/v2/daily` is an alias of the planner implementation at `/v2/todos`.
 
 ## Routes and product maturity
 

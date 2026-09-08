@@ -18,8 +18,6 @@ import { createETagFromJson } from "@/lib/stateHash";
 export type DayKey = string; // YYYY-MM-DD
 
 export type MoodTag = string;
-export const defaultMoodTags = ["energy", "stress", "sleep", "workout"] as const;
-const defaultMoodTagSet = new Set(defaultMoodTags.map((tag) => tag.toLowerCase()));
 const MAX_CUSTOM_MOOD_TAGS = 24;
 const MAX_DELETED_MOOD_IDS = 500;
 const MAX_DELETED_MOOD_TAGS = 100;
@@ -389,10 +387,10 @@ async function saveStateToServer(
 }
 
 async function fetchStateFromServer(
-  options: { etag?: string; noCache?: boolean; signal?: AbortSignal } = {},
+  options: { etag?: string; signal?: AbortSignal } = {},
 ): Promise<RemoteLoadResult> {
   const headers: Record<string, string> = {};
-  if (options.etag && !options.noCache) {
+  if (options.etag) {
     headers["If-None-Match"] = options.etag;
   }
 
@@ -1224,7 +1222,6 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       const tag = normalizeMoodTag(action.payload.tag);
       if (!tag) return state;
       const normalized = tag.toLowerCase();
-      if (defaultMoodTagSet.has(normalized)) return state;
       if (state.moodTags.some((existing) => existing.toLowerCase() === normalized)) {
         return state;
       }
@@ -1244,7 +1241,6 @@ function reducer(state: JarvisState, action: Action): JarvisState {
       const fromIndex = state.moodTags.findIndex((tag) => tag.toLowerCase() === from.toLowerCase());
       if (fromIndex === -1) return state;
       const normalizedTo = to.toLowerCase();
-      if (defaultMoodTagSet.has(normalizedTo)) return state;
       if (
         state.moodTags.some((tag, index) => index !== fromIndex && tag.toLowerCase() === normalizedTo)
       ) {
@@ -1801,7 +1797,9 @@ function useJarvisStoreInternal() {
   const [networkRetryTick, setNetworkRetryTick] = useState(0);
   const stateRef = useRef(state);
   const lastRemoteSaveRef = useRef<string | null>(null);
+  const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
   const lastAutoRefreshRef = useRef(0);
+  const lastHiddenAtRef = useRef(0);
   const scheduleSyncStatus = useCallback(
     (updater: (current: StateSyncStatus) => StateSyncStatus) => {
       Promise.resolve().then(() => setSyncStatus(updater));
@@ -2217,141 +2215,160 @@ function useJarvisStoreInternal() {
   ]);
 
   const refreshRemoteState = useCallback(
-    async (options: { silent?: boolean } = {}) => {
-      const context = buildStorageContext(status, session?.user?.id);
-      if (!hydrated || !readyRef.current || lastUserRef.current !== context.userKey) return false;
-      if (!context.isAuthenticated) return false;
-      if (!canUseNetwork()) {
-        scheduleSyncStatus((current) => ({ ...current, remote: "offline" }));
-        return false;
+    (options: { silent?: boolean } = {}) => {
+      if (refreshInFlightRef.current) {
+        if (!options.silent) {
+          scheduleSyncStatus((current) => ({ ...current, remote: "refreshing", error: undefined }));
+        }
+        return refreshInFlightRef.current;
       }
 
-      if (!options.silent) {
-        scheduleSyncStatus((current) => ({ ...current, remote: "refreshing", error: undefined }));
-      }
+      const operation = (async () => {
+        const context = buildStorageContext(status, session?.user?.id);
+        if (!hydrated || !readyRef.current || lastUserRef.current !== context.userKey) return false;
+        if (!context.isAuthenticated) return false;
+        if (!canUseNetwork()) {
+          scheduleSyncStatus((current) => ({ ...current, remote: "offline" }));
+          return false;
+        }
 
-      try {
-        const startingState = stateRef.current;
-        const startingStateJson = JSON.stringify(startingState);
-        const startingSignature = `${context.storageKey}:${startingStateJson}`;
-        const startingMeta = readStoredMeta(context.metaKey);
-        const needsRemoteSave = Boolean(
-          startingMeta?.pendingRemoteSave || lastRemoteSaveRef.current !== startingSignature,
-        );
+        if (!options.silent) {
+          scheduleSyncStatus((current) => ({ ...current, remote: "refreshing", error: undefined }));
+        }
 
-        if (needsRemoteSave) {
-          const saveResult = await saveStateToServer(startingState, {
-            baseEtag: startingMeta?.etag ?? null,
-          });
-          if (saveResult.status === "conflict") {
-            handleSaveConflict(context, saveResult, stateRef.current);
+        try {
+          const startingState = stateRef.current;
+          const startingStateJson = JSON.stringify(startingState);
+          const startingSignature = `${context.storageKey}:${startingStateJson}`;
+          const startingMeta = readStoredMeta(context.metaKey);
+          const needsRemoteSave = Boolean(
+            startingMeta?.pendingRemoteSave || lastRemoteSaveRef.current !== startingSignature,
+          );
+
+          if (needsRemoteSave) {
+            const saveResult = await saveStateToServer(startingState, {
+              baseEtag: startingMeta?.etag ?? null,
+            });
+            if (saveResult.status === "conflict") {
+              handleSaveConflict(context, saveResult, stateRef.current);
+              return true;
+            }
+
+            const syncedAt = Date.now();
+            const currentMeta = readStoredMeta(context.metaKey);
+            writeStoredMeta(context.metaKey, {
+              ...(currentMeta ?? {}),
+              etag: saveResult.etag ?? createETagFromJson(startingStateJson),
+              savedAt: currentMeta?.savedAt ?? syncedAt,
+              pendingRemoteSave: false,
+              remoteSyncedAt: syncedAt,
+              remoteUpdatedAt: saveResult.updatedAt ?? currentMeta?.remoteUpdatedAt,
+            });
+            lastRemoteSaveRef.current = startingSignature;
+          }
+
+          const refreshMeta = readStoredMeta(context.metaKey);
+          const remoteResult = await fetchStateFromServer({ etag: refreshMeta?.etag });
+          if (remoteResult.type === "not-modified") {
+            const syncedAt = Date.now();
+            setSyncStatus((current) => ({
+              ...current,
+              remote: "saved",
+              lastRemoteSavedAt: syncedAt,
+              error: undefined,
+            }));
             return true;
+          }
+          if (remoteResult.type === "error") {
+            throw new Error(`State refresh failed with ${remoteResult.status}`);
           }
 
           const syncedAt = Date.now();
-          const currentMeta = readStoredMeta(context.metaKey);
-          writeStoredMeta(context.metaKey, {
-            ...(currentMeta ?? {}),
-            etag: saveResult.etag ?? createETagFromJson(startingStateJson),
-            savedAt: currentMeta?.savedAt ?? syncedAt,
-            pendingRemoteSave: false,
-            remoteSyncedAt: syncedAt,
-            remoteUpdatedAt: saveResult.updatedAt ?? currentMeta?.remoteUpdatedAt,
-          });
-          lastRemoteSaveRef.current = startingSignature;
-        }
+          if (!remoteResult.state) {
+            const localStateJson = JSON.stringify(stateRef.current);
+            const localSignature = `${context.storageKey}:${localStateJson}`;
+            const localIsInitial = localStateJson === JSON.stringify(initialState);
+            writeStoredMeta(context.metaKey, {
+              ...(readStoredMeta(context.metaKey) ?? {}),
+              etag: remoteResult.etag ?? createETagFromJson(JSON.stringify(null)),
+              savedAt: syncedAt,
+              pendingRemoteSave: !localIsInitial,
+              remoteSyncedAt: syncedAt,
+              remoteUpdatedAt: remoteResult.updatedAt,
+            });
+            lastLocalSaveRef.current = localSignature;
+            lastRemoteSaveRef.current = localIsInitial ? localSignature : `${context.storageKey}:null`;
+            setSyncStatus({
+              local: "saved",
+              remote: localIsInitial ? "saved" : "pending",
+              lastLocalSavedAt: syncedAt,
+              lastRemoteSavedAt: syncedAt,
+            });
+            return true;
+          }
 
-        const remoteResult = await fetchStateFromServer({ noCache: true });
-        if (remoteResult.type === "not-modified") {
-          const syncedAt = Date.now();
-          setSyncStatus((current) => ({
-            ...current,
-            remote: "saved",
-            lastRemoteSavedAt: syncedAt,
-            error: undefined,
-          }));
-          return true;
-        }
-        if (remoteResult.type === "error") {
-          throw new Error(`State refresh failed with ${remoteResult.status}`);
-        }
+          const serverState = sanitizeState(remoteResult.state);
+          const serverStateJson = JSON.stringify(serverState);
+          const serverSignature = `${context.storageKey}:${serverStateJson}`;
+          const latestLocalState = stateRef.current;
+          const latestLocalStateJson = JSON.stringify(latestLocalState);
+          const latestLocalSignature = `${context.storageKey}:${latestLocalStateJson}`;
+          const latestMeta = readStoredMeta(context.metaKey);
+          const shouldMerge = Boolean(
+            latestMeta?.pendingRemoteSave ||
+              (lastRemoteSaveRef.current &&
+                lastRemoteSaveRef.current !== latestLocalSignature &&
+                latestLocalSignature !== serverSignature),
+          );
+          const nextState = shouldMerge
+            ? mergeJarvisStates(serverState, latestLocalState)
+            : serverState;
+          const nextStateJson = JSON.stringify(nextState);
+          const nextSignature = `${context.storageKey}:${nextStateJson}`;
+          const nextEtag = createETagFromJson(nextStateJson);
 
-        const syncedAt = Date.now();
-        if (!remoteResult.state) {
-          const localStateJson = JSON.stringify(stateRef.current);
-          const localSignature = `${context.storageKey}:${localStateJson}`;
-          const localIsInitial = localStateJson === JSON.stringify(initialState);
+          if (nextStateJson !== latestLocalStateJson) {
+            stateRef.current = nextState;
+            dispatch({ type: "HYDRATE", payload: nextState });
+          }
+          writeStoredState(context.storageKey, nextStateJson);
           writeStoredMeta(context.metaKey, {
-            ...(readStoredMeta(context.metaKey) ?? {}),
-            etag: remoteResult.etag ?? createETagFromJson(JSON.stringify(null)),
+            etag: shouldMerge
+              ? remoteResult.etag ?? createETagFromJson(serverStateJson)
+              : remoteResult.etag ?? nextEtag,
             savedAt: syncedAt,
-            pendingRemoteSave: !localIsInitial,
+            pendingRemoteSave: shouldMerge,
             remoteSyncedAt: syncedAt,
             remoteUpdatedAt: remoteResult.updatedAt,
           });
-          lastLocalSaveRef.current = localSignature;
-          lastRemoteSaveRef.current = localIsInitial ? localSignature : `${context.storageKey}:null`;
+          lastLocalSaveRef.current = nextSignature;
+          lastRemoteSaveRef.current = shouldMerge ? serverSignature : nextSignature;
           setSyncStatus({
             local: "saved",
-            remote: localIsInitial ? "saved" : "pending",
+            remote: shouldMerge ? "pending" : "saved",
             lastLocalSavedAt: syncedAt,
             lastRemoteSavedAt: syncedAt,
           });
           return true;
+        } catch (error) {
+          console.warn("Jarvis state refresh failed", error);
+          scheduleSyncStatus((current) => ({
+            ...current,
+            remote: canUseNetwork() ? "error" : "offline",
+            error: getErrorMessage(error),
+          }));
+          return false;
         }
+      })();
 
-        const serverState = sanitizeState(remoteResult.state);
-        const serverStateJson = JSON.stringify(serverState);
-        const serverSignature = `${context.storageKey}:${serverStateJson}`;
-        const latestLocalState = stateRef.current;
-        const latestLocalStateJson = JSON.stringify(latestLocalState);
-        const latestLocalSignature = `${context.storageKey}:${latestLocalStateJson}`;
-        const latestMeta = readStoredMeta(context.metaKey);
-        const shouldMerge = Boolean(
-          latestMeta?.pendingRemoteSave ||
-            (lastRemoteSaveRef.current &&
-              lastRemoteSaveRef.current !== latestLocalSignature &&
-              latestLocalSignature !== serverSignature),
-        );
-        const nextState = shouldMerge
-          ? mergeJarvisStates(serverState, latestLocalState)
-          : serverState;
-        const nextStateJson = JSON.stringify(nextState);
-        const nextSignature = `${context.storageKey}:${nextStateJson}`;
-        const nextEtag = createETagFromJson(nextStateJson);
-
-        if (nextStateJson !== latestLocalStateJson) {
-          stateRef.current = nextState;
-          dispatch({ type: "HYDRATE", payload: nextState });
+      refreshInFlightRef.current = operation;
+      const releaseOperation = () => {
+        if (refreshInFlightRef.current === operation) {
+          refreshInFlightRef.current = null;
         }
-        writeStoredState(context.storageKey, nextStateJson);
-        writeStoredMeta(context.metaKey, {
-          etag: shouldMerge
-            ? remoteResult.etag ?? createETagFromJson(serverStateJson)
-            : remoteResult.etag ?? nextEtag,
-          savedAt: syncedAt,
-          pendingRemoteSave: shouldMerge,
-          remoteSyncedAt: syncedAt,
-          remoteUpdatedAt: remoteResult.updatedAt,
-        });
-        lastLocalSaveRef.current = nextSignature;
-        lastRemoteSaveRef.current = shouldMerge ? serverSignature : nextSignature;
-        setSyncStatus({
-          local: "saved",
-          remote: shouldMerge ? "pending" : "saved",
-          lastLocalSavedAt: syncedAt,
-          lastRemoteSavedAt: syncedAt,
-        });
-        return true;
-      } catch (error) {
-        console.warn("Jarvis state refresh failed", error);
-        scheduleSyncStatus((current) => ({
-          ...current,
-          remote: canUseNetwork() ? "error" : "offline",
-          error: getErrorMessage(error),
-        }));
-        return false;
-      }
+      };
+      void operation.then(releaseOperation, releaseOperation);
+      return operation;
     },
     [handleSaveConflict, hydrated, scheduleSyncStatus, session?.user?.id, status],
   );
@@ -2384,19 +2401,46 @@ function useJarvisStoreInternal() {
   useEffect(() => {
     if (!hydrated || !readyRef.current) return;
 
-    function refreshOnResume() {
+    function requestResumeRefresh(force = false) {
       if (document.visibilityState === "hidden") return;
       const now = Date.now();
-      if (now - lastAutoRefreshRef.current < 15000) return;
+      const returnedFromBackground =
+        lastHiddenAtRef.current > 0 && now - lastHiddenAtRef.current >= 1200;
+      lastHiddenAtRef.current = 0;
+      if (!force && !returnedFromBackground && now - lastAutoRefreshRef.current < 4000) return;
       lastAutoRefreshRef.current = now;
       void refreshRemoteState({ silent: true });
     }
 
-    window.addEventListener("focus", refreshOnResume);
-    document.addEventListener("visibilitychange", refreshOnResume);
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        lastHiddenAtRef.current = Date.now();
+        return;
+      }
+      requestResumeRefresh();
+    }
+
+    function handleOnlineRefresh() {
+      requestResumeRefresh(true);
+    }
+
+    function handlePageShow(event: PageTransitionEvent) {
+      requestResumeRefresh(event.persisted);
+    }
+
+    function handleFocus() {
+      requestResumeRefresh();
+    }
+
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("online", handleOnlineRefresh);
+    window.addEventListener("pageshow", handlePageShow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
-      window.removeEventListener("focus", refreshOnResume);
-      document.removeEventListener("visibilitychange", refreshOnResume);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("online", handleOnlineRefresh);
+      window.removeEventListener("pageshow", handlePageShow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [hydrated, refreshRemoteState]);
 
@@ -2908,7 +2952,7 @@ function sanitizeDeletedMoodTags(value?: unknown): string[] {
     const tag = normalizeMoodTag(entry);
     if (!tag) continue;
     const normalized = tag.toLowerCase();
-    if (defaultMoodTagSet.has(normalized) || seen.has(normalized)) continue;
+    if (seen.has(normalized)) continue;
     seen.add(normalized);
     tags.push(tag);
     if (tags.length >= MAX_DELETED_MOOD_TAGS) break;
@@ -2925,7 +2969,7 @@ function sanitizeMoodTagList(value?: unknown): string[] {
     const normalized = normalizeMoodTag(entry);
     if (!normalized) continue;
     const lower = normalized.toLowerCase();
-    if (defaultMoodTagSet.has(lower) || seen.has(lower)) continue;
+    if (seen.has(lower)) continue;
     seen.add(lower);
     tags.push(normalized);
     if (tags.length >= MAX_CUSTOM_MOOD_TAGS) break;

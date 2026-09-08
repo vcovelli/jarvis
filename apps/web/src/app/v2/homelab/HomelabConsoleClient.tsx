@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { MobileSectionNav } from "@/components/MobileSectionNav";
+
 import { useToast } from "@/components/Toast";
 import type { HomelabSnapshot, HomelabService } from "@/lib/homelabDocs";
 import { useJarvisState, type HomelabActionType } from "@/lib/jarvisStore";
 import type { MonitoringHistoryPoint, MonitoringStatus, MonitoringSummary } from "@/lib/prometheus";
 
+type HomelabMobileView = "overview" | "live" | "services";
 const POLL_INTERVAL_MS = 45_000;
 
 export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: HomelabSnapshot }) {
@@ -21,6 +24,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
   const [monitoring, setMonitoring] = useState<MonitoringSummary | null>(() => (demoMode ? buildDemoMonitoringSummary() : null));
   const [isMonitoringPolling, setIsMonitoringPolling] = useState(false);
   const [monitoringError, setMonitoringError] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<HomelabMobileView>("overview");
 
   const activeServices = useMemo(
     () => snapshot.services.filter((service) => service.status === "active").length,
@@ -205,8 +209,8 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div className="flex flex-col gap-4 lg:gap-8">
+      <header className="mobile-compact-header flex flex-wrap items-end justify-between gap-3 lg:gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Homelab</p>
           <h1 className="mt-3 text-3xl font-semibold text-white">covelli-server</h1>
@@ -217,7 +221,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
         <div className="flex flex-wrap gap-2">
           <Link
             href="/v2/documentation?doc=monitoring/health.md"
-            className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
+            className="hidden min-h-9 items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40 sm:inline-flex"
           >
             Health docs
           </Link>
@@ -225,7 +229,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
             href={grafanaUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40"
+            className="hidden min-h-9 items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-cyan-300/40 sm:inline-flex"
           >
             Grafana
           </a>
@@ -239,13 +243,23 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
           </button>
         </div>
       </header>
+      <MobileSectionNav
+        label="Homelab sections"
+        value={mobileView}
+        onChange={setMobileView}
+        options={[
+          { value: "overview", label: "Overview" },
+          { value: "live", label: "Live metrics" },
+          { value: "services", label: "Services", badge: inactiveServices.length || undefined },
+        ]}
+      />
 
-      <section className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+      <section className={(mobileView === "overview" ? "grid " : "hidden lg:grid ") + "gap-4 lg:grid-cols-[1.25fr_0.75fr] lg:gap-6"}>
+        <div className="glass-panel mobile-card-padding rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">System state</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">{healthScore}% operational</h2>
+              <h2 data-guide="homelab-overview" className="mt-3 text-2xl font-semibold text-white">{healthScore}% operational</h2>
             </div>
             <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs uppercase tracking-[0.25em] text-white/70">
               {isPolling ? "Polling" : lastRefreshTs ? `Updated ${formatTime(lastRefreshTs)}` : "Snapshot loaded"}
@@ -256,7 +270,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
               {refreshError}
             </div>
           )}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-3">
             <Metric label="Hostname" value={snapshot.system.hostname} />
             <Metric label="Operating system" value={snapshot.system.os} />
             <Metric label="Kernel" value={snapshot.system.kernel} />
@@ -266,7 +280,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
           </div>
         </div>
 
-        <div className={`rounded-3xl border p-6 ${attentionTone(primaryAttention?.severity)}`}>
+        <div className={`mobile-card-padding rounded-3xl border p-6 ${attentionTone(primaryAttention?.severity)}`}>
           <p className="text-xs uppercase tracking-[0.3em] opacity-80">Recommended action</p>
           <h2 className="mt-4 text-xl font-semibold text-white">
             {primaryAttention?.title ?? "No active attention item"}
@@ -294,14 +308,16 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
         </div>
       </section>
 
+      <div className={mobileView === "live" ? "" : "hidden lg:block"}>
       <MonitoringSection
         grafanaUrl={grafanaUrl}
         isPolling={isMonitoringPolling}
         error={monitoringError}
         summary={monitoring}
       />
+      </div>
 
-      <section className="grid gap-6 lg:grid-cols-4">
+      <section className={(mobileView === "services" ? "grid " : "hidden lg:grid ") + "grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-6"}>
         <MetricPanel label="Services" value={`${activeServices}/${snapshot.services.length}`} detail="Expected services active" tone="text-emerald-200" />
         <MetricPanel label="Storage" value={snapshot.system.rootFilesystem} detail="Root filesystem" tone="text-cyan-200" />
         <MetricPanel label="Docs" value={String(snapshot.docs.total)} detail={`Latest: ${snapshot.docs.latestSnapshot ?? "none"}`} tone="text-white" />
@@ -313,12 +329,12 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
         />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+      <section className={(mobileView === "services" ? "grid " : "hidden lg:grid ") + "gap-4 lg:grid-cols-[1.35fr_0.65fr] lg:gap-6"}>
         <div className="glass-panel overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-lg">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-6 py-5">
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Service health</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Managed services</h2>
+              <h2 data-guide="homelab-services" className="mt-2 text-xl font-semibold text-white">Managed services</h2>
             </div>
             <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] ${inactiveServices.length ? "bg-rose-300/15 text-rose-100" : "bg-emerald-300/15 text-emerald-100"}`}>
               {inactiveServices.length ? `${inactiveServices.length} need attention` : "Nominal"}

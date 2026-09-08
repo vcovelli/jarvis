@@ -1,163 +1,200 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 import { useJarvisState } from "@/lib/jarvisStore";
 
-const TRIGGER_DISTANCE = 76;
-const MAX_PULL_DISTANCE = 126;
-const MIN_REFRESH_VISIBLE_MS = 520;
-const PULL_START_MAX_Y = 124;
+const REFRESH_GESTURE_DISTANCE = 64;
+const MAX_VISUAL_OFFSET = 46;
+const SETTLE_DURATION_MS = 280;
+const PULL_REFRESH_EVENT = "jarvis:pull-refresh";
 
-export function PullToRefresh() {
+type PullToRefreshProps = {
+  viewportRef: RefObject<HTMLElement | null>;
+  contentRef: RefObject<HTMLDivElement | null>;
+};
+
+/** Moves the page itself with the gesture, then refreshes behind the spring-back. */
+export function PullToRefresh({ viewportRef, contentRef }: PullToRefreshProps) {
   const { refreshRemoteState, syncStatus } = useJarvisState();
-  const [pullDistance, setPullDistance] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const startYRef = useRef<number | null>(null);
+  const refreshRef = useRef(refreshRemoteState);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
   const pullDistanceRef = useRef(0);
   const trackingRef = useRef(false);
-  const readyRef = useRef(false);
-  const refreshRef = useRef(refreshRemoteState);
+  const refreshingRef = useRef(false);
+  const blockedRef = useRef(false);
+  const motionFrameRef = useRef<number | null>(null);
+  const settleTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     refreshRef.current = refreshRemoteState;
   }, [refreshRemoteState]);
 
   useEffect(() => {
-    pullDistanceRef.current = pullDistance;
-  }, [pullDistance]);
+    blockedRef.current =
+      syncStatus.local === "loading" ||
+      syncStatus.remote === "saving" ||
+      syncStatus.remote === "refreshing" ||
+      refreshingRef.current;
+  }, [syncStatus.local, syncStatus.remote]);
 
   useEffect(() => {
-    function resetPull() {
-      startYRef.current = null;
+    const currentViewport = viewportRef.current;
+    const currentContent = contentRef.current;
+    if (!currentViewport || !currentContent) return;
+    const viewport: HTMLElement = currentViewport;
+    const content: HTMLDivElement = currentContent;
+
+    function clearMotionTimers() {
+      if (motionFrameRef.current) {
+        window.cancelAnimationFrame(motionFrameRef.current);
+        motionFrameRef.current = null;
+      }
+      if (settleTimerRef.current) {
+        window.clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+    }
+
+    function clearTracking() {
+      startRef.current = null;
+      pullDistanceRef.current = 0;
       trackingRef.current = false;
-      readyRef.current = false;
-      setPullDistance(0);
+    }
+
+    function prepareContentMotion() {
+      clearMotionTimers();
+      content.style.transition = "none";
+      content.style.willChange = "transform";
+    }
+
+    function moveContent(rawDistance: number) {
+      pullDistanceRef.current = rawDistance;
+      if (motionFrameRef.current) return;
+      motionFrameRef.current = window.requestAnimationFrame(() => {
+        motionFrameRef.current = null;
+        const offset = getPullOffset(pullDistanceRef.current);
+        content.style.transform = `translate3d(0, ${offset}px, 0)`;
+      });
+    }
+
+    function settleContent() {
+      if (motionFrameRef.current) {
+        window.cancelAnimationFrame(motionFrameRef.current);
+        motionFrameRef.current = null;
+        const offset = getPullOffset(pullDistanceRef.current);
+        content.style.transform = `translate3d(0, ${offset}px, 0)`;
+      }
+
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const duration = reduceMotion ? 0 : SETTLE_DURATION_MS;
+      content.style.transition = duration
+        ? `transform ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`
+        : "none";
+      motionFrameRef.current = window.requestAnimationFrame(() => {
+        motionFrameRef.current = null;
+        content.style.transform = "translate3d(0, 0, 0)";
+      });
+      settleTimerRef.current = window.setTimeout(() => {
+        settleTimerRef.current = null;
+        content.style.removeProperty("transition");
+        content.style.removeProperty("transform");
+        content.style.removeProperty("will-change");
+      }, duration + 40);
+    }
+
+    function cancelGesture() {
+      settleContent();
+      clearTracking();
     }
 
     function handleTouchStart(event: TouchEvent) {
       if (
         event.touches.length !== 1 ||
-        syncStatus.remote === "saving" ||
-        syncStatus.remote === "refreshing"
+        viewport.scrollTop > 0 ||
+        blockedRef.current ||
+        settleTimerRef.current !== null ||
+        !canStartRefreshGesture(event.target, viewport)
       ) {
         return;
       }
-      const startY = event.touches[0]?.clientY ?? null;
-      if (startY === null || startY > PULL_START_MAX_Y) return;
-      if (!canStartPull(event.target)) return;
-      startYRef.current = startY;
+
+      const touch = event.touches[0];
+      if (!touch) return;
+      prepareContentMotion();
+      startRef.current = { x: touch.clientX, y: touch.clientY };
+      pullDistanceRef.current = 0;
       trackingRef.current = true;
-      readyRef.current = false;
     }
 
     function handleTouchMove(event: TouchEvent) {
-      if (!trackingRef.current || startYRef.current === null || event.touches.length !== 1) return;
-      if (!canStartPull(event.target)) {
-        resetPull();
+      const start = startRef.current;
+      const touch = event.touches[0];
+      if (!trackingRef.current || !start || event.touches.length !== 1 || !touch) return;
+
+      const deltaY = touch.clientY - start.y;
+      const deltaX = touch.clientX - start.x;
+      if (Math.abs(deltaX) > Math.max(18, Math.abs(deltaY) * 1.15) || deltaY <= 0) {
+        cancelGesture();
+        return;
+      }
+      if (viewport.scrollTop > 0) {
+        cancelGesture();
         return;
       }
 
-      const currentY = event.touches[0]?.clientY ?? startYRef.current;
-      const delta = currentY - startYRef.current;
-      if (delta <= 0) {
-        resetPull();
-        return;
-      }
-
-      if (delta > 6) event.preventDefault();
-      const easedDistance = rubberBand(delta);
-      setPullDistance(easedDistance);
-
-      const isReady = easedDistance >= TRIGGER_DISTANCE;
-      if (isReady && !readyRef.current) pulse([8, 20, 8]);
-      readyRef.current = isReady;
+      if (deltaY > 7) event.preventDefault();
+      moveContent(deltaY);
     }
 
     function handleTouchEnd() {
       if (!trackingRef.current) return;
-      const shouldRefresh = pullDistanceRef.current >= TRIGGER_DISTANCE;
-      startYRef.current = null;
-      trackingRef.current = false;
-      readyRef.current = false;
+      const shouldRefresh = pullDistanceRef.current >= REFRESH_GESTURE_DISTANCE;
+      settleContent();
+      clearTracking();
+      viewport.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      if (!shouldRefresh) return;
 
-      if (!shouldRefresh) {
-        setPullDistance(0);
-        return;
-      }
-
-      setPullDistance(TRIGGER_DISTANCE);
-      setRefreshing(true);
-      pulse([10, 26, 10]);
-      const startedAt = performance.now();
-
-      void refreshRef.current().finally(() => {
-        const elapsed = performance.now() - startedAt;
-        window.setTimeout(() => {
-          setRefreshing(false);
-          setPullDistance(0);
-        }, Math.max(0, MIN_REFRESH_VISIBLE_MS - elapsed));
+      refreshingRef.current = true;
+      blockedRef.current = true;
+      announcePullRefresh(true);
+      void refreshRef.current({ silent: true }).finally(() => {
+        refreshingRef.current = false;
+        blockedRef.current = false;
+        announcePullRefresh(false);
+        viewport.scrollTo({ top: 0, left: 0, behavior: "auto" });
       });
     }
 
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: false });
-    window.addEventListener("touchend", handleTouchEnd);
-    window.addEventListener("touchcancel", resetPull);
+    viewport.addEventListener("touchstart", handleTouchStart, { passive: true });
+    viewport.addEventListener("touchmove", handleTouchMove, { passive: false });
+    viewport.addEventListener("touchend", handleTouchEnd);
+    viewport.addEventListener("touchcancel", cancelGesture);
     return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchEnd);
-      window.removeEventListener("touchcancel", resetPull);
+      viewport.removeEventListener("touchstart", handleTouchStart);
+      viewport.removeEventListener("touchmove", handleTouchMove);
+      viewport.removeEventListener("touchend", handleTouchEnd);
+      viewport.removeEventListener("touchcancel", cancelGesture);
+      clearMotionTimers();
+      content.style.removeProperty("transition");
+      content.style.removeProperty("transform");
+      content.style.removeProperty("will-change");
+      if (refreshingRef.current) announcePullRefresh(false);
     };
-  }, [syncStatus.remote]);
+  }, [contentRef, viewportRef]);
 
-  const isRefreshing = refreshing || syncStatus.remote === "refreshing";
-  const visible = pullDistance > 0 || isRefreshing;
-  const progress = isRefreshing ? 1 : Math.min(pullDistance / TRIGGER_DISTANCE, 1);
-  const displayDistance = isRefreshing ? TRIGGER_DISTANCE : pullDistance;
-  const ready = progress >= 1;
-  const label = isRefreshing ? "Syncing" : ready ? "Release" : "Pull";
-
-  return (
-    <div
-      className={
-        "pointer-events-none fixed inset-x-0 z-[60] flex justify-center transition-[opacity,transform] duration-300 ease-out lg:hidden " +
-        (visible ? "opacity-100" : "opacity-0")
-      }
-      style={{
-        top: "calc(env(safe-area-inset-top, 0px) + 0.35rem)",
-        transform: `translate3d(0, ${Math.min(displayDistance, TRIGGER_DISTANCE)}px, 0) scale(${visible ? 1 : 0.94})`,
-      }}
-      role="status"
-      aria-live="polite"
-      aria-label={isRefreshing ? "Refreshing state" : "State refresh gesture"}
-    >
-      <div className="theme-workspace-chrome flex h-11 items-center gap-2 rounded-full border px-2.5 pr-3.5 backdrop-blur-2xl">
-        <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-white/8">
-          <span
-            className={"absolute inset-0 rounded-full " + (isRefreshing ? "animate-spin" : "")}
-            style={{
-              background: `conic-gradient(rgb(103 232 249) ${Math.round(progress * 360)}deg, rgba(148,163,184,0.22) 0deg)`,
-            }}
-          />
-          <span className="relative h-[1.22rem] w-[1.22rem] rounded-full bg-slate-950/95" />
-          <span className="absolute h-2 w-2 rounded-full bg-cyan-200 shadow-[0_0_12px_rgba(103,232,249,0.6)]" />
-        </span>
-        <span className="text-[12px] font-semibold text-cyan-50">{label}</span>
-      </div>
-    </div>
-  );
+  return null;
 }
 
-function rubberBand(distance: number) {
-  const base = distance * 0.66;
-  const extra = distance > TRIGGER_DISTANCE ? (distance - TRIGGER_DISTANCE) * 0.18 : 0;
-  return Math.min(MAX_PULL_DISTANCE, Math.round(base + extra));
+function getPullOffset(distance: number) {
+  const easedDistance = Math.max(0, distance - 4);
+  const offset = MAX_VISUAL_OFFSET * (1 - Math.exp(-easedDistance / 62));
+  return Math.round(Math.min(MAX_VISUAL_OFFSET, offset) * 10) / 10;
 }
 
-function canStartPull(target: EventTarget | null) {
-  if (typeof window === "undefined" || window.scrollY > 0) return false;
+function canStartRefreshGesture(target: EventTarget | null, viewport: Element) {
+  if (typeof window === "undefined" || viewport.scrollTop > 0) return false;
+  if (!window.matchMedia("(max-width: 1023px)").matches) return false;
   const element = target instanceof Element ? target : null;
   if (
     element?.closest(
@@ -167,13 +204,13 @@ function canStartPull(target: EventTarget | null) {
     return false;
   }
 
-  const scrollableAncestor = findScrollableAncestor(element);
+  const scrollableAncestor = findScrollableAncestor(element, viewport);
   return !scrollableAncestor || scrollableAncestor.scrollTop <= 0;
 }
 
-function findScrollableAncestor(element: Element | null) {
+function findScrollableAncestor(element: Element | null, viewport: Element) {
   let current = element?.parentElement ?? null;
-  while (current && current !== document.body && current !== document.documentElement) {
+  while (current && current !== viewport && current !== document.body && current !== document.documentElement) {
     const style = window.getComputedStyle(current);
     const canScroll =
       (style.overflowY === "auto" || style.overflowY === "scroll") &&
@@ -184,8 +221,7 @@ function findScrollableAncestor(element: Element | null) {
   return null;
 }
 
-function pulse(pattern: number | number[]) {
-  if (typeof navigator === "undefined") return;
-  const haptics = navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean };
-  haptics.vibrate?.(pattern);
+function announcePullRefresh(active: boolean) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(PULL_REFRESH_EVENT, { detail: { active } }));
 }

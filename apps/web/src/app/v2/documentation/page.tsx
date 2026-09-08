@@ -28,16 +28,17 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
   const query = params?.q?.trim() ?? "";
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div className="flex w-full min-w-0 flex-col gap-4 lg:gap-8">
+      <header className="mobile-compact-header flex flex-wrap items-end justify-between gap-3 lg:gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Documentation</p>
-          <h1 className="mt-3 text-3xl font-semibold text-white">Homelab docs browser</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-white lg:mt-3">Homelab docs browser</h1>
         </div>
         <form action="/v2/documentation" className="flex w-full gap-2 sm:w-auto">
           <input
             name="q"
             defaultValue={query}
+            data-guide="docs-search"
             placeholder="Search docs"
             className="min-w-0 flex-1 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-sm text-white placeholder:text-zinc-500 sm:w-64"
           />
@@ -73,10 +74,10 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
         </section>
       )}
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[20rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
-        <aside className="glass-panel h-fit rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg lg:sticky lg:top-10">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[16rem_minmax(0,1fr)] 2xl:grid-cols-[20rem_minmax(0,1fr)]">
+        <aside id="document-categories" className="glass-panel order-2 h-fit rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-lg xl:order-1 xl:sticky xl:top-6 lg:p-5">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Categories</p>
-          <nav className="mt-4 space-y-5 pr-1 lg:max-h-[70dvh] lg:overflow-y-auto">
+          <nav className="mt-4 space-y-5 pr-1 xl:max-h-[70dvh] xl:overflow-y-auto">
             {Object.entries(groupedDocs).map(([category, docs]) => (
               <div key={category}>
                 <p className="text-[11px] uppercase tracking-[0.25em] text-cyan-200/80">
@@ -107,7 +108,7 @@ export default async function DocumentationPage({ searchParams }: DocumentationP
           </nav>
         </aside>
 
-        <section className="glass-panel min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+        <section className="glass-panel order-1 min-w-0 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-lg xl:order-2 lg:p-6">
           {document ? (
             <>
               <div className="mb-6 flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-5">

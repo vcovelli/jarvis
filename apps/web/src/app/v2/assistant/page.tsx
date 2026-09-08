@@ -11,7 +11,6 @@ import {
   TodoPriority,
   Timeblock,
   dayKeyToDate,
-  defaultMoodTags,
   getDayKey,
   useJarvisState,
 } from "@/lib/jarvisStore";
@@ -416,18 +415,13 @@ export default function AssistantPage() {
   const moodTagLibrary = useMemo(() => state.moodTags ?? [], [state.moodTags]);
   const moodTagOptions: MoodTag[] = useMemo(() => {
     const seen = new Set<string>();
-    const combined = [...defaultMoodTags, ...moodTagLibrary];
-    return combined.filter((tag) => {
+    return moodTagLibrary.filter((tag) => {
       const normalized = tag.toLowerCase();
       if (seen.has(normalized)) return false;
       seen.add(normalized);
       return true;
     });
   }, [moodTagLibrary]);
-  const builtInMoodTagSet = useMemo(
-    () => new Set(defaultMoodTags.map((tag) => tag.toLowerCase())),
-    [],
-  );
   const knownMoodTags = useMemo(
     () => moodTagOptions.map((tag) => tag.toLowerCase()),
     [moodTagOptions],
@@ -479,7 +473,7 @@ export default function AssistantPage() {
   const chatSurfaceKey = projectHomeOpen ? `project:${activeProject.id}` : activeConversation?.id ?? `topic:${activeDomain}`;
   const composerContextLabel = projectHomeOpen ? "Project overview" : activeTopic.label;
   const composerPlaceholder = projectHomeOpen
-    ? `Ask across ${activeProject.label} or start a focused chat...`
+    ? `Ask ${activeProject.label}...`
     : `Message ${activeTopic.label}...`;
 
   useEffect(() => {
@@ -1639,12 +1633,12 @@ export default function AssistantPage() {
 
   return (
     <div
-      className={`-mx-3 grid h-full min-h-0 flex-1 gap-0 overflow-hidden sm:mx-0 md:grid-cols-[280px_minmax(0,1fr)] md:gap-3 ${
+      className={`-mx-3 grid h-full min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden sm:mx-0 xl:grid-cols-[240px_minmax(0,1fr)] xl:gap-3 ${
         draft
-          ? "lg:grid-cols-[300px_minmax(0,1fr)_minmax(420px,0.68fr)] xl:grid-cols-[300px_minmax(0,1fr)_minmax(460px,0.58fr)]"
+          ? "xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_minmax(360px,0.8fr)]"
           : contextPanelOpen
-            ? "lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_340px]"
-            : "lg:grid-cols-[300px_minmax(0,1fr)]"
+            ? "xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_300px]"
+            : "xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)]"
       }`}
     >
       <AssistantConversationRail
@@ -1656,7 +1650,7 @@ export default function AssistantPage() {
         activeDomain={activeDomain}
         projectHomeOpen={projectHomeOpen}
         loading={conversationLoading}
-        className="hidden h-full md:flex"
+        className="hidden h-full xl:flex"
         onProjectSelect={selectAssistantProject}
         onTopicMove={moveAssistantTopic}
         onSelect={(id) => void loadConversation(id)}
@@ -1665,7 +1659,7 @@ export default function AssistantPage() {
       />
 
       <div
-        className={`fixed inset-x-0 bottom-[var(--jarvis-mobile-nav-height)] top-0 z-50 flex bg-black/70 px-2 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md transition-[opacity,backdrop-filter] duration-200 sm:p-2 md:hidden ${
+        className={`fixed inset-x-0 bottom-[var(--jarvis-mobile-nav-height)] top-0 z-50 flex bg-black/70 px-2 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md transition-[opacity,backdrop-filter] duration-200 sm:p-2 xl:hidden ${
           conversationPanelOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         data-no-pull-refresh="true"
@@ -1677,7 +1671,7 @@ export default function AssistantPage() {
           className="absolute inset-0 h-full w-full cursor-default"
           onClick={() => setConversationPanelOpen(false)}
         />
-        <div className={`relative h-full min-h-0 w-full max-w-none transition-transform duration-300 ease-out sm:max-w-[420px] ${conversationPanelOpen ? "translate-x-0" : "-translate-x-[110%]"}`}>
+        <div role="dialog" aria-modal="true" aria-label="Conversations" className={`relative h-full min-h-0 w-full max-w-none transition-transform duration-300 ease-out sm:max-w-[420px] ${conversationPanelOpen ? "translate-x-0" : "-translate-x-[110%]"}`}>
           <AssistantConversationRail
             key={activeProject.id}
             projects={configuredProjects}
@@ -1700,14 +1694,14 @@ export default function AssistantPage() {
 
       <section
         className={`theme-workspace relative isolate flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-none border-y shadow-none backdrop-blur-xl sm:rounded-[22px] sm:border sm:shadow-[0_18px_70px_rgba(0,0,0,0.28)] ${
-          draft ? "hidden lg:flex" : "flex"
+          draft ? "hidden 2xl:flex" : "flex"
         }`}
       >
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
-        <div className="theme-workspace-chrome shrink-0 border-b px-3 py-2.5 sm:px-5 sm:py-3 lg:px-6">
+        <div className="assistant-header theme-workspace-chrome shrink-0 border-b px-3 py-2.5 sm:px-5 sm:py-3 lg:px-6">
           <div className={`flex gap-2 ${detailsEditorOpen && !projectHomeOpen ? "flex-col sm:flex-row sm:items-start sm:justify-between" : "items-start justify-between"}`}>
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-zinc-500 sm:gap-2 sm:text-xs">
+              <div className="assistant-header-status flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-zinc-500 sm:gap-2 sm:text-xs">
                 <span
                   aria-hidden="true"
                   className={`h-2 w-2 shrink-0 rounded-full ${workspaceMetrics.status === "Ready" ? "bg-emerald-300" : "bg-cyan-300 animate-pulse"}`}
@@ -1757,7 +1751,7 @@ export default function AssistantPage() {
               ) : (
                 <>
                   <div className="mt-1 flex min-w-0 items-center gap-2 sm:mt-2">
-                    <h1 className="min-w-0 truncate text-[1.45rem] font-semibold leading-tight text-white sm:text-3xl">{activeChatTitle}</h1>
+                    <h1 className="assistant-header-title min-w-0 truncate text-[1.45rem] font-semibold leading-tight text-white sm:text-3xl">{activeChatTitle}</h1>
                     {!projectHomeOpen && (
                       <button
                         type="button"
@@ -1768,7 +1762,7 @@ export default function AssistantPage() {
                       </button>
                     )}
                   </div>
-                  <p className="mt-0.5 max-w-3xl truncate text-xs leading-5 text-zinc-500 sm:text-sm sm:text-zinc-400">{activeChatDescription}</p>
+                  <p className="assistant-header-summary mt-0.5 max-w-3xl truncate text-xs leading-5 text-zinc-500 sm:text-sm sm:text-zinc-400">{activeChatDescription}</p>
                 </>
               )}
             </div>
@@ -1776,8 +1770,9 @@ export default function AssistantPage() {
             <div className="flex shrink-0 items-center gap-1.5 pb-0.5 sm:gap-2 sm:justify-end">
               <button
                 type="button"
+                data-guide="assistant-conversations"
                 onClick={() => setConversationPanelOpen(true)}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-cyan-200/35 hover:text-white sm:px-4 sm:text-sm md:hidden"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-cyan-200/35 hover:text-white sm:px-4 sm:text-sm xl:hidden"
               >
                 Chats
               </button>
@@ -1915,13 +1910,15 @@ export default function AssistantPage() {
 
           {!draft && (
             <form
-              className="theme-workspace-chrome mx-2 mt-1 shrink-0 rounded-[22px] border p-2 shadow-[0_18px_60px_rgba(0,0,0,0.28)] sm:mx-0 sm:mt-3 sm:rounded-[24px]"
+              className="assistant-composer theme-workspace-chrome mx-2 mt-1 shrink-0 rounded-[22px] border p-2 shadow-[0_18px_60px_rgba(0,0,0,0.28)] sm:mx-0 sm:mt-3 sm:rounded-[24px]"
               onSubmit={(event) => {
                 event.preventDefault();
                 handleSubmit();
               }}
             >
               <textarea
+                data-guide="assistant-input"
+                aria-label="Message Jarvis"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => {
@@ -1934,8 +1931,8 @@ export default function AssistantPage() {
                 className="min-h-[46px] max-h-28 w-full resize-none bg-transparent px-3 py-2.5 text-[16px] leading-6 text-white placeholder:text-zinc-500 focus:outline-none sm:min-h-[54px] sm:max-h-36 sm:py-3 sm:text-[15px]"
                 placeholder={composerPlaceholder}
               />
-              <div className="flex items-center justify-between gap-2 border-t border-white/5 px-1 pt-2">
-                <div className="hide-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto text-xs text-zinc-500">
+              <div className="assistant-composer-actions flex items-center justify-between gap-2 border-t border-white/5 px-1 pt-2">
+                <div className="assistant-composer-hints hide-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto text-xs text-zinc-500">
                   <span className="min-w-0 max-w-[12rem] truncate rounded-full border border-white/10 px-3 py-1 text-zinc-300 sm:max-w-none">{composerContextLabel}</span>
                   <span className="hidden shrink-0 sm:inline">Enter sends</span>
                   <span className="hidden shrink-0 sm:inline">Shift+Enter newline</span>
@@ -1970,7 +1967,7 @@ export default function AssistantPage() {
       </section>
 
       {draft && (
-        <section className="min-w-0">
+        <section className="h-full min-h-0 min-w-0">
         {draft?.type === "todo" && (
           <AssistantTaskPanel
             draft={draft}
@@ -1995,7 +1992,7 @@ export default function AssistantPage() {
         )}
         {draft && draft.type !== "todo" && (
           <form
-            className="theme-workspace flex h-[calc(100svh-var(--jarvis-mobile-nav-height)-6rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border text-sm shadow-2xl backdrop-blur-xl lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:min-h-0"
+            className="theme-workspace flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border text-sm shadow-2xl backdrop-blur-xl"
             onSubmit={(event) => {
               event.preventDefault();
               runAction(draft);
@@ -2082,8 +2079,6 @@ export default function AssistantPage() {
                     <div className="flex flex-wrap gap-2">
                       {moodTagOptions.map((tag) => {
                         const active = draft.payload.tags?.includes(tag);
-                        const normalized = tag.toLowerCase();
-                        const isCustom = !builtInMoodTagSet.has(normalized);
                         return (
                           <div key={tag} className="relative">
                             <button
@@ -2109,7 +2104,7 @@ export default function AssistantPage() {
                             >
                               {tag}
                             </button>
-                            {tagManagerOpen && isCustom && (
+                            {tagManagerOpen && (
                               <div className="absolute -top-2 -right-2 flex gap-1 rounded-full bg-black/60 px-1 py-0.5">
                                 <button
                                   type="button"
@@ -2549,14 +2544,14 @@ export default function AssistantPage() {
       )}
 
       {!draft && contextPanelOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 p-3 backdrop-blur-md xl:static xl:z-auto xl:bg-transparent xl:p-0 xl:backdrop-blur-0">
+        <div className="fixed inset-0 z-50 bg-black/70 p-3 backdrop-blur-md 2xl:static 2xl:z-auto 2xl:min-h-0 2xl:bg-transparent 2xl:p-0 2xl:backdrop-blur-0">
           <button
             type="button"
             aria-label="Close context"
-            className="absolute inset-0 h-full w-full cursor-default xl:hidden"
+            className="absolute inset-0 h-full w-full cursor-default 2xl:hidden"
             onClick={() => setContextPanelOpen(false)}
           />
-          <div className="relative h-full max-w-[420px] xl:max-w-none">
+          <div className="relative h-full max-w-[420px] 2xl:max-w-none">
             <AssistantMemoryPanel
               project={activeProject}
               topic={activeTopic}
@@ -3743,7 +3738,7 @@ function buildAssistantContext(state: JarvisState, demoMode = false): AssistantC
     todos,
     mood,
     sleep,
-    moodTags: Array.from(new Set([...defaultMoodTags, ...(state.moodTags ?? [])])),
+    moodTags: Array.from(new Set(state.moodTags ?? [])),
     demoMode,
   };
 }
@@ -4070,7 +4065,7 @@ function AssistantTaskPanel({
 
   return (
     <form
-      className="theme-workspace flex h-[calc(100svh-var(--jarvis-mobile-nav-height)-6rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border shadow-2xl backdrop-blur-xl lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:min-h-0"
+      className="theme-workspace flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border shadow-2xl backdrop-blur-xl"
       onSubmit={(event) => {
         event.preventDefault();
         onConfirm();

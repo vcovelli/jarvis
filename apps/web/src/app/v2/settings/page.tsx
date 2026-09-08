@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useWalkthrough } from "@/components/onboarding/WalkthroughProvider";
 
-import { WALKTHROUGH_KEY, WALKTHROUGH_REPLAY_EVENT } from "@/components/FirstRunWalkthrough";
 import { useJarvisState } from "@/lib/jarvisStore";
 
 type DemoStat = {
@@ -13,7 +12,7 @@ type DemoStat = {
 };
 
 export default function SettingsPage() {
-  const router = useRouter();
+  const { startDemo, browse } = useWalkthrough();
   const { state, hydrated, syncStatus, demoMode, enableDemoMode, disableDemoMode, resetDemoMode } = useJarvisState();
   const stats = useMemo<DemoStat[]>(() => {
     const todoCount = Object.values(state.todos).reduce((total, todos) => total + todos.length, 0);
@@ -36,24 +35,10 @@ export default function SettingsPage() {
     ];
   }, [state]);
 
-  const startPitch = () => {
-    enableDemoMode();
-    router.push("/v2");
-  };
-
-  const replayWalkthrough = () => {
-    try {
-      window.localStorage.removeItem(WALKTHROUGH_KEY);
-    } catch {
-      // The event still opens the walkthrough when storage is unavailable.
-    }
-    window.dispatchEvent(new Event(WALKTHROUGH_REPLAY_EVENT));
-    router.push("/v2");
-  };
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="glass-panel overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
+    <div className="flex flex-col gap-4 lg:gap-6">
+      <section className="glass-panel mobile-card-padding mobile-compact-header overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-3xl">
             <p className="text-[10px] uppercase tracking-[0.42em] text-cyan-200/80">Settings</p>
@@ -70,7 +55,7 @@ export default function SettingsPage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(340px,0.55fr)]">
-        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
+        <div className="glass-panel mobile-card-padding rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
               <p className="text-[10px] uppercase tracking-[0.32em] text-zinc-500">Privacy mode</p>
@@ -82,6 +67,7 @@ export default function SettingsPage() {
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[240px]">
               <button
                 type="button"
+                data-guide="demo-controls"
                 onClick={demoMode ? disableDemoMode : enableDemoMode}
                 disabled={!hydrated}
                 className="rounded-full bg-cyan-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
@@ -90,19 +76,20 @@ export default function SettingsPage() {
               </button>
               <button
                 type="button"
-                onClick={startPitch}
+                onClick={() => startDemo()}
                 disabled={!hydrated}
                 className="rounded-full border border-emerald-300/35 bg-emerald-300/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-300/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Start pitch
+                Start demo walkthrough
               </button>
               <button
                 type="button"
-                onClick={replayWalkthrough}
+                onClick={browse}
+                data-guide="guide-controls"
                 disabled={!hydrated}
                 className="theme-button-secondary rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Replay walkthrough
+                User guide & saved progress
               </button>
               {demoMode ? (
                 <button
@@ -123,7 +110,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <aside className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
+        <aside className="glass-panel mobile-card-padding rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
           <p className="text-[10px] uppercase tracking-[0.32em] text-zinc-500">Current view</p>
           <h2 className="mt-1 text-xl font-semibold text-white">{demoMode ? "Showcase workspace" : "Personal workspace"}</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-400">

@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 
-import { defaultMoodTags, getDayKey, type DayKey, type MoodLog, type MoodTag, useJarvisState } from "@/lib/jarvisStore";
+import { getDayKey, type DayKey, type MoodLog, type MoodTag, useJarvisState } from "@/lib/jarvisStore";
 import { useToast } from "@/components/Toast";
 
 type MoodPreset = {
   label: string;
   value: number;
-  tags: MoodTag[];
   note?: string;
 };
 
@@ -21,10 +20,10 @@ type MoodTrendDay = {
 };
 
 const moodPresets: MoodPreset[] = [
-  { label: "Steady", value: 7, tags: ["energy"] },
-  { label: "Locked", value: 8, tags: ["energy", "workout"] },
-  { label: "Scattered", value: 4, tags: ["stress"], note: "Scattered, needs a cleaner next action." },
-  { label: "Low battery", value: 3, tags: ["sleep"] },
+  { label: "Steady", value: 7 },
+  { label: "Locked", value: 8 },
+  { label: "Scattered", value: 4, note: "Scattered, needs a cleaner next action." },
+  { label: "Low battery", value: 3 },
 ];
 
 export default function MoodPage() {
@@ -133,7 +132,7 @@ export default function MoodPage() {
   }
 
   function logPreset(preset: MoodPreset) {
-    logMood({ mood: preset.value, note: preset.note, tags: preset.tags });
+    logMood({ mood: preset.value, note: preset.note, tags: [] });
     showToast(preset.label + " mood logged");
   }
 
@@ -169,7 +168,7 @@ export default function MoodPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 pb-6">
-      <header className="flex items-start justify-between gap-4">
+      <header className="mobile-compact-header flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="theme-kicker text-xs uppercase tracking-[0.35em]">Quick jump</p>
           <h1 className="theme-text mt-2 text-3xl font-semibold">Mood check-in</h1>
@@ -190,6 +189,8 @@ export default function MoodPage() {
             </div>
             <div className="grid gap-4">
               <input
+                data-guide="mood-score"
+                aria-label="Mood score"
                 type="range"
                 min={1}
                 max={10}
@@ -226,19 +227,19 @@ export default function MoodPage() {
             </div>
           </div>
           <details className="theme-card rounded-2xl p-3">
-            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.2em] theme-muted">Add context</summary>
+            <summary data-guide="mood-context" className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.2em] theme-muted">Add context</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,0.45fr)_minmax(0,1fr)]">
               <input
                 value={customTag}
                 onChange={(event) => setCustomTag(event.target.value)}
-                className="theme-input rounded-2xl px-4 py-3 text-base focus:outline-none"
+                className="theme-input min-w-0 rounded-2xl px-4 py-3 text-base focus:outline-none"
                 placeholder="Custom tag"
               />
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 rows={2}
-                className="theme-input rounded-2xl px-4 py-3 text-base focus:outline-none"
+                className="theme-input min-w-0 rounded-2xl px-4 py-3 text-base focus:outline-none"
                 placeholder="What is shaping this mood?"
               />
             </div>
@@ -280,7 +281,7 @@ export default function MoodPage() {
             {moodPresets.map((preset) => (
               <button key={preset.label} type="button" onClick={() => logPreset(preset)} className="theme-button-secondary rounded-2xl px-4 py-3 text-left">
                 <span className="theme-text block text-sm font-semibold">{preset.label}</span>
-                <span className="theme-muted mt-1 block text-xs">{preset.value}/10 - {preset.tags.join(", ")}</span>
+                <span className="theme-muted mt-1 block text-xs">{preset.value}/10</span>
               </button>
             ))}
           </div>
@@ -291,7 +292,7 @@ export default function MoodPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="theme-kicker text-[10px] uppercase tracking-[0.3em]">Today</p>
-            <h2 className="theme-text mt-1 text-lg font-semibold">Mood log</h2>
+            <h2 data-guide="mood-history" className="theme-text mt-1 text-lg font-semibold">Mood log</h2>
           </div>
           <span className="theme-pill rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em]">{todaysMood.length} entries</span>
         </div>
@@ -321,7 +322,7 @@ export default function MoodPage() {
                       value={editNote}
                       onChange={(event) => setEditNote(event.target.value)}
                       rows={3}
-                      className="theme-input rounded-2xl px-4 py-3 text-base focus:outline-none"
+                      className="theme-input min-w-0 rounded-2xl px-4 py-3 text-base focus:outline-none"
                       placeholder="Update note"
                     />
                     {pendingMoodDeleteId === entry.id ? (
@@ -445,7 +446,7 @@ function MoodTagManager({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="theme-text text-sm font-semibold">Tag library</p>
-          <p className="theme-muted mt-1 text-xs leading-5">Built-in tags stay consistent. Rename or remove the tags you add.</p>
+          <p className="theme-muted mt-1 text-xs leading-5">Add, rename, or remove your mood tags.</p>
         </div>
         <span className="theme-pill rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]">
           {customTags.length}/24 custom
@@ -545,7 +546,7 @@ function MoodTagManager({
 
 function buildMoodTagOptions(customTags: string[]) {
   const seen = new Set<string>();
-  return [...defaultMoodTags, ...customTags].filter((tag) => {
+  return customTags.filter((tag) => {
     const normalized = tag.toLowerCase();
     if (seen.has(normalized)) return false;
     seen.add(normalized);

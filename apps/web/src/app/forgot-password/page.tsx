@@ -10,7 +10,7 @@ export default function ForgotPasswordPage() {
   const [busy, setBusy] = useState(false);
 
   return (
-    <main className="theme-shell flex min-h-screen items-center justify-center px-4 py-10">
+    <main className="theme-shell auth-safe-area flex min-h-dvh items-center justify-center px-4">
       <section className="theme-surface w-full max-w-md rounded-[32px] p-6 sm:p-8">
         <p className="theme-kicker text-xs uppercase tracking-[0.35em]">Account recovery</p>
         <h1 className="theme-text mt-3 text-3xl font-semibold">Reset your password</h1>

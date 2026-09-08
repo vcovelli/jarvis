@@ -14,7 +14,7 @@ function ThemeSync() {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider refetchOnWindowFocus={false} refetchInterval={0}>
+    <SessionProvider refetchOnWindowFocus refetchInterval={0} refetchWhenOffline={false}>
       <ThemeSync />
       {children}
     </SessionProvider>

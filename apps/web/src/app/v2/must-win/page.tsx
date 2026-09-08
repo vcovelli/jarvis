@@ -64,8 +64,8 @@ export default function MustWinPage() {
   const winState = todaysMustWin?.done ? "Won" : todaysMustWin ? "In play" : "Unset";
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 pb-6">
-      <header className="flex items-start justify-between gap-4">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 pb-6 lg:gap-5">
+      <header className="mobile-compact-header flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="theme-kicker text-xs uppercase tracking-[0.35em]">Quick jump</p>
           <h1 className="theme-text mt-2 text-3xl font-semibold">Must Win</h1>
@@ -76,7 +76,7 @@ export default function MustWinPage() {
         </Link>
       </header>
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
+      <section className="order-2 grid gap-4 lg:order-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
         <form
           className="theme-surface rounded-[28px] p-5"
           onSubmit={submit}
@@ -94,6 +94,7 @@ export default function MustWinPage() {
               onChange={(event) => setDraftText(event.target.value)}
               rows={4}
               className="theme-input rounded-2xl px-4 py-3 text-base focus:outline-none"
+              data-guide="must-win-input"
               placeholder="What win would make today count?"
             />
             <input
@@ -147,12 +148,12 @@ export default function MustWinPage() {
         </section>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <section className="order-1 grid gap-4 lg:order-2 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="theme-surface rounded-[28px] p-5">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <p className="theme-kicker text-[10px] uppercase tracking-[0.32em]">Today</p>
-              <h2 className="theme-text mt-2 text-2xl font-semibold leading-snug">
+              <h2 data-guide="must-win-current" className="theme-text mt-2 text-2xl font-semibold leading-snug">
                 {todaysMustWin?.text ?? "No win locked yet"}
               </h2>
               {todaysMustWin?.timeBound && <p className="theme-accent-text mt-2 text-xs font-semibold uppercase tracking-[0.24em]">{todaysMustWin.timeBound}</p>}

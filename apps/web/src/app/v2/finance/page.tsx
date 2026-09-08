@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { MobileSectionNav } from "@/components/MobileSectionNav";
+
 import { useJarvisState } from "@/lib/jarvisStore";
 
 type PlaidInstitution = {
@@ -219,6 +221,7 @@ type FinanceSummary = {
 
 type ActionStatus = "idle" | "loading" | "syncing" | "error";
 type FinanceAssistantStatus = "idle" | "loading" | "error";
+type FinanceMobileView = "overview" | "spending" | "accounts" | "activity" | "investments";
 type PlaidConnectionType = "bank" | "investment";
 type PlaidLinkTokenResponse = {
   linkToken: string;
@@ -996,6 +999,7 @@ export default function FinancePage() {
   const [assistantQuestion, setAssistantQuestion] = useState("");
   const [assistantAnswer, setAssistantAnswer] = useState<string | null>(null);
   const [assistantStatus, setAssistantStatus] = useState<FinanceAssistantStatus>("idle");
+  const [mobileView, setMobileView] = useState<FinanceMobileView>("overview");
 
   const loadSummary = useCallback(async () => {
     if (demoMode) {
@@ -1238,9 +1242,123 @@ export default function FinancePage() {
   const hasConnections = Boolean(summary?.connections.length);
   const monthlySpendPace = formatMonthlySpendPace(dashboard.periodSpend, rangeDays, dashboard.currency);
 
+  function selectMobileView(nextView: FinanceMobileView) {
+    setMobileView(nextView);
+    if (nextView === "spending") {
+      setActiveChart("categories");
+      setChartsOpen(true);
+    }
+    if (nextView === "accounts") setAccountsOpen(true);
+    if (nextView === "activity") setTransactionsOpen(true);
+    if (nextView === "investments") setInvestmentsOpen(true);
+  }
+
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
-      <section className="glass-panel overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5">
+    <div data-guide="finance-overview" className="flex flex-col gap-4 sm:gap-5">
+      <section className="mobile-compact-header lg:hidden" aria-busy={isBusy}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.38em] text-cyan-200/80">Jarvis finance</p>
+            <h1 className="mt-2 text-3xl font-semibold text-white">Money at a glance</h1>
+          </div>
+          <StatusPill
+            label={status === "loading" ? "Loading" : status === "syncing" ? "Syncing" : hasConnections ? latestSyncLabel : "Not linked"}
+            tone={status === "error" ? "warn" : hasConnections ? "good" : "neutral"}
+          />
+        </div>
+        {message ? (
+          <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100" role="status">
+            {message}
+          </div>
+        ) : null}
+        {setup && !setup.configured ? (
+          <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100">
+            Account sync needs Plaid configuration. Manual finance data remains available.
+          </div>
+        ) : null}
+      </section>
+
+      <MobileSectionNav
+        label="Finance sections"
+        value={mobileView}
+        onChange={selectMobileView}
+        options={[
+          { value: "overview", label: "Snapshot" },
+          { value: "spending", label: "Spending" },
+          { value: "accounts", label: "Accounts", badge: dashboard.accounts.length },
+          { value: "activity", label: "Activity", badge: dashboard.reviewCount || undefined },
+          { value: "investments", label: "Invest" },
+        ]}
+      />
+
+      {mobileView === "overview" ? (
+        <section className="theme-surface mobile-card-padding rounded-[28px] p-4 lg:hidden">
+          <div className="grid grid-cols-2 gap-2">
+            <MetricCard
+              label="Net worth"
+              value={formatMoney(dashboard.netWorth, dashboard.currency)}
+              detail="Assets minus debt"
+              tone={dashboard.netWorth >= 0 ? "good" : "bad"}
+            />
+            <MetricCard
+              label="Available cash"
+              value={formatMoney(dashboard.cash, dashboard.currency)}
+              detail={formatRunwayValue(dashboard.cashBufferMonths) + " runway"}
+              tone="good"
+            />
+            <MetricCard
+              label={rangeKey + "D spend"}
+              value={formatMoney(dashboard.periodSpend, dashboard.currency)}
+              detail={monthlySpendPace + " pace"}
+              tone="warn"
+            />
+            <MetricCard
+              label="Net flow"
+              value={formatSignedMoney(dashboard.netFlow, dashboard.currency)}
+              detail={"Income " + formatMoney(dashboard.periodIncome, dashboard.currency)}
+              tone={dashboard.netFlow >= 0 ? "good" : "bad"}
+            />
+          </div>
+
+          <div className="theme-card mt-3 rounded-2xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="theme-kicker text-[10px] uppercase tracking-[0.28em]">Attention</p>
+                <p className="theme-text mt-1 text-sm font-semibold">
+                  {dashboard.reviewCount > 0
+                    ? dashboard.reviewCount + " transaction" + (dashboard.reviewCount === 1 ? "" : "s") + " need review"
+                    : dashboard.insights[0]?.label ?? "Everything is classified"}
+                </p>
+              </div>
+              {dashboard.reviewCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={openReviewQueue}
+                  className="theme-button-primary shrink-0 rounded-xl px-3 py-2 text-xs font-semibold"
+                >
+                  Review
+                </button>
+              ) : null}
+            </div>
+            {dashboard.insights.slice(0, 2).map((insight) => (
+              <div key={insight.label} className="mt-3">
+                <InsightRow insight={insight} />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3">
+            <ConnectAccountPanel
+              disabled={demoMode || isBusy || setup?.configured === false}
+              hasConnections={hasConnections}
+              status={status}
+              onConnect={(connectionType) => void connectPlaid(connectionType)}
+              onSync={() => void syncFinance()}
+            />
+          </div>
+        </section>
+      ) : null}
+      <section className="glass-panel hidden overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5 lg:block">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.42em] text-cyan-200/80">Jarvis finance</p>
@@ -1309,6 +1427,7 @@ export default function FinancePage() {
         summary={`${formatSignedMoney(dashboard.netFlow, dashboard.currency)} net flow - ${formatRunwayValue(dashboard.cashBufferMonths)} runway`}
         open={overviewOpen}
         onToggle={() => setOverviewOpen(!overviewOpen)}
+        className="hidden lg:block"
         actions={
           <>
             <StatusPill label={`${dashboard.accounts.length} accounts`} tone="neutral" />
@@ -1395,7 +1514,7 @@ export default function FinancePage() {
         </div>
       </CollapsiblePanel>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+      <section data-guide="finance-spending" className={(mobileView === "spending" ? "grid " : "hidden lg:grid ") + "gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]"}>
         <CollapsiblePanel
           eyebrow="Live board"
           title={chartMeta.title}
@@ -1443,7 +1562,7 @@ export default function FinancePage() {
           </div>
         </CollapsiblePanel>
 
-        <div className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+        <div className="hidden space-y-5 lg:block xl:sticky xl:top-6 xl:self-start">
           <CollapsiblePanel
             eyebrow="Review"
             title="Classification queue"
@@ -1488,13 +1607,25 @@ export default function FinancePage() {
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
+      <section data-guide="finance-accounts" className={(mobileView === "accounts" || mobileView === "activity" ? "grid " : "hidden lg:grid ") + "grid-cols-1 gap-5 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]"}>
+        {mobileView === "accounts" ? (
+          <div className="lg:hidden">
+            <ConnectAccountPanel
+              disabled={demoMode || isBusy || setup?.configured === false}
+              hasConnections={hasConnections}
+              status={status}
+              onConnect={(connectionType) => void connectPlaid(connectionType)}
+              onSync={() => void syncFinance()}
+            />
+          </div>
+        ) : null}
         <CollapsiblePanel
           eyebrow="Accounts"
           title="Balance stack"
           summary={formatDateTime(summary?.updatedAt)}
           open={accountsOpen}
           onToggle={() => setAccountsOpen(!accountsOpen)}
+          className={(mobileView === "accounts" ? "" : "hidden ") + "lg:block"}
           actions={<StatusPill label={`${dashboard.accounts.length} accounts`} tone="neutral" />}
         >
           <div className="space-y-3">
@@ -1564,7 +1695,7 @@ export default function FinancePage() {
           summary={`${dashboard.recentEvents.length || dashboard.filteredTransactions.length} visible`}
           open={transactionsOpen}
           onToggle={() => setTransactionsOpen(!transactionsOpen)}
-          className="flex min-h-0 flex-col xl:h-full"
+          className={(mobileView === "activity" ? "flex " : "hidden ") + "min-h-0 flex-col lg:flex xl:h-full"}
           bodyClassName="min-h-0 xl:flex xl:flex-1 xl:flex-col"
           actions={
             <>
@@ -1600,6 +1731,7 @@ export default function FinancePage() {
         summary={`${formatMoney(dashboard.investments, dashboard.currency)} across ${dashboard.holdings.length} holdings`}
         open={investmentsOpen}
         onToggle={() => setInvestmentsOpen(!investmentsOpen)}
+        className={(mobileView === "investments" ? "" : "hidden ") + "lg:block"}
         actions={
           <>
             <StatusPill label={formatMoney(dashboard.investments, dashboard.currency)} tone="good" />
@@ -1607,7 +1739,7 @@ export default function FinancePage() {
           </>
         }
       >
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <AllocationChart
             items={dashboard.investmentBreakdown}
             totalLabel={formatMoney(sumBreakdown(dashboard.investmentBreakdown), dashboard.currency)}
@@ -2330,7 +2462,7 @@ function AllocationChart({
   );
 
   return (
-    <div className="grid gap-4 md:grid-cols-[210px_minmax(0,1fr)] md:items-center lg:grid-cols-[230px_minmax(0,1fr)]">
+    <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-[210px_minmax(0,1fr)] md:items-center lg:grid-cols-[230px_minmax(0,1fr)]">
       <div className="relative mx-auto h-[210px] w-[210px] sm:h-[230px] sm:w-[230px]">
         <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90 touch-manipulation select-none">
           <circle cx="60" cy="60" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="16" />
@@ -2463,12 +2595,12 @@ function ConnectionRow({
 
   return (
     <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-white">{formatConnectionName(connection)}</p>
           <p className="mt-1 text-xs text-zinc-500">{connection.products.join(" / ") || "accounts"}</p>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
           <StatusPill label={accounts.length + " account" + (accounts.length === 1 ? "" : "s")} tone="neutral" />
           <StatusPill label={connection.status} tone={connection.status === "active" ? "good" : "warn"} />
           <button
@@ -2689,7 +2821,7 @@ function RemoveConnectionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="finance-remove-connection-title"
-        className="theme-modal w-full max-w-lg overflow-hidden rounded-t-3xl p-5 sm:rounded-3xl"
+        className="theme-modal mobile-modal-safe-area w-full max-w-lg overflow-hidden rounded-t-3xl p-5 sm:rounded-3xl"
         onClick={(clickEvent) => clickEvent.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -2811,7 +2943,7 @@ function ReviewEventModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="finance-review-title"
-        className="theme-modal grid max-h-[94vh] w-full max-w-6xl overflow-hidden rounded-t-3xl sm:rounded-3xl lg:grid-cols-[minmax(270px,0.34fr)_minmax(0,0.66fr)]"
+        className="theme-modal mobile-modal-safe-area grid max-h-[94dvh] w-full max-w-6xl overflow-hidden rounded-t-3xl sm:rounded-3xl lg:grid-cols-[minmax(270px,0.34fr)_minmax(0,0.66fr)]"
         onClick={(clickEvent) => clickEvent.stopPropagation()}
       >
         <aside className="min-h-0 border-b border-white/10 bg-white/[0.03] p-4 lg:border-b-0 lg:border-r lg:p-5">

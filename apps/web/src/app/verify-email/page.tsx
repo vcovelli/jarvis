@@ -17,8 +17,8 @@ export default function VerifyEmailPage() {
       .catch(() => setStatus("Verification failed. Please request another link."));
   }, []);
   return (
-    <main className="theme-shell flex min-h-screen items-center justify-center px-4 py-10">
-      <section className="theme-surface w-full max-w-md rounded-[32px] p-8 text-center">
+    <main className="theme-shell auth-safe-area flex min-h-dvh items-center justify-center px-4">
+      <section className="theme-surface w-full max-w-md rounded-[32px] p-6 text-center sm:p-8">
         <p className="theme-kicker text-xs uppercase tracking-[0.35em]">Email verification</p>
         <h1 className="theme-text mt-4 text-2xl font-semibold">{status}</h1>
         <Link className="theme-button-primary mt-6 inline-block rounded-full px-5 py-3 text-sm font-semibold" href={ok ? "/login" : "/register"}>{ok ? "Sign in" : "Back"}</Link>
