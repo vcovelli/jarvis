@@ -72,11 +72,11 @@ src/lib/
 
 - Start: `/v2`, `/v2/daily`, `/v2/assistant`
 - Daily rhythm: `/v2/must-win`, `/v2/habits`, `/v2/mood`, `/v2/journal`, `/v2/sleep`
-- Growth: `/v2/objectives`, `/v2/review`, plus Focus/Fitness/Career briefs
+- Growth: `/v2/objectives`, `/v2/review`
 - Resources: `/v2/finance`, `/v2/real-estate`, `/v2/homelab`, `/v2/documentation`
 - Account: `/v2/settings`, `/v2/account`
 
-`/v2/daily` re-exports the planner at `/v2/todos`. `/v2/manufacturing` remains a deployment-specific brief and is intentionally absent from the primary navigation.
+`/v2/daily` re-exports the planner at `/v2/todos`.
 
 ## Configuration
 

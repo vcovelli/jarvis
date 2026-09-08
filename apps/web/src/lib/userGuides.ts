@@ -108,7 +108,7 @@ export const userGuides: UserGuide[] = [
     "title": "Explore the whole app",
     "description": "A short introduction to every page. Pause and resume whenever you like.",
     "category": "Start here",
-    "minutes": 8,
+    "minutes": 6,
     "steps": [
       {
         "id": "home-intro",
@@ -222,34 +222,6 @@ export const userGuides: UserGuide[] = [
         "target": "[data-guide=\"docs-search\"]",
         "practice": "Try a topic in Search docs. Submit when ready.",
         "event": "input"
-      },
-      {
-        "id": "focus-intro",
-        "title": "Focus is a starting point",
-        "body": "This page describes the planned focus workspace; it does not currently run a focus timer or block distractions. Use Must Win for a commitment and Habits for a daily routine today.",
-        "route": "/v2/focus",
-        "target": ".jarvis-page-viewport"
-      },
-      {
-        "id": "fitness-intro",
-        "title": "Build a simple routine now",
-        "body": "Fitness currently outlines planned tracking. Use Habits for a repeatable training routine, Plan to reserve time, and Sleep for your recovery log. Dedicated workout tracking is not available on this page yet.",
-        "route": "/v2/fitness",
-        "target": ".jarvis-page-viewport"
-      },
-      {
-        "id": "career-intro",
-        "title": "Use Objectives for current learning",
-        "body": "Career currently describes the future skills workspace. Create an objective for your learning goal, add an evidence project, then schedule the next action in Plan.",
-        "route": "/v2/career",
-        "target": ".jarvis-page-viewport"
-      },
-      {
-        "id": "manufacturing-intro",
-        "title": "Start technical projects in Objectives",
-        "body": "This page outlines the future CNC and robotics workspace. Track an actual build in Objectives and its next tasks in Plan; machine monitoring and inventory are not active here yet.",
-        "route": "/v2/manufacturing",
-        "target": ".jarvis-page-viewport"
       },
       {
         "id": "settings-intro",
@@ -665,70 +637,6 @@ export const userGuides: UserGuide[] = [
         "body": "Choose a result in the document list to read it. On narrow screens, the list and document stack vertically, so scroll below the list for the open document.",
         "route": "/v2/documentation",
         "target": "[data-guide=\"docs-list\"], .jarvis-page-viewport"
-      }
-    ]
-  },
-  {
-    "id": "focus",
-    "title": "Use the Focus starting point",
-    "description": "Find the working tools for a focus routine.",
-    "category": "Tools and projects",
-    "minutes": 1,
-    "steps": [
-      {
-        "id": "scope",
-        "title": "Focus is a starting point",
-        "body": "This page describes the planned focus workspace; it does not currently run a focus timer or block distractions. Use Must Win for a commitment and Habits for a daily routine today.",
-        "route": "/v2/focus",
-        "target": ".jarvis-page-viewport"
-      }
-    ]
-  },
-  {
-    "id": "fitness",
-    "title": "Use the Fitness starting point",
-    "description": "Plan training with the tools available today.",
-    "category": "Tools and projects",
-    "minutes": 1,
-    "steps": [
-      {
-        "id": "scope",
-        "title": "Build a simple routine now",
-        "body": "Fitness currently outlines planned tracking. Use Habits for a repeatable training routine, Plan to reserve time, and Sleep for your recovery log. Dedicated workout tracking is not available on this page yet.",
-        "route": "/v2/fitness",
-        "target": ".jarvis-page-viewport"
-      }
-    ]
-  },
-  {
-    "id": "career",
-    "title": "Connect learning to a project",
-    "description": "Turn a learning topic into visible progress.",
-    "category": "Tools and projects",
-    "minutes": 1,
-    "steps": [
-      {
-        "id": "scope",
-        "title": "Use Objectives for current learning",
-        "body": "Career currently describes the future skills workspace. Create an objective for your learning goal, add an evidence project, then schedule the next action in Plan.",
-        "route": "/v2/career",
-        "target": ".jarvis-page-viewport"
-      }
-    ]
-  },
-  {
-    "id": "manufacturing",
-    "title": "Organize technical projects",
-    "description": "Know where project tracking works today.",
-    "category": "Tools and projects",
-    "minutes": 1,
-    "steps": [
-      {
-        "id": "scope",
-        "title": "Start technical projects in Objectives",
-        "body": "This page outlines the future CNC and robotics workspace. Track an actual build in Objectives and its next tasks in Plan; machine monitoring and inventory are not active here yet.",
-        "route": "/v2/manufacturing",
-        "target": ".jarvis-page-viewport"
       }
     ]
   },

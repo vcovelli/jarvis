@@ -184,30 +184,6 @@ Search the docs before guessing a system change.
 
 2. **Open the matching document.** Choose a result in the document list to read it. On narrow screens, the list and document stack vertically, so scroll below the list for the open document.
 
-### Use the Focus starting point
-
-Find the working tools for a focus routine.
-
-1. **Focus is a starting point.** This page describes the planned focus workspace; it does not currently run a focus timer or block distractions. Use Must Win for a commitment and Habits for a daily routine today.
-
-### Use the Fitness starting point
-
-Plan training with the tools available today.
-
-1. **Build a simple routine now.** Fitness currently outlines planned tracking. Use Habits for a repeatable training routine, Plan to reserve time, and Sleep for your recovery log. Dedicated workout tracking is not available on this page yet.
-
-### Connect learning to a project
-
-Turn a learning topic into visible progress.
-
-1. **Use Objectives for current learning.** Career currently describes the future skills workspace. Create an objective for your learning goal, add an evidence project, then schedule the next action in Plan.
-
-### Organize technical projects
-
-Know where project tracking works today.
-
-1. **Start technical projects in Objectives.** This page outlines the future CNC and robotics workspace. Track an actual build in Objectives and its next tasks in Plan; machine monitoring and inventory are not active here yet.
-
 ### Demo, guides, and workspace controls
 
 Practice and replay without losing your place.

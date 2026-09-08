@@ -272,7 +272,7 @@ export default function Home() {
             ? "Review critical homelab attention"
             : !todaysReview
               ? "Close the loop with a review"
-              : "Maintain the system and protect focus";
+              : "Plan your next useful task";
     const nextHref = !todaysMustWin
       ? "/v2/must-win"
       : !hasMoodToday
@@ -283,7 +283,7 @@ export default function Home() {
             ? "/v2/homelab"
             : !todaysReview
               ? "/v2/review"
-              : "/v2/focus";
+              : "/v2/daily?mode=backlog";
     return { completedTodos, highPriorityOpen, nextAction, nextHref, openTodos, readiness, serviceScore };
   }, [hasMoodToday, homelabSummary, todaysMustWin, todaysReview, todaysSleep, todaysTodos]);
 

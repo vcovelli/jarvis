@@ -38,4 +38,4 @@ When behavior changes, update the closest guide in the same change:
 - Configuration, commands, infrastructure, or operational behavior → `deployment.md` and `apps/web/.env.example`
 - Product maturity or release blockers → `deployment-readiness.md`
 
-Do not describe a planned feature as shipped. The Focus, Fitness, Career, and Manufacturing pages are currently briefs, and external integrations must be documented as optional.
+Do not describe a planned feature as shipped. Document external integrations as optional.
