@@ -19,7 +19,9 @@ Desktop navigation is grouped by purpose:
 - **Daily rhythm:** Must Win, Habits, Mood, Journal, Sleep
 - **Growth:** Objectives, Review
 - **Resources:** Finances, Real Estate, Homelab, Docs
-- **Account:** Settings, Account
+- **Account:** Settings, Account; authorized ADMIN/OWNER accounts also see Admin.
+
+See [Jarvis Control](./admin.md) for user management, rollout levels, and system status.
 
 The desktop sidebar can be collapsed; use the floating **Nav** control to reopen it. Its bottom control shows save status and expands to reveal refresh, appearance, account, and sign-out controls.
 

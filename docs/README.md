@@ -14,6 +14,8 @@ This directory is the source of truth for how Jarvis is used, built, themed, and
 
 Additional implementation references:
 
+- [Jarvis Control](./admin.md) — owner bootstrap, authorization, rollout levels, feature gates, service status, and manual migration/deployment.
+
 - [Web app README](../apps/web/README.md) — commands, project layout, environment configuration, and contributor workflow.
 - [Voice and finance status/roadmap](../apps/web/docs/voice-finance-roadmap.md) — current assistant pipeline, read-only finance model, and remaining integration work.
 - [`apps/web/.env.example`](../apps/web/.env.example) — canonical environment-variable template.

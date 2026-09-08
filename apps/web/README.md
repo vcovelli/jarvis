@@ -75,6 +75,7 @@ src/lib/
 - Growth: `/v2/objectives`, `/v2/review`
 - Resources: `/v2/finance`, `/v2/real-estate`, `/v2/homelab`, `/v2/documentation`
 - Account: `/v2/settings`, `/v2/account`
+- Admin (ADMIN/OWNER only): `/v2/admin`, `/v2/admin/users`, `/v2/admin/activity`
 
 `/v2/daily` re-exports the planner at `/v2/todos`.
 

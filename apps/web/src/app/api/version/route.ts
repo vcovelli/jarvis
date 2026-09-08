@@ -1,21 +1,7 @@
-import { randomUUID } from "node:crypto";
-
 import { NextResponse } from "next/server";
-
+import { getBuildInfo, getRuntimeVersion } from "@/lib/buildInfo";
 export const dynamic = "force-dynamic";
-
-const runtime = globalThis as typeof globalThis & {
-  jarvisRuntimeVersion?: string;
-};
-
-const runtimeVersion =
-  runtime.jarvisRuntimeVersion ?? randomUUID();
-
-runtime.jarvisRuntimeVersion = runtimeVersion;
-
 export function GET() {
-  return NextResponse.json(
-    { version: runtimeVersion },
-    { headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" } },
-  );
+  // Keep the per-process version marker consumed by the installed PWA.
+  return NextResponse.json({ version: getRuntimeVersion(), build: getBuildInfo() }, { headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" } });
 }
