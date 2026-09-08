@@ -7,7 +7,7 @@ Jarvis is organized around a simple loop: choose the day’s Must Win, turn loos
 1. Open `/register` to create an account, unless registration is closed or requires the configured access code/invitation.
 2. If verification is required, follow the email link. `/verify-email` can request another link without revealing whether an account exists.
 3. Sign in at `/login` with the account email and password. Use **Forgot password?** for an enumeration-safe reset flow.
-4. Complete the first-run walkthrough when it appears.
+4. Start the short interactive welcome tour, or skip for now and resume from **User guide** later.
 
 Every `/v2` workspace route requires an authenticated session. The public root page redirects an already signed-in user into the console.
 
@@ -131,6 +131,16 @@ Any palette works with any foundation, including High Contrast. Changes apply im
 
 See [UI and theming](./ui-and-theming.md) for implementation rules.
 
+## Interactive user guide
+
+Open **User guide** from the desktop sidebar, **More → User guide** on phone/tablet, Home, or Settings. The starter tour teaches six useful daily actions; the library contains a guide for every page and a full-app tour. Guides point to real controls and reserve their own screen space. You can minimize them, try an action, or move on without performing it.
+
+**Skip for now** preserves the current step and allows an optional reminder after a week. Completed and permanently dismissed guides never prompt again. The library includes a global **Don’t show walkthrough suggestions again** preference and a **Paused & skipped** filter. Progress belongs to the signed-in account in this browser; demo progress is separate.
+
+For a fresh presentation, enable Demo on Home and choose **Start walkthrough with fresh demo data**, or use **Settings → Start demo walkthrough**. This resets sample daily data and demo guide progress, while preserving personal records and personal guide preferences. Account settings and external service actions remain real.
+
+See the [full user guide](./user-guide.md) for the written walkthrough.
+
 ## Demo mode
 
 Settings can switch Jarvis into a privacy-safe showcase workspace. Demo mode replaces visible personal state across the dashboard, planner, habits, reviews, homelab, assistant context, and finance with generated data. Changes made while demonstrating remain in the isolated demo workspace and do not overwrite the personal workspace. Disable demo mode to return to real data.
@@ -141,13 +151,13 @@ Always verify the **Demo mode** or **Real data** status before sharing a screen.
 
 Daily-life state is written to a user-specific browser cache first, then synchronized to `/api/state` for an authenticated user. The shell reports one of these states:
 
-- **Loading:** preparing the workspace
-- **Saving soon / Saving:** a remote write is queued or in progress
-- **Synced:** server and local snapshots agree
-- **Saved locally:** the browser copy is safe but the server is offline or unavailable
-- **Save issue:** a local or remote operation needs attention
+- **Opening workspace:** restoring this device before checking Jarvis
+- **Saved on this device / Saving to Jarvis:** the local copy is safe while a remote write is queued or in progress
+- **All caught up:** server and local snapshots agree
+- **Working offline:** the device copy is safe and will sync after reconnection
+- **Sync needs another try / Device save issue:** a remote or local operation needs attention
 
-Use the adjacent refresh control to request the latest server state. Sync uses ETags to detect another device changing the same workspace. Deletion tombstones for moods, mood tags, and todos prevent removed items from being resurrected during merges.
+On mobile, pull down while the page is at the top to request the latest server state. The refresh surface expands inside the page and confirms when the workspace is current or when the phone could not reach Jarvis. The status notice above the bottom navigation explains active loading and synchronization; its **Retry** action appears after a remote sync error. Desktop users can also use the refresh control in the shell. Sync uses ETags to detect another device changing the same workspace. Deletion tombstones for moods, mood tags, and todos prevent removed items from being resurrected during merges.
 
 Browser storage is a responsive cache, not a substitute for production database backups.
 
@@ -168,9 +178,11 @@ Jarvis includes an installable web manifest and standalone display mode. The ins
 
 The layout accounts for safe-area insets and reserves space for the mobile bottom navigation. Each route resets the internal content viewport to the top when navigation completes.
 
+The installed app checks for a changed Jarvis server runtime after launch, resume, reconnect, or back/forward restoration. If an update is available, it attempts to save first, displays **A fresh Jarvis is ready**, and reloads automatically. This lifecycle check improves release pickup but does not provide complete offline application support; Jarvis intentionally does not register a custom offline service worker yet.
+
 ## Troubleshooting
 
-- **A change says “Saved locally”:** keep the tab open, restore the connection, then use refresh. Pending writes retry when connectivity returns.
+- **A change says “Working offline”:** keep the app open when practical and restore the connection. Jarvis retries and refreshes on reconnect; pull down from the top if you want to check immediately.
 - **Voice recording does not start:** grant microphone permission. If browser recognition is unsupported, server transcription also requires `OPENAI_API_KEY`.
 - **General assistant chat reports OpenClaw unavailable:** configure and start the gateway or continue using supported structured commands and local summaries.
 - **Plaid controls say setup is needed:** configure the Plaid variables and restart the server.

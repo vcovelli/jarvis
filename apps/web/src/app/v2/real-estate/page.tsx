@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { MobileSectionNav } from "@/components/MobileSectionNav";
+
 import { calculateFhaAnalysis, scorePropertyDeal } from "@/lib/realEstate/calculations";
 import { BASE_ASSUMPTIONS } from "@/lib/realEstate/demoData";
 import { formatDays, formatMoney, formatNumber, formatPercent } from "@/lib/realEstate/formatters";
@@ -72,6 +74,7 @@ type ScanProfile = {
   flags: string[];
 };
 
+type RealEstateMobileView = "scanner" | "filters" | "analysis" | "map";
 type EnrichedProperty = PropertyListing & {
   analysis: ReturnType<typeof calculateFhaAnalysis>;
   dealScore: number;
@@ -91,6 +94,7 @@ export default function RealEstatePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<"demo" | "live">("demo");
+  const [mobileView, setMobileView] = useState<RealEstateMobileView>("scanner");
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [requestInfo, setRequestInfo] = useState<ListingRequestInfo | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -346,31 +350,37 @@ export default function RealEstatePage() {
     setSelectedId(nextProperty.id);
     setManualEntryOpen(false);
     setManualForm(MANUAL_FORM_DEFAULTS);
+    setMobileView("scanner");
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
+    <div className="flex flex-col gap-4 lg:gap-6">
+      <section className="glass-panel mobile-card-padding mobile-compact-header rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className="text-[10px] uppercase tracking-[0.45em] text-cyan-200/80">Jarvis real estate</p>
             <h1 className="mt-2 text-2xl font-semibold text-white sm:text-4xl">Deal scanner</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">
-              Live RentCast feed when <span className="font-mono text-cyan-100">RENTCAST_API_KEY</span> is configured; demo Cleveland-area inventory otherwise. Ranks listings by FHA cash, owner cost, rent strength, speed, and exit cash flow.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300 lg:hidden">
+              Ranked FHA opportunities, buying-power fit, and the next property worth reviewing.
+            </p>
+            <p className="mt-2 hidden max-w-2xl text-sm leading-6 text-zinc-300 lg:block">
+              Live RentCast inventory when configured, with demo fallback. Listings are ranked by FHA cash, owner cost, rent strength, speed, and exit cash flow.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-300">
             <StatusPill label={source === "demo" ? "Demo fallback" : "Live listings"} tone={source === "demo" ? "warn" : "good"} />
+            <span className="hidden sm:contents">
             <StatusPill label="FHA 3.5% down" tone="neutral" />
             <StatusPill label={requestLabel} tone={requestInfo?.quotaBlocked ? "warn" : requestInfo?.liveRequestAttempted && !requestInfo.servedFromCache ? "warn" : "neutral"} />
             <StatusPill label={rentCastBudgetLabel} tone={requestInfo?.monthlyRemaining === 0 ? "warn" : "neutral"} />
             <StatusPill label={rentCastPolicyLabel} tone="neutral" />
             <StatusPill label={generatedAt ? `Updated ${formatDateTime(generatedAt)}` : "Scanning"} tone="neutral" />
-            <button type="button" onClick={() => setManualEntryOpen((current) => !current)} className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-2 font-semibold text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-300/20">Manual entry</button>
+            </span>
+            <button type="button" onClick={() => { setMobileView("filters"); setManualEntryOpen((current) => !current); }} className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-2 font-semibold text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-300/20">Manual entry</button>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-6 sm:gap-4 xl:grid-cols-5">
           <MetricCard label="Visible leads" value={`${summary.propertiesCount}`} detail={`${summary.hotLeadCount} hot, ${summary.watchLeadCount} watch`} />
           <MetricCard label="Median price" value={formatMoney(summary.medianPrice)} detail={`${formatDays(summary.averageDaysOnMarket)} avg DOM`} />
           <MetricCard label="Avg cash needed" value={formatMoney(summary.averageCashRequired)} detail={`${summary.underCashCount} fit buying power`} />
@@ -378,8 +388,19 @@ export default function RealEstatePage() {
           <MetricCard label="Buying power" value={formatMoney(buyingPower)} detail={assumptions.useProjectedBonus ? "Cash + projected bonus" : "Current cash"} />
         </div>
       </section>
+      <MobileSectionNav
+        label="Real estate sections"
+        value={mobileView}
+        onChange={setMobileView}
+        options={[
+          { value: "scanner", label: "Leads", badge: summary.propertiesCount },
+          { value: "filters", label: "Filters" },
+          { value: "analysis", label: "Analysis" },
+          { value: "map", label: "Map" },
+        ]}
+      />
 
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5">
+      <section data-guide="property-filters" className={(mobileView === "filters" ? "" : "hidden lg:block ") + "glass-panel mobile-card-padding rounded-3xl border border-white/10 bg-white/5 p-5"}>
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-[0.35em] text-zinc-500">Search board</p>
@@ -433,7 +454,7 @@ export default function RealEstatePage() {
       </section>
 
       {manualEntryOpen && (
-        <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5">
+        <section className="glass-panel mobile-card-padding rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-semibold text-white">Manual property entry</h2>
             <button type="button" onClick={() => setManualEntryOpen(false)} className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-zinc-200 transition hover:border-white/30">Close</button>
@@ -462,14 +483,15 @@ export default function RealEstatePage() {
         <div className="rounded-3xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-        <section className="space-y-4">
-          <PropertyMap properties={sortedProperties} selectedProperty={selectedProperty} onSelect={setSelectedId} />
+      <div className={(mobileView === "scanner" || mobileView === "analysis" || mobileView === "map" ? "grid " : "hidden lg:grid ") + "gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] xl:gap-6"}>
+        <section className={(mobileView === "scanner" || mobileView === "map" ? "" : "hidden ") + "space-y-4 lg:block"}>
+          <div className={(mobileView === "map" ? "" : "hidden ") + "lg:block"}><PropertyMap properties={sortedProperties} selectedProperty={selectedProperty} onSelect={setSelectedId} /></div>
 
+          <div className={(mobileView === "scanner" ? "" : "hidden ") + "space-y-4 lg:block"}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.35em] text-zinc-500">Lead queue</p>
-              <h2 className="mt-1 text-xl font-semibold text-white">Ranked opportunities</h2>
+              <h2 data-guide="property-leads" className="mt-1 text-xl font-semibold text-white">Ranked opportunities</h2>
             </div>
             <p className="text-sm text-zinc-400">{loading ? "Loading inventory" : `${sortedProperties.length} visible of ${enrichedProperties.length} scanned`} {liveListingsEnabled ? "from live mode" : "from demo preview"}</p>
           </div>
@@ -484,14 +506,15 @@ export default function RealEstatePage() {
                 key={property.id}
                 property={property}
                 selected={selectedProperty?.id === property.id}
-                onAnalyze={() => setSelectedId(property.id)}
+                onAnalyze={() => { setSelectedId(property.id); setMobileView("analysis"); }}
                 onStatusChange={handleSaveToggle}
               />
             ))
           )}
+          </div>
         </section>
 
-        <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+        <aside data-guide="property-analysis" className={(mobileView === "analysis" ? "" : "hidden ") + "space-y-4 lg:block xl:sticky xl:top-6 xl:self-start"}>
           {selectedProperty ? (
             <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-5">
               <div className="flex items-start justify-between gap-4">

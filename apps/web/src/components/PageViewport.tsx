@@ -3,10 +3,14 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 
+import { PullToRefresh } from "@/components/PullToRefresh";
+
 export function PageViewport({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const viewportRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const workspace = pathname.split("/")[2] ?? "home";
   const previousRouteRef = useRef(`${pathname}?${searchParams.toString()}`);
 
   useLayoutEffect(() => {
@@ -23,9 +27,13 @@ export function PageViewport({ children }: { children: ReactNode }) {
   return (
     <main
       ref={viewportRef}
+      data-workspace={workspace}
       className="jarvis-page-viewport flex min-h-0 min-w-0 w-full max-w-none flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain"
     >
-      {children}
+      <PullToRefresh viewportRef={viewportRef} contentRef={contentRef} />
+      <div ref={contentRef} className="jarvis-pull-content flex min-w-0 flex-col">
+        {children}
+      </div>
     </main>
   );
 }

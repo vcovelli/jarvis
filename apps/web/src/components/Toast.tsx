@@ -31,11 +31,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {toast && (
         <div
-          className="theme-modal theme-text pointer-events-none fixed z-50 rounded-full px-4 py-2 text-sm font-semibold"
-          style={{
-            left: "calc(env(safe-area-inset-left, 0px) + 1.25rem)",
-            bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)",
-          }}
+          role="status"
+          className="jarvis-toast theme-modal theme-text pointer-events-none fixed z-50 rounded-full px-4 py-2 text-sm font-semibold"
         >
           {toast.message}
         </div>

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 
+import { MobileSectionNav } from "@/components/MobileSectionNav";
+
 import {
   getStoredTheme,
   onThemeChange,
@@ -12,9 +14,12 @@ import {
   type ThemePreference,
 } from "@/lib/theme";
 
+type AccountMobileView = "profile" | "appearance" | "security";
+
 export default function AccountPage() {
   const { data: session } = useSession();
   const [theme, setTheme] = useState<ThemePreference>(() => getStoredTheme());
+  const [mobileView, setMobileView] = useState<AccountMobileView>("profile");
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,17 +45,27 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-8">
-      <header>
+    <div className="flex w-full min-w-0 flex-col gap-4 lg:gap-8">
+      <header className="mobile-compact-header">
         <p className="text-xs uppercase tracking-[0.4em] text-cyan-200/80">Account</p>
-        <h1 className="mt-3 text-4xl font-semibold text-white">Security & access</h1>
+        <h1 className="mt-2 text-4xl font-semibold text-white lg:mt-3">Security & access</h1>
         <p className="mt-3 max-w-2xl text-sm text-zinc-300">
           Manage your password and account lifecycle. Your data is private to this profile.
         </p>
       </header>
+      <MobileSectionNav
+        label="Account sections"
+        value={mobileView}
+        onChange={setMobileView}
+        options={[
+          { value: "profile", label: "Profile" },
+          { value: "appearance", label: "Appearance" },
+          { value: "security", label: "Security" },
+        ]}
+      />
 
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-        <h2 className="text-lg font-medium text-white">Signed-in user</h2>
+      <section className={(mobileView === "profile" ? "" : "hidden lg:block ") + "glass-panel mobile-card-padding mobile-focus-card rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg"}>
+        <h2 data-guide="account-profile" className="text-lg font-medium text-white">Signed-in user</h2>
         <p className="mt-2 text-sm text-zinc-300">{session?.user?.email ?? "—"}</p>
         <button
           type="button"
@@ -83,8 +98,8 @@ export default function AccountPage() {
         </div>
       </section>
 
-      <section className="theme-surface rounded-3xl p-6">
-        <h2 className="theme-text text-lg font-medium">Appearance</h2>
+      <section className={(mobileView === "appearance" ? "" : "hidden lg:block ") + "theme-surface mobile-card-padding mobile-focus-card rounded-3xl p-6"}>
+        <h2 data-guide="account-appearance" className="theme-text text-lg font-medium">Appearance</h2>
         <p className="theme-muted mt-2 text-sm">Choose brightness and color independently. Every palette is designed for both light and dark foundations.</p>
 
         <div className="mt-6">
@@ -135,8 +150,8 @@ export default function AccountPage() {
         </div>
       </section>
 
-      <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-        <h2 className="text-lg font-medium text-white">Change password</h2>
+      <section className={(mobileView === "security" ? "" : "hidden lg:block ") + "glass-panel mobile-card-padding mobile-focus-card rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg"}>
+        <h2 data-guide="account-security" className="text-lg font-medium text-white">Change password</h2>
         <p className="mt-2 text-sm text-zinc-300">
           Use a new password with at least 8 characters.
         </p>
@@ -221,7 +236,7 @@ export default function AccountPage() {
         </form>
       </section>
 
-      <section className="glass-panel danger-panel rounded-3xl border border-rose-300/20 bg-rose-500/10 p-6 text-rose-100 backdrop-blur-lg">
+      <section className={(mobileView === "security" ? "" : "hidden lg:block ") + "glass-panel danger-panel mobile-card-padding rounded-3xl border border-rose-300/20 bg-rose-500/10 p-6 text-rose-100 backdrop-blur-lg"}>
         <h2 className="text-lg font-medium text-white">Delete account</h2>
         <p className="mt-2 text-sm text-rose-100/80">
           This permanently deletes your profile and all Jarvis data.

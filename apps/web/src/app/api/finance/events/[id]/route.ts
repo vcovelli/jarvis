@@ -7,7 +7,7 @@ import { FINANCIAL_EVENT_TYPES, buildEventFlags, getDefaultCategoryForEventType,
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
-  params: Promise<{ id: string }> | { id: string };
+  params: Promise<{ id: string }>;
 };
 
 const FINANCIAL_EVENT_TYPE_SET = new Set<string>(FINANCIAL_EVENT_TYPES);

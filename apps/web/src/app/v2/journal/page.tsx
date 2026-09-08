@@ -134,18 +134,19 @@ export default function JournalPage() {
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-8">
+    <div className="flex w-full min-w-0 flex-col gap-4 lg:gap-8">
       <header className="hidden lg:block">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Journal</p>
       </header>
-      <div className="lg:hidden">
+      <div className="mobile-compact-header lg:hidden">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Journal</p>
+        <h1 className="mt-2 text-3xl font-semibold text-white">Quick journal</h1>
       </div>
 
-      <section className="grid gap-6 lg:grid-cols-5">
-        <div className="glass-panel rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 via-white/0 to-white/5 p-6 backdrop-blur-lg lg:col-span-3">
+      <section className="grid gap-6 xl:grid-cols-5">
+        <div className="glass-panel order-2 rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 via-white/0 to-white/5 p-4 backdrop-blur-lg sm:p-6 xl:order-1 xl:col-span-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <h2 className="text-lg font-medium text-white">This month</h2>
+            <h2 data-guide="journal-calendar" className="text-lg font-medium text-white">This month</h2>
             <div className="flex items-center gap-3">
               <span className="text-xs uppercase tracking-[0.4em] text-zinc-500">
                 {new Date().toLocaleString("default", { month: "long", year: "numeric" })}
@@ -160,7 +161,7 @@ export default function JournalPage() {
             </div>
           </div>
           <div className="mt-6 pb-2 sm:overflow-x-auto">
-            <div className="grid grid-cols-7 gap-2 text-center text-sm sm:min-w-[520px] sm:gap-3">
+            <div className="grid grid-cols-7 gap-1 text-center text-sm sm:gap-2">
               {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
                 <p key={day} className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 sm:text-[11px]">
                   {day}
@@ -175,6 +176,8 @@ export default function JournalPage() {
                 return (
                   <button
                     key={cell.key}
+                    aria-label={`Go to ${cell.date.toLocaleDateString(undefined, { dateStyle: "full" })}`}
+                    aria-pressed={active}
                     onClick={() => updateSelectedDay(cell.key)}
                     className={`relative flex h-12 flex-col items-center justify-center rounded-2xl border text-xs uppercase tracking-[0.25em] text-white/80 transition duration-200 ease-out sm:h-16 sm:text-sm ${
                       active
@@ -201,7 +204,7 @@ export default function JournalPage() {
         </div>
         <div
           ref={panelRef}
-          className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg lg:col-span-2"
+          className="glass-panel order-1 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-lg sm:p-6 xl:order-2 xl:col-span-2"
         >
           <h2 className="text-lg font-medium text-white">{isEditing ? "Edit entry" : "Add entry"}</h2>
           <p className="mt-1 text-sm text-zinc-300">
@@ -250,6 +253,7 @@ export default function JournalPage() {
               }}
               rows={6}
               className="rounded-2xl border border-white/5 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-cyan-400/60 focus:outline-none"
+              data-guide="journal-input"
               placeholder={`Capture the narrative for ${dayKeyToDate(selectedDay).toLocaleDateString()}.`}
             />
             <div className="flex flex-wrap items-center gap-3">

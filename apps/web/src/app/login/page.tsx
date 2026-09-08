@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   return (
-    <div className="theme-shell flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+    <div className="theme-shell auth-safe-area flex min-h-dvh items-center justify-center px-4 sm:px-6 lg:px-8">
       <div className="theme-surface w-full max-w-md rounded-[32px] p-6 sm:p-8">
         <div className="theme-card rounded-[24px] p-4">
           <p className="theme-kicker text-[10px] uppercase tracking-[0.45em]">Jarvis OS</p>

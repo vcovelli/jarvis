@@ -111,14 +111,16 @@ export default function WeeklyReviewPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <header>
+    <div className="flex flex-col gap-4 lg:gap-8">
+      <header className="mobile-compact-header">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Weekly Systems Review</p>
+        <h1 className="mt-2 text-3xl font-semibold text-white">Weekly reset</h1>
       </header>
 
       <div className="lg:hidden">
         <button
           type="button"
+          data-guide="review-insights"
           onClick={() => setMobileInsightsOpen((current) => !current)}
           className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.3em] text-white/80"
           aria-expanded={mobileInsightsOpen}
@@ -128,7 +130,7 @@ export default function WeeklyReviewPage() {
       </div>
 
       <div className={`space-y-6 ${mobileInsightsOpen ? "" : "hidden lg:block"}`}>
-        <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <section data-guide="review-summary" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <InsightCard
             title="Avg sleep"
             value={summary.avgSleepHours ? `${summary.avgSleepHours.toFixed(1)}h` : "–"}
@@ -384,7 +386,7 @@ export default function WeeklyReviewPage() {
             )}
           </div>
         </div>
-        <form className="mt-6 grid gap-6" onSubmit={handleReviewSubmit}>
+        <form data-guide="review-form" className="mt-6 grid gap-6" onSubmit={handleReviewSubmit}>
           <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
             <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
               Day

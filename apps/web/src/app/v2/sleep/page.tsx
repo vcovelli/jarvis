@@ -383,15 +383,16 @@ export default function SleepPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <header>
+    <div className="flex flex-col gap-4 lg:gap-8">
+      <header className="mobile-compact-header">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Sleep</p>
+        <h1 className="mt-2 text-3xl font-semibold text-white">Recovery log</h1>
       </header>
 
       <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-lg sm:p-6">
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-medium text-white">Night editor</h2>
+            <h2 data-guide="sleep-editor" className="text-lg font-medium text-white">Night editor</h2>
             <p className="text-sm text-zinc-400">Set the window and log the quality.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-zinc-300">
@@ -543,6 +544,7 @@ export default function SleepPage() {
                 />
               </div>
               <button
+                data-guide="sleep-save"
                 type="submit"
                 className="mt-auto rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
               >

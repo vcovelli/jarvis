@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { signOut, useSession } from "next-auth/react";
 
@@ -51,9 +51,11 @@ const resourceLinks: NavLink[] = [
   { href: "/real-estate", label: "Real Estate", description: "Property" },
   { href: "/homelab", label: "Homelab", description: "Servers" },
   { href: "/documentation", label: "Docs", description: "Reference" },
+  { href: "/manufacturing", label: "Manufacturing", description: "Projects" },
 ];
 
 const adminLinks: NavLink[] = [
+  { href: "/guide", label: "User guide", description: "Learn" },
   { href: "/settings", label: "Settings", description: "Platform" },
   { href: "/account", label: "Account", description: "Security" },
 ];
@@ -85,6 +87,12 @@ function getStoredShellControlsExpanded() {
   }
 }
 
+const subscribeToHydration = () => () => {};
+
+function useHydrated() {
+  return useSyncExternalStore(subscribeToHydration, () => true, () => false);
+}
+
 type SidebarProps = {
   basePath?: string;
 };
@@ -96,8 +104,11 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   const { syncStatus, refreshRemoteState } = useJarvisState();
   const [theme, setTheme] = useState<ThemePreference>(() => getStoredTheme());
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopOpen, setDesktopOpen] = useState(() => getStoredDesktopSidebarOpen());
+  const hydrated = useHydrated();
+  const [desktopPreference, setDesktopOpen] = useState(() => getStoredDesktopSidebarOpen());
+  const desktopOpen = hydrated ? desktopPreference : true;
   const [mobileNavigation, setMobileNavigation] = useState<{ href: string; fromRoute: string } | null>(null);
+  const mobileDrawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return onThemeChange(setTheme);
@@ -122,6 +133,53 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       window.removeEventListener(mobileSidebarOpenEvent, openMobileSidebar);
     };
   }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const drawer = mobileDrawerRef.current;
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+    function closeOnDesktop() {
+      if (desktopQuery.matches) setMobileOpen(false);
+    }
+    desktopQuery.addEventListener("change", closeOnDesktop);
+    document.body.classList.add("scroll-locked");
+    const focusFrame = window.requestAnimationFrame(() => {
+      drawer?.querySelector<HTMLElement>("button, a[href], input, select, textarea")?.focus();
+    });
+
+    function handleDrawerKeydown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !drawer) return;
+      const focusable = Array.from(
+        drawer.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)"),
+      ).filter((element) => element.getAttribute("aria-hidden") !== "true");
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    window.addEventListener("keydown", handleDrawerKeydown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleDrawerKeydown);
+      desktopQuery.removeEventListener("change", closeOnDesktop);
+      document.body.classList.remove("scroll-locked");
+      previousFocus?.focus();
+    };
+  }, [mobileOpen]);
 
   const normalizedBase =
     !basePath || basePath === "/" ? "" : basePath.replace(/\/$/, "");
@@ -177,12 +235,13 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
   const mobileAssistantActive = pendingMobileHref ? pendingMobileHref === assistantHref : onAssistantPage;
   const habitsImmersive = activeRoot === "/habits";
   const mobileAssistantClass = "mobile-nav-item mobile-nav-assistant " + (mobileAssistantActive ? "is-active" : "");
+  const mobileAssistantPending = pendingMobileHref === assistantHref;
   const mobileAssistantContent = (
     <>
       <span className="mobile-nav-icon mobile-nav-assistant-icon">
         <AssistantNavIcon className="h-6 w-6" />
       </span>
-      <span className="mobile-nav-label">Assistant</span>
+      <span className="mobile-nav-label">{mobileAssistantPending ? "Opening…" : "Assistant"}</span>
     </>
   );
 
@@ -234,12 +293,13 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       )}
 
       <aside
+        data-expanded={desktopOpen}
         className={
-          "hidden w-72 shrink-0 px-4 py-6 text-sm text-zinc-400 lg:sticky lg:top-0 lg:flex lg:h-dvh " +
+          "jarvis-desktop-sidebar hidden w-60 shrink-0 px-3 py-6 text-sm text-zinc-400 lg:sticky lg:top-0 lg:h-dvh xl:w-72 xl:px-4 " +
           (desktopOpen ? "lg:flex" : "lg:hidden")
         }
       >
-        <div className="theme-surface flex w-full flex-col gap-5 rounded-[32px] p-4">
+        <div className="theme-surface flex min-h-0 w-full flex-col gap-4 rounded-[32px] p-3 xl:gap-5 xl:p-4">
           <div className="theme-card rounded-[24px] p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -259,7 +319,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
             <p className="mt-2 text-sm leading-6 text-zinc-400">Smooth daily planning, reflection, and review from anywhere.</p>
           </div>
 
-          <nav className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pr-1">
+          <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pr-1">
             <NavGroup title="Start">{navItems(startLinks)}</NavGroup>
             <NavGroup title="Daily rhythm">{navItems(dailyRhythmLinks)}</NavGroup>
             <NavGroup title="Growth">{navItems(growthLinks)}</NavGroup>
@@ -280,7 +340,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       {!habitsImmersive && (
         <nav
           data-no-pull-refresh="true"
-          className="jarvis-mobile-nav fixed inset-x-0 bottom-0 z-40 lg:hidden"
+          className="jarvis-mobile-nav relative order-last z-40 shrink-0 lg:hidden"
           aria-label="Primary mobile navigation"
         >
           <div className="jarvis-mobile-nav-row mx-auto grid max-w-xl grid-cols-5 gap-1">
@@ -302,8 +362,8 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
               href={assistantHref}
               aria-label="Open assistant"
               aria-current={onAssistantPage ? "page" : undefined}
-              aria-busy={pendingMobileHref === assistantHref || undefined}
-              data-navigation-state={pendingMobileHref === assistantHref ? "pending" : mobileAssistantActive ? "active" : "idle"}
+              aria-busy={mobileAssistantPending || undefined}
+              data-navigation-state={mobileAssistantPending ? "pending" : mobileAssistantActive ? "active" : "idle"}
               onPointerDown={(event) => {
                 if (event.button === 0) beginMobileNavigation(assistantHref);
               }}
@@ -339,6 +399,11 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
       {mobileOpen && (
         <div data-no-pull-refresh="true" className="fixed inset-0 z-50 flex bg-slate-950/50 backdrop-blur-sm mobile-sidebar-overlay lg:hidden">
           <div
+            ref={mobileDrawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-navigation-title"
+            tabIndex={-1}
             className="mobile-sidebar theme-modal flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] px-6 py-8 text-sm shadow-[24px_0_80px_rgba(2,6,23,0.45)]"
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
@@ -346,7 +411,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
             }}
           >
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.5em] text-cyan-200/80">Jarvis OS</p>
+              <p id="mobile-navigation-title" className="text-xs uppercase tracking-[0.5em] text-cyan-200/80">Jarvis OS</p>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
@@ -405,7 +470,7 @@ function MobileBarLink({
       className={"mobile-nav-item " + (active ? "is-active" : "")}
     >
       <span className="mobile-nav-icon"><MobileNavIcon label={item.label} className="h-4 w-4" /></span>
-      <span className="mobile-nav-label">{item.label}</span>
+      <span className="mobile-nav-label">{pending ? "Opening…" : item.label}</span>
     </Link>
   );
 }
@@ -592,31 +657,31 @@ function getSaveStatusDisplay(syncStatus: StateSyncStatus) {
   const lastSaved = savedAt ? `Last saved ${formatShellTime(savedAt)}` : undefined;
 
   if (syncStatus.local === "loading") {
-    return { label: "Loading", detail: "Preparing storage", toneClass: "bg-zinc-400" };
+    return { label: "Opening workspace", detail: "Restoring this device, then checking Jarvis", toneClass: "bg-zinc-400 animate-pulse" };
   }
   if (syncStatus.local === "error") {
-    return { label: "Save issue", detail: syncStatus.error, toneClass: "bg-red-400" };
+    return { label: "Device save issue", detail: syncStatus.error ?? "This device could not store the latest change", toneClass: "bg-red-500" };
   }
   if (syncStatus.remote === "saving") {
-    return { label: "Saving", detail: lastSaved, toneClass: "bg-cyan-300 animate-pulse" };
+    return { label: "Saving to Jarvis", detail: "Your change is already safe on this device", toneClass: "bg-cyan-300 animate-pulse" };
   }
   if (syncStatus.remote === "refreshing") {
-    return { label: "Refreshing", detail: lastSaved, toneClass: "bg-cyan-300 animate-pulse" };
+    return { label: "Checking for changes", detail: "Comparing this device with Jarvis", toneClass: "bg-cyan-300 animate-pulse" };
   }
   if (syncStatus.remote === "pending") {
-    return { label: "Saving soon", detail: lastSaved, toneClass: "bg-amber-300" };
+    return { label: "Saved on this device", detail: "Waiting for Jarvis to confirm the sync", toneClass: "bg-amber-400" };
   }
   if (syncStatus.remote === "offline" || syncStatus.remote === "error") {
     return {
-      label: "Saved locally",
-      detail: syncStatus.remote === "error" ? "Server sync will retry" : lastSaved,
-      toneClass: "bg-amber-300",
+      label: syncStatus.remote === "error" ? "Sync needs another try" : "Working offline",
+      detail: syncStatus.remote === "error" ? "Your changes are safe on this device" : "Changes will sync when you reconnect",
+      toneClass: syncStatus.remote === "error" ? "bg-red-500" : "bg-amber-400",
     };
   }
   if (syncStatus.remote === "saved") {
-    return { label: "Synced", detail: lastSaved, toneClass: "bg-emerald-300" };
+    return { label: "All caught up", detail: lastSaved, toneClass: "bg-emerald-500" };
   }
-  return { label: "Saved locally", detail: lastSaved, toneClass: "bg-emerald-300" };
+  return { label: "Saved on this device", detail: lastSaved, toneClass: "bg-emerald-500" };
 }
 
 function formatShellTime(timestamp: number) {
@@ -636,7 +701,9 @@ function ShellControls({
   syncStatus: StateSyncStatus;
   onRefresh: () => Promise<boolean>;
 }) {
-  const [expanded, setExpanded] = useState(() => getStoredShellControlsExpanded());
+  const hydrated = useHydrated();
+  const [expandedPreference, setExpanded] = useState(() => getStoredShellControlsExpanded());
+  const expanded = hydrated ? expandedPreference : false;
   const status = getSaveStatusDisplay(syncStatus);
   const refreshDisabled =
     syncStatus.local === "loading" ||
@@ -658,7 +725,7 @@ function ShellControls({
   }
 
   return (
-    <div className="theme-surface mt-auto rounded-[24px] p-2 text-xs">
+    <div className="theme-surface mt-auto max-h-[45dvh] shrink-0 overflow-y-auto overscroll-contain rounded-[24px] p-2 text-xs">
       <div className="flex items-stretch gap-2">
         <button
           type="button"

@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { removePlaidItem } from "@/lib/plaidRemoval";
 
 type RouteContext = {
-  params: Promise<{ id: string }> | { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export async function DELETE(request: Request, context: RouteContext) {

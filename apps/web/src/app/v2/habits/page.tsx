@@ -316,7 +316,7 @@ export default function HabitsPage() {
 
   return (
     <div className="theme-immersive-shell fixed inset-0 z-30 h-dvh overflow-hidden lg:relative lg:inset-auto lg:z-auto lg:h-full lg:rounded-[28px]">
-      <div className="grid h-full max-h-full w-full min-w-0 gap-4 px-3 pb-0 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pb-0 sm:pt-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="grid h-full max-h-full w-full min-w-0 gap-4 px-3 pb-0 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pb-0 sm:pt-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_21rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
         <section
           className={
             "theme-workspace relative flex h-full min-h-0 touch-pan-y flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl transition-[transform] " +
@@ -453,7 +453,7 @@ export default function HabitsPage() {
           </footer>
         </section>
 
-        <aside className="hidden min-h-0 flex-col gap-4 lg:flex">
+        <aside className="hidden min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain pr-1 lg:flex [&>section]:shrink-0">
           <section className="theme-card rounded-[28px] p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -506,7 +506,7 @@ export default function HabitsPage() {
             )}
           </section>
 
-          <section className="theme-card min-h-0 flex-1 rounded-[28px] p-4">
+          <section className="theme-card rounded-[28px] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Day</p>
@@ -516,7 +516,7 @@ export default function HabitsPage() {
                 {completedToday}/{Math.max(orderedHabits.length, 1)} today
               </p>
             </div>
-            <div className="mt-4 max-h-[52dvh] space-y-2 overflow-y-auto pr-1">
+            <div className="mt-4 space-y-2">
               {visibleHabits.map((habit) => (
                 <button
                   key={habit.id}
@@ -609,6 +609,7 @@ function HabitRow({
             <button
               key={habit.id + day.key}
               type="button"
+              data-guide="habit-cells"
               aria-label={`${formatHabitTitle(habit.title)} ${day.key} ${statusLabel(status)}`}
               onClick={(event) => {
                 event.stopPropagation();
@@ -709,12 +710,15 @@ function HabitEditor({
     <div className="theme-overlay fixed inset-0 z-50 flex items-end p-0 backdrop-blur-md sm:items-center sm:justify-center sm:p-6">
       <form
         onSubmit={onSubmit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="habit-editor-title"
         className="theme-modal w-full rounded-t-[30px] p-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.15rem)] shadow-[0_-24px_80px_rgba(2,6,23,0.45)] sm:max-w-lg sm:rounded-[30px] sm:pb-5"
       >
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-200/70">{mode === "edit" ? "Edit" : "New"}</p>
-            <h2 className="mt-1 text-2xl font-semibold">Habit</h2>
+            <h2 id="habit-editor-title" className="mt-1 text-2xl font-semibold">Habit</h2>
           </div>
           <button
             type="button"

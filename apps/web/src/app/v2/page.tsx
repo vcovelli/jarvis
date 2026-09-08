@@ -16,12 +16,12 @@ import {
   TodoItem,
   TodoPriority,
   SleepEntry,
-  defaultMoodTags,
   dayKeyToDate,
   getDayKey,
   useJarvisState,
 } from "@/lib/jarvisStore";
 import { formatTodoTimeWindow } from "@/lib/timeDisplay";
+import { useWalkthrough } from "@/components/onboarding/WalkthroughProvider";
 import { useToast } from "@/components/Toast";
 
 const journalPromptCopy: Record<JournalPrompt, string> = {
@@ -83,6 +83,7 @@ const TIMELINE_FILTER_KEY = "jarvis-timeline-filter";
 const OPERATING_MODE_COLLAPSE_KEY = "jarvis-operating-mode-collapsed";
 
 export default function Home() {
+  const { startDemo, browse, active: activeWalkthrough } = useWalkthrough();
   const {
     state,
     hydrated,
@@ -212,18 +213,13 @@ export default function Home() {
   const editMoodPercent = useMemo(() => ((editMoodValue - 1) / 9) * 100, [editMoodValue]);
   const moodTagOptions: MoodTag[] = useMemo(() => {
     const seen = new Set<string>();
-    const combined = [...defaultMoodTags, ...moodTagLibrary];
-    return combined.filter((tag) => {
+    return moodTagLibrary.filter((tag) => {
       const normalized = tag.toLowerCase();
       if (seen.has(normalized)) return false;
       seen.add(normalized);
       return true;
     });
   }, [moodTagLibrary]);
-  const builtInMoodTagSet = useMemo(
-    () => new Set(defaultMoodTags.map((tag) => tag.toLowerCase())),
-    [],
-  );
   const activeOperatingMode = todaysOperatingMode?.mode ?? suggestedMode?.mode ?? null;
   const operatingModeLabel = activeOperatingMode ? labelForOperatingMode(activeOperatingMode) : "—";
   const operatingModeMetrics = useMemo(() => {
@@ -682,10 +678,11 @@ export default function Home() {
           (mobileInsightsOpen ? "mobile-dashboard-open" : "mobile-dashboard-closed")
         }
       >
-        <header className="hidden lg:block">
+        <header className="hidden items-center justify-between gap-3 lg:flex">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
+          {!activeWalkthrough && <button type="button" onClick={demoMode ? () => startDemo() : browse} className="theme-button-secondary rounded-xl px-4 py-2 text-sm font-semibold">{demoMode ? "Start walkthrough" : "User guide"}</button>}
         </header>
-      <section className="flex min-h-[calc(100dvh_-_var(--jarvis-mobile-nav-height)_-_9.5rem)] items-center lg:hidden">
+      <section className="flex min-h-[calc(100dvh_-_var(--jarvis-mobile-nav-height)_-_2rem)] items-center lg:hidden">
         <div className="theme-surface w-full rounded-[28px] p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -700,10 +697,26 @@ export default function Home() {
               {demoMode ? "Real" : "Demo"}
             </button>
           </div>
+          {!activeWalkthrough && <button type="button" onClick={demoMode ? () => startDemo() : browse} className="theme-button-secondary mt-3 w-full rounded-xl px-3 py-2 text-sm font-semibold">{demoMode ? "Start walkthrough with fresh demo data" : "User guide & walkthroughs"}</button>}
           <Link href={commandCenter.nextHref} className="theme-card mt-3 block rounded-2xl p-3 transition active:scale-[0.99] sm:mt-4 sm:p-4">
             <p className="theme-muted text-[10px] uppercase tracking-[0.24em]">Recommended</p>
             <p className="theme-text mt-1 text-sm font-semibold leading-6">{commandCenter.nextAction}</p>
           </Link>
+          <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Assistant capture">
+            <Link
+              href="/v2/assistant"
+              className="theme-button-secondary inline-flex min-h-12 items-center justify-center rounded-2xl px-3 text-xs font-semibold"
+            >
+              Ask Jarvis
+            </Link>
+            <Link
+              href="/v2/assistant?voice=1"
+              className="theme-button-primary inline-flex min-h-12 items-center justify-center rounded-2xl px-3 text-xs font-semibold"
+            >
+              <span aria-hidden="true" className="mr-2">●</span>
+              Speak
+            </Link>
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:grid-cols-3 sm:gap-3">
             {quickRemoteTiles.map((tile) => (
               <QuickNavLink key={tile.href + tile.label} {...tile} />
@@ -1021,8 +1034,6 @@ export default function Home() {
               <div className="flex flex-wrap gap-2">
               {moodTagOptions.map((tag) => {
                 const active = selectedMoodTags.includes(tag);
-                const normalized = tag.toLowerCase();
-                const isCustom = !builtInMoodTagSet.has(normalized);
                 return (
                   <div key={tag} className="relative">
                     <button
@@ -1032,7 +1043,7 @@ export default function Home() {
                     >
                       {tag}
                     </button>
-                    {tagManagerOpen && isCustom && (
+                    {tagManagerOpen && (
                       <div className="absolute -top-2 -right-2 flex gap-1 rounded-full bg-black/60 px-1 py-0.5">
                         <button
                           type="button"
@@ -1482,8 +1493,6 @@ export default function Home() {
               <div className="flex flex-wrap gap-2">
                 {moodTagOptions.map((tag) => {
                   const active = editMoodTags.includes(tag);
-                  const normalized = tag.toLowerCase();
-                  const isCustom = !builtInMoodTagSet.has(normalized);
                   return (
                     <div key={tag} className="relative">
                       <button
@@ -1493,7 +1502,7 @@ export default function Home() {
                       >
                         {tag}
                       </button>
-                      {editTagManagerOpen && isCustom && (
+                      {editTagManagerOpen && (
                         <div className="absolute -top-2 -right-2 flex gap-1 rounded-full bg-black/60 px-1 py-0.5">
                           <button
                             type="button"
