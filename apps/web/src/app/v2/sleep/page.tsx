@@ -509,7 +509,7 @@ export default function SleepPage() {
                   </button>
                 )}
               </div>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div data-guide="sleep-quality" className="grid gap-4 lg:grid-cols-2">
                 <SliderField
                   label="Quality"
                   value={quality}

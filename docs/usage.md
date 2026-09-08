@@ -133,7 +133,7 @@ See [UI and theming](./ui-and-theming.md) for implementation rules.
 
 ## Interactive user guide
 
-Open **User guide** from the desktop sidebar, **More → User guide** on phone/tablet, Home, or Settings. The starter tour teaches six useful daily actions; the library contains a guide for every page and a full-app tour. Guides point to real controls and reserve their own screen space. You can minimize them, try an action, or move on without performing it.
+Open **User guide** from the desktop sidebar, **More → User guide** on phone/tablet, Home, or Settings. Quick start begins with the real appearance controls, then introduces Must Win, Todos, Habits, Sleep, and Mood in about three minutes. A brief completion note leaves Finance for later. The library retains optional page guides and a full-app tour. Contextual pointers highlight real controls while the bottom explanation panel reserves its own screen space. You can minimize them, try an action, or move on without performing it.
 
 **Skip for now** preserves the current step and allows an optional reminder after a week. Completed and permanently dismissed guides never prompt again. The library includes a global **Don’t show walkthrough suggestions again** preference and a **Paused & skipped** filter. Progress belongs to the signed-in account in this browser; demo progress is separate.
 

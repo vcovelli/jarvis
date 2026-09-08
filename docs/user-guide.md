@@ -4,12 +4,23 @@ Start with one useful action. You do not need to use every module every day.
 
 ## Open a walkthrough
 
-- New users receive one welcome popup with a six-stop starter tour.
+- New users receive one welcome popup. **Personalize Jarvis** starts a six-step quick start in their own workspace.
 - **User guide** in the sidebar or **More → User guide** opens the searchable guide library. It is also available from Home and Settings.
-- **Start / resume the basics** teaches navigation, planning, a Must Win, a mood check-in, Assistant, and review.
+- **Start / resume quick start** covers Theme → Must Win → Todos → Habits → Sleep → Mood in about three minutes.
 - **Explore the whole app** visits every module. Individual page guides explain each workflow in more detail.
-- During a guide, the highlighted control is usable. Try the action or choose **Next** to keep reading. **Minimize** gives you more working room. Leaving the page pauses guidance until you return.
+- During quick start, a short pointer sits beside the real control while the bottom panel explains its purpose. Both follow the available screen space; pointers disappear while an editor is open. The highlighted control is usable. Try the action or choose **Next** to keep reading. **Minimize** gives you more working room. Leaving the page pauses guidance until you return.
 - **Read the steps** in the guide library provides a written version without starting popups.
+
+## Your quick start
+
+1. **Make Jarvis yours.** Open the existing Account → Appearance controls, choose a foundation and color palette, and see the app change immediately. Appearance saves automatically, including during a demo.
+2. **Must Win.** Choose the one thing that needs to get done today. Changes save when you leave the form.
+3. **Todos.** Open Plan’s task editor for everything else. Save a task when ready, with or without a scheduled time.
+4. **Habits.** Open Add habit for a routine you want to build consistently.
+5. **Sleep.** Track the sleep window and rate quality and recovery. Log sleep saves the night.
+6. **Mood.** Capture how you feel and choose Log mood to save; a history can help you notice patterns.
+
+Every interaction is optional. At the end, return to using Jarvis. Finance is introduced only as something to explore later, when you want to connect accounts. Quick start does not open Finance, bank authentication, or Assistant configuration. Page guides remain available when you choose to explore deeper features.
 
 ## Practice with demo data
 

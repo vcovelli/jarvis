@@ -27,7 +27,7 @@ export default function UserGuidePage() {
         <h1 className="theme-text mt-3 text-3xl font-semibold">Your Jarvis guide</h1>
         <p className="theme-muted mt-3 max-w-2xl text-sm leading-6">Learn one workflow at a time. Start with the basics, resume where you left off, or choose a page below.</p>
         <div className="mt-5 flex flex-wrap gap-2">
-          <button type="button" disabled={!ready} onClick={() => start("essentials")} className="theme-button-primary rounded-xl px-4 py-3 text-sm font-semibold">Start / resume the basics</button>
+          <button type="button" disabled={!ready} onClick={() => start("essentials")} className="theme-button-primary rounded-xl px-4 py-3 text-sm font-semibold">Start / resume quick start</button>
           <button type="button" disabled={!ready} onClick={() => startDemo()} className="theme-button-secondary rounded-xl px-4 py-3 text-sm font-semibold">Start a fresh demo walkthrough</button>
         </div>
         <p className="theme-muted mt-3 text-xs leading-5">Fresh demo resets sample data and demo guides. Account settings still apply to your real account.</p>

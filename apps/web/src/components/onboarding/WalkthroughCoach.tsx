@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { findGuide, matchesGuideRoute, type GuideStep } from "@/lib/userGuides";
+import { WalkthroughSpotlight } from "./WalkthroughSpotlight";
 import { useWalkthrough } from "./WalkthroughProvider";
 
 export function WalkthroughCoach() {
@@ -25,7 +26,6 @@ function CoachContent() {
   const onRoute = Boolean(step && matchesGuideRoute(pathname, step.route));
   const hasContent = ready && Boolean(active || notice);
 
-
   useEffect(() => {
     if (!hasContent || !dockRef.current) return;
     const dock = dockRef.current;
@@ -40,48 +40,6 @@ function CoachContent() {
       document.documentElement.style.removeProperty("--walkthrough-coach-height");
     };
   }, [hasContent]);
-
-  useEffect(() => {
-    if (!step || !onRoute || !step.target || navigationPending) return;
-    let target: HTMLElement | null = null;
-    let frame = 0;
-    let didScroll = false;
-    const selector = step.target;
-    const refresh = () => {
-      frame = 0;
-      const found = locateGuideTarget(selector);
-      if (found === target) return;
-      if (target) target.removeAttribute("data-guide-highlight");
-      target = found;
-      setTargetFound(Boolean(found));
-      if (found) {
-        found.setAttribute("data-guide-highlight", "true");
-        if (!didScroll && !found.matches(".jarvis-page-viewport, .jarvis-desktop-sidebar, .jarvis-mobile-nav")) {
-          didScroll = true;
-          found.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
-        }
-      }
-    };
-    const schedule = () => { if (!frame) frame = window.requestAnimationFrame(refresh); };
-    const observer = new MutationObserver(schedule);
-    const shell = document.querySelector(".app-shell");
-    if (shell) observer.observe(shell, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "aria-expanded"] });
-    window.addEventListener("resize", schedule);
-    function action(event: Event) {
-      if (!target || !(event.target instanceof Node) || !target.contains(event.target)) return;
-      if (event.type === "input" && event.target instanceof HTMLInputElement && !event.target.value.trim()) return;
-      setPracticed(true);
-    }
-    if (step.event) document.addEventListener(step.event, action, true);
-    schedule();
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", schedule);
-      if (step.event) document.removeEventListener(step.event, action, true);
-      if (frame) window.cancelAnimationFrame(frame);
-      target?.removeAttribute("data-guide-highlight");
-    };
-  }, [step, onRoute, navigationPending]);
 
   if (!hasContent) return null;
   if (!active || !guide || !step) {
@@ -98,6 +56,7 @@ function CoachContent() {
 
   return (
     <aside ref={dockRef} className={"walkthrough-coach " + (collapsed ? "is-collapsed" : "")} data-no-pull-refresh="true" aria-label="Interactive walkthrough" aria-busy={navigationPending}>
+      {onRoute && !collapsed && !navigationPending && <WalkthroughSpotlight step={step} onPractice={setPracticed} onTargetFound={setTargetFound} />}
       <div className="walkthrough-coach-heading">
         <div className="min-w-0">
           <p className="theme-muted text-xs">{guide.title} · {active.step + 1} of {guide.steps.length}</p>
@@ -110,8 +69,8 @@ function CoachContent() {
         <>
           <div className="walkthrough-coach-body">
             {onRoute ? <StepDescription step={step} /> : <p className="theme-muted text-sm leading-5">You can explore freely. Return to the guide’s page to continue from this step.</p>}
-            {onRoute && step.practice && <p className="theme-text mt-2 text-sm leading-5">{step.practice}</p>}
-            {onRoute && step.event && <p role="status" className="theme-muted mt-1 text-xs">{practiced ? "✓ You tried it. Continue when you are ready." : targetFound ? "The highlighted control is ready. You can also continue without trying it." : "Read the guidance here, then continue when ready."}</p>}
+            {onRoute && (step.practice || step.anchor) && <p className="theme-text mt-2 text-sm leading-5">{step.practice ?? step.anchor?.label}</p>}
+            {onRoute && step.event && <p role="status" className="theme-muted mt-1 text-xs">{practiced ? "✓ Tried it. Continue when you’re ready." : targetFound ? "Try it, or choose Next." : "You can continue whenever you’re ready."}</p>}
           </div>
           <div className="walkthrough-coach-footer">
             <label className="theme-muted flex min-h-11 cursor-pointer items-center gap-2 text-xs">
@@ -140,15 +99,4 @@ function StepDescription({ step }: { step: GuideStep }) {
       {step.compactBody && <p className="theme-muted text-sm leading-5 lg:hidden">{step.compactBody}</p>}
     </>
   );
-}
-
-function locateGuideTarget(selector: string): HTMLElement | null {
-  for (const part of selector.split(",").map((value) => value.trim())) {
-    const match = Array.from(document.querySelectorAll<HTMLElement>(part)).find((element) => {
-      const rect = element.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0 && getComputedStyle(element).visibility !== "hidden" && !element.closest('[inert], [aria-hidden="true"]');
-    });
-    if (match) return match;
-  }
-  return null;
 }
