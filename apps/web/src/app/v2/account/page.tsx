@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
 import { MobileSectionNav } from "@/components/MobileSectionNav";
@@ -17,9 +18,21 @@ import {
 type AccountMobileView = "profile" | "appearance" | "security";
 
 export default function AccountPage() {
+  return <Suspense fallback={<p className="theme-muted p-5">Opening account…</p>}><AccountContent /></Suspense>;
+}
+
+function AccountContent() {
   const { data: session } = useSession();
   const [theme, setTheme] = useState<ThemePreference>(() => getStoredTheme());
-  const [mobileView, setMobileView] = useState<AccountMobileView>("profile");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const section = searchParams.get("section");
+  const mobileView: AccountMobileView = section === "appearance" || section === "security" ? section : "profile";
+  function setMobileView(value: AccountMobileView) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("section", value);
+    router.replace("/v2/account?" + params.toString(), { scroll: false });
+  }
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -98,7 +111,7 @@ export default function AccountPage() {
         </div>
       </section>
 
-      <section className={(mobileView === "appearance" ? "" : "hidden lg:block ") + "theme-surface mobile-card-padding mobile-focus-card rounded-3xl p-6"}>
+      <section data-guide="theme-controls" className={(mobileView === "appearance" ? "" : "hidden lg:block ") + "theme-surface mobile-card-padding mobile-focus-card rounded-3xl p-6"}>
         <h2 data-guide="account-appearance" className="theme-text text-lg font-medium">Appearance</h2>
         <p className="theme-muted mt-2 text-sm">Choose brightness and color independently. Every palette is designed for both light and dark foundations.</p>
 
@@ -112,6 +125,7 @@ export default function AccountPage() {
                   key={option.value}
                   type="button"
                   aria-pressed={active}
+                  data-guide="theme-mode"
                   onClick={() => updateTheme({ mode: option.value })}
                   className={"theme-card rounded-2xl p-4 text-left transition hover:-translate-y-0.5 " + (active ? "is-active" : "")}
                 >

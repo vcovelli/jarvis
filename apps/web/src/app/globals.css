@@ -2320,7 +2320,7 @@ body[data-theme="light"] .theme-shell .mobile-todos-input {
   border-radius: 1.5rem;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
 }
-[data-guide-highlight="true"] {
+[data-guide-highlight="true"]:not([data-guide-anchored="true"]) {
   outline: 3px solid var(--accent) !important;
   outline-offset: 3px;
 }
@@ -2339,4 +2339,53 @@ body[data-walkthrough-active="true"] .planner-add-button {
 @media (max-height: 500px) {
   .walkthrough-coach { max-height: 42dvh; }
   .walkthrough-dialog { padding: 1rem; }
+}
+
+/* Anchors never intercept taps or cover the persistent explanation/navigation. */
+.walkthrough-spotlight {
+  position: fixed;
+  z-index: 32;
+  overflow: hidden;
+  pointer-events: none;
+}
+.walkthrough-spotlight-ring {
+  position: absolute;
+  border: 2px solid var(--accent);
+  border-radius: 0.75rem;
+  box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.16);
+}
+.walkthrough-anchor {
+  position: fixed;
+  z-index: 33;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--surface-strong);
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+  overflow-wrap: anywhere;
+}
+.walkthrough-anchor-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--surface-strong);
+  border: solid var(--accent);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.walkthrough-anchor[data-placement="bottom"] .walkthrough-anchor-arrow { top: 0; border-width: 1px 0 0 1px; }
+.walkthrough-anchor[data-placement="top"] .walkthrough-anchor-arrow { top: 100%; border-width: 0 1px 1px 0; }
+.walkthrough-anchor[data-placement="right"] .walkthrough-anchor-arrow { left: 0; border-width: 0 0 1px 1px; }
+.walkthrough-anchor[data-placement="left"] .walkthrough-anchor-arrow { left: 100%; border-width: 1px 1px 0 0; }
+
+@media (max-height: 500px) {
+  /* Leave room for real controls beside the coach on phone landscape. */
+  body[data-walkthrough-active="true"] .mobile-section-nav {
+    position: relative;
+    top: auto;
+  }
 }

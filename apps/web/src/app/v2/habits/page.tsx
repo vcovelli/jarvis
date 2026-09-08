@@ -713,7 +713,7 @@ function HabitEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="habit-editor-title"
-        className="theme-modal w-full rounded-t-[30px] p-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.15rem)] shadow-[0_-24px_80px_rgba(2,6,23,0.45)] sm:max-w-lg sm:rounded-[30px] sm:pb-5"
+        className="theme-modal max-h-dvh w-full overflow-y-auto overscroll-contain rounded-t-[30px] p-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.15rem)] shadow-[0_-24px_80px_rgba(2,6,23,0.45)] sm:max-h-[calc(100dvh-3rem)] sm:max-w-lg sm:rounded-[30px] sm:pb-5"
       >
         <div className="flex items-center justify-between gap-3">
           <div>

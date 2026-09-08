@@ -75,3 +75,13 @@ test("all module routes have a guide, including both planner URLs", () => {
     for (const step of guide.steps) assert.ok(step.route.startsWith("/v2"));
   }
 });
+
+test("quick start teaches only the daily loop, beginning at the real appearance controls", () => {
+  const guide = userGuides.find((item) => item.id === "essentials")!;
+  assert.deepEqual(guide.steps.map((step) => step.route), [
+    "/v2/account?section=appearance", "/v2/must-win", "/v2/daily", "/v2/habits", "/v2/sleep", "/v2/mood",
+  ]);
+  assert.ok(guide.steps.every((step) => step.target && step.anchor?.label && step.event));
+  assert.equal(guide.steps.length, 6);
+  assert.ok(guide.minutes <= 3);
+});

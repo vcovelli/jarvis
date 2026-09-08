@@ -7,6 +7,10 @@ export type GuideStep = {
   compactBody?: string;
   route: string;
   target?: string;
+  /** Short pointer beside a real control; the panel carries the explanation. */
+  anchor?: { label: string; placement?: "top" | "bottom" };
+  /** Optional control group whose interactions count toward this step. */
+  interactionTarget?: string;
   practice?: string;
   event?: "click" | "input" | "change";
 };
@@ -23,62 +27,78 @@ export type UserGuide = {
 export const userGuides: UserGuide[] = [
   {
     "id": "essentials",
-    "title": "Your first useful day",
-    "description": "Six stops: navigate, plan, choose a win, check in, ask, and review.",
+    "title": "Quick start",
+    "description": "Make Jarvis yours, then learn your daily loop.",
     "category": "Start here",
     "minutes": 3,
     "steps": [
       {
-        "id": "home-start",
-        "title": "Your everyday shortcuts",
-        "body": "Home is your starting point. Use the sidebar to open Plan, Assistant, and the daily check-ins. The guide stays with you as you move between pages.",
-        "route": "/v2",
-        "target": ".jarvis-desktop-sidebar, .jarvis-mobile-nav",
-        "compactBody": "The bottom bar keeps Home, Plan, Assistant, and Finance close. More opens every other page. You can return to this guide at any time."
-      },
-      {
-        "id": "plan-start",
-        "title": "Open the task editor",
-        "body": "The plus button opens the same editor as New. Choose a name, day, start time, and duration. Leaving the time clear keeps the task unscheduled.",
-        "route": "/v2/daily",
-        "target": "[data-guide=\"plan-add\"]",
-        "practice": "Open the editor. Close it when you are done looking; saving is optional.",
+        "id": "theme-start",
+        "title": "Make Jarvis yours.",
+        "body": "Choose your appearance and see Jarvis change right away. Your choice saves automatically.",
+        "route": "/v2/account?section=appearance",
+        "target": "[data-guide=\"theme-mode\"]",
+        "interactionTarget": "[data-guide=\"theme-controls\"]",
+        "anchor": {
+          "label": "Choose a look. Colors are just below.",
+          "placement": "top"
+        },
         "event": "click"
       },
       {
         "id": "must-win-start",
-        "title": "Choose one outcome",
-        "body": "A Must Win is one result that would make today count. Make it specific: “Send the proposal by 3 PM” is easier to finish than “Work on sales.” Edits save when you leave the form or lock the win. Use demo mode if you want to practice.",
+        "title": "Must Win: your one priority",
+        "body": "The one thing that needs to get done today. Write a clear finish line; it saves when you leave the form.",
         "route": "/v2/must-win",
         "target": "[data-guide=\"must-win-input\"]",
-        "practice": "Try writing a clear finish line.",
+        "anchor": {
+          "label": "What would make today count?"
+        },
+        "event": "input"
+      },
+      {
+        "id": "todos-start",
+        "title": "Todos: everything else",
+        "body": "Everything else you need to handle lives in Plan. Add a task now, or leave it unscheduled for later.",
+        "route": "/v2/daily",
+        "target": "[data-guide=\"plan-add\"]",
+        "anchor": {
+          "label": "Open the task editor. Saving is optional.",
+          "placement": "top"
+        },
+        "event": "click"
+      },
+      {
+        "id": "habits-start",
+        "title": "Habits: build consistency",
+        "body": "The routines you’re trying to build consistently. Start with one small habit, then mark the days you do it.",
+        "route": "/v2/habits",
+        "target": "button[aria-label=\"Add habit\"]",
+        "anchor": {
+          "label": "Add a routine you want to repeat."
+        },
+        "event": "click"
+      },
+      {
+        "id": "sleep-start",
+        "title": "Sleep: check your recovery",
+        "body": "Track how you slept and how recovered you feel. Set your sleep window, rate the night, then choose Log sleep to save.",
+        "route": "/v2/sleep",
+        "target": "[data-guide=\"sleep-quality\"] input",
+        "anchor": {
+          "label": "How restful was your night?"
+        },
         "event": "input"
       },
       {
         "id": "mood-start",
-        "title": "Start with how you feel",
-        "body": "Move the slider from 1 to 10 to match right now. It is a personal check-in, not a score you need to maximize. Nothing is saved until you choose Log mood.",
+        "title": "Mood: notice your patterns",
+        "body": "Capture how you’re feeling so patterns can emerge over time. Move the slider, then choose Log mood to save.",
         "route": "/v2/mood",
         "target": "[data-guide=\"mood-score\"]",
-        "practice": "Move the slider to try a different score.",
-        "event": "input"
-      },
-      {
-        "id": "assistant-start",
-        "title": "Start with a concrete request",
-        "body": "Try “Add a task to prepare tomorrow’s meeting” or “Log my mood as 7.” You can also ask for help planning. Type a request first; Send is a separate action.",
-        "route": "/v2/assistant",
-        "target": "[data-guide=\"assistant-input\"]",
-        "practice": "Draft a request in the message box.",
-        "event": "input"
-      },
-      {
-        "id": "review-start",
-        "title": "Choose one change for next week",
-        "body": "Write one thing to stop, one thing to double down on, and one experiment. Save the review to keep that decision. A small change is easier to carry into the planner.",
-        "route": "/v2/review",
-        "target": "textarea[placeholder=\"One experiment for next week.\"]",
-        "practice": "Draft a small experiment you can actually try.",
+        "anchor": {
+          "label": "How are you feeling right now?"
+        },
         "event": "input"
       }
     ]
