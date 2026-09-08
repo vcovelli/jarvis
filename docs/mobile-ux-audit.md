@@ -2,6 +2,8 @@
 
 Date: 2026-09-07
 
+This is a historical implementation audit. Verification counts describe that original pass; route sections for pages no longer shipped have been removed.
+
 ## Product strategy
 
 Mobile Jarvis is the remote control: it leads with current state, attention, and the next useful action. Desktop remains the command center: it keeps broad comparisons, dense charts, full configuration, and parallel panels visible. Both compositions use the same routes, providers, state store, API handlers, authentication, finance classification, and domain calculations.
@@ -10,7 +12,7 @@ The shell switches at the existing `lg` breakpoint (1024px). Layout contracts ta
 
 ## Shared findings and implementation
 
-- Navigation: the five-slot mobile bar keeps Home, Plan, Assistant, Finance, and More immediately available. More exposes every module; Manufacturing was added because its route existed but was absent from navigation. The drawer now locks background scroll, closes with Escape, traps and restores focus, and exposes dialog semantics.
+- Navigation: the five-slot mobile bar keeps Home, Plan, Assistant, Finance, and More immediately available. More exposes the available modules. The drawer now locks background scroll, closes with Escape, traps and restores focus, and exposes dialog semantics.
 - Focused views: `MobileSectionNav` provides a consistent, horizontally scrollable, sticky, 44px-tall section switcher. It changes presentation only; it does not duplicate state or business logic.
 - Density: phone headers and cards use compact spacing. High-density pages select one focused view on mobile while desktop continues to render the full multi-panel workspace.
 - Touch and overflow: mobile page controls have a 44px minimum height, with compact date cells sized to fit all seven columns. Page roots remain `min-width: 0`/`overflow-x: hidden`; horizontal control rails are intentionally scrollable and use touch panning.
@@ -127,17 +129,6 @@ Plain stationary taps worked in the baseline browser emulation; the original phy
 7. Existing risk: the visual clock is tall, but it is the route’s primary direct-manipulation control.
 8. Implemented/verified: retained the focused editor, mobile disclosure, date access, and added a clear page title/compact spacing.
 
-### `/v2/focus` — Focus
-
-1. Purpose: define discipline-support commitments and safe replacement actions.
-2. Important information: recommended next step and current capability boundary.
-3. Likely mobile actions: understand the next commitment to create and review scope.
-4. Initial viewport: next move plus current state in one concise card.
-5. Drill-down: historical context and planned scope use native disclosure.
-6. Desktop emphasis: three summary panels and the complete scope grid.
-7. Previous problem: a three-card desktop stub became a long low-value phone stack.
-8. Implemented: the shared Module Brief now provides an action-first mobile composition.
-
 ### `/v2/objectives` — Objectives
 
 1. Purpose: connect outcomes, projects, milestones, and next actions.
@@ -159,28 +150,6 @@ Plain stationary taps worked in the baseline browser emulation; the original phy
 6. Desktop emphasis: all analytics remain expanded for comparison.
 7. Existing risk: analytics could push the reflective action far below the fold.
 8. Implemented/verified: retained mobile insights disclosure and added a clear compact title.
-
-### `/v2/fitness` — Fitness
-
-1. Purpose: define lightweight, non-medical activity tracking.
-2. Important information: recommended first implementation and relationship to sleep/recovery.
-3. Likely mobile actions: review the next lightweight tracking scope.
-4. Initial viewport: next move and current state.
-5. Drill-down: trend and scope use disclosure.
-6. Desktop emphasis: complete capability matrix.
-7. Previous problem: static planning content rendered as a desktop card stack.
-8. Implemented: action-first shared Module Brief mobile layout.
-
-### `/v2/career` — Career
-
-1. Purpose: frame the skills matrix around objective evidence.
-2. Important information: current learning focus and recommended evidence action.
-3. Likely mobile actions: identify the next skill/outcome to capture.
-4. Initial viewport: next move and state.
-5. Drill-down: trend and skills scope use disclosure.
-6. Desktop emphasis: complete matrix scope and three summary panels.
-7. Previous problem: static planning information was scroll-heavy relative to its utility.
-8. Implemented: action-first shared Module Brief mobile layout.
 
 ### `/v2/finance` — Finance
 
@@ -225,17 +194,6 @@ Plain stationary taps worked in the baseline browser emulation; the original phy
 6. Desktop emphasis: sticky category sidebar beside the document.
 7. Previous problem: the entire category index appeared before the selected content on narrow screens.
 8. Implemented: responsive ordering puts content first on mobile and preserves the desktop two-column browser.
-
-### `/v2/manufacturing` — Manufacturing
-
-1. Purpose: frame future CNC, robotics, Raspberry Pi, inventory, and safety work.
-2. Important information: current architecture boundary and objective-first recommendation.
-3. Likely mobile actions: understand the next project-capture step.
-4. Initial viewport: next move and current state.
-5. Drill-down: historical context and module scope use disclosure.
-6. Desktop emphasis: complete capability scope.
-7. Previous problem: the route was a desktop-style stub and was not linked from navigation.
-8. Implemented: action-first Module Brief layout and added the route to Resources in desktop/mobile More navigation.
 
 ### `/v2/settings` — Settings
 

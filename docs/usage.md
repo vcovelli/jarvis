@@ -17,7 +17,7 @@ Desktop navigation is grouped by purpose:
 
 - **Start:** Home, Plan, Assistant
 - **Daily rhythm:** Must Win, Habits, Mood, Journal, Sleep
-- **Growth:** Focus, Objectives, Review, Fitness, Career
+- **Growth:** Objectives, Review
 - **Resources:** Finances, Real Estate, Homelab, Docs
 - **Account:** Settings, Account
 
@@ -115,10 +115,6 @@ The page uses built-in demo inventory by default. A live scan is authenticated a
 **Homelab** combines configured documentation snapshots, service metadata, monitoring summaries, and a bounded action log. Prometheus and Grafana links depend on the deployment environment.
 
 **Docs** is a read-only browser for Markdown under `HOMELAB_DOCS_ROOT`. It indexes supported documentation categories, supports text search, renders the selected document, and can reveal its raw Markdown. This is a homelab knowledge browser, not the documentation for the Jarvis source repository.
-
-## Growth briefs
-
-Focus, Fitness, and Career currently communicate the intended information architecture and recommended next step; they are not yet full persistence-backed trackers. Manufacturing is also a brief and intentionally does not appear in the primary navigation because it is deployment-specific.
 
 ## Themes and appearance
 

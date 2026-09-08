@@ -215,6 +215,7 @@ type AssistantProject = {
   topics: AssistantTopic[];
 };
 
+// Keep stored project/topic keys stable for existing conversations and memories.
 const assistantProjects: AssistantProject[] = [
   {
     id: "general",
@@ -228,12 +229,12 @@ const assistantProjects: AssistantProject[] = [
   },
   {
     id: "career-finances",
-    label: "Career & Finances",
+    label: "Work & Finances",
     detail: "Money, work moves, assets, vehicles, and long-term plans.",
     accent: "text-emerald-200 border-emerald-300/25 bg-emerald-300/10",
     topics: [
       { key: "finance", label: "Financial Plan", detail: "Budget, investing, debt" },
-      { key: "career", label: "Career", detail: "Jobs, goals, applications" },
+      { key: "career", label: "Work goals", detail: "Jobs, goals, applications" },
       { key: "work", label: "Work Area", detail: "Current work execution" },
       { key: "car", label: "Car", detail: "Vehicle issues and plans" },
       { key: "real-estate", label: "Real Estate", detail: "Property analysis" },
@@ -250,7 +251,7 @@ const assistantProjects: AssistantProject[] = [
       { key: "coding", label: "Coding Projects", detail: "Apps, repos, architecture" },
       { key: "laptop", label: "Laptop", detail: "Local machine setup" },
       { key: "server", label: "Server", detail: "Homelab and services" },
-      { key: "enterprise-engineering", label: "Enterprise Engineering", detail: "Manufacturing systems" },
+      { key: "enterprise-engineering", label: "Enterprise Engineering", detail: "Technical systems" },
       { key: "robot-arm", label: "Robot Arm", detail: "Automation build" },
       { key: "raspberry-pi", label: "Raspberry Pi", detail: "Edge devices" },
       { key: "cnc", label: "CNC", detail: "Machining workflows" },
@@ -259,12 +260,12 @@ const assistantProjects: AssistantProject[] = [
   {
     id: "health",
     label: "Health",
-    detail: "Sleep, fitness, recovery, mood, and personal systems.",
+    detail: "Sleep, movement, recovery, mood, and personal systems.",
     accent: "text-rose-200 border-rose-300/25 bg-rose-300/10",
     topics: [
       { key: "health", label: "Health", detail: "General health context" },
       { key: "sleep", label: "Sleep", detail: "Sleep and recovery" },
-      { key: "fitness", label: "Fitness", detail: "Training and body metrics" },
+      { key: "fitness", label: "Movement", detail: "Training and body metrics" },
     ],
   },
 ];

@@ -64,7 +64,7 @@ test("saved progress round trips and manual replay is available after dismissal"
 });
 
 test("all module routes have a guide, including both planner URLs", () => {
-  for (const route of ["", "daily", "todos", "assistant", "must-win", "habits", "mood", "journal", "sleep", "review", "finance", "real-estate", "objectives", "homelab", "documentation", "focus", "fitness", "career", "manufacturing", "settings", "account"]) {
+  for (const route of ["", "daily", "todos", "assistant", "must-win", "habits", "mood", "journal", "sleep", "review", "finance", "real-estate", "objectives", "homelab", "documentation", "settings", "account"]) {
     assert.ok(guideForPath("/v2" + (route ? "/" + route : "")), route || "home");
   }
   assert.ok(matchesGuideRoute("/v2/todos", "/v2/daily?mode=backlog"));
@@ -84,4 +84,17 @@ test("quick start teaches only the daily loop, beginning at the real appearance 
   assert.ok(guide.steps.every((step) => step.target && step.anchor?.label && step.event));
   assert.equal(guide.steps.length, 6);
   assert.ok(guide.minutes <= 3);
+});
+
+test("retired page guides cannot be discovered or restored from old saved progress", () => {
+  const retired = ["manufacturing", "career", "fitness", "focus"];
+  const stored = parseProgress(JSON.stringify({ version: 2, welcomed: true, guides: Object.fromEntries(
+    retired.map((id) => [id, { status: "skipped", step: 0, updatedAt: 1, remindAfter: 1 }]),
+  ) }));
+  assert.deepEqual(stored.guides, {});
+  for (const id of retired) {
+    assert.equal(guideForPath(`/v2/${id}`), undefined);
+    assert.equal(shouldSuggest(stored, id, REMINDER_DELAY_MS * 2), false);
+    assert.ok(userGuides.every((guide) => guide.id !== id && guide.steps.every((step) => step.route.split("?")[0] !== `/v2/${id}`)));
+  }
 });

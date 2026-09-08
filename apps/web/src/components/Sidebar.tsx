@@ -39,11 +39,8 @@ const dailyRhythmLinks: NavLink[] = [
 ];
 
 const growthLinks: NavLink[] = [
-  { href: "/focus", label: "Focus", description: "Deep work" },
   { href: "/objectives", label: "Objectives", description: "Goals" },
   { href: "/review", label: "Review", description: "Trends" },
-  { href: "/fitness", label: "Fitness", description: "Health" },
-  { href: "/career", label: "Career", description: "Growth" },
 ];
 
 const resourceLinks: NavLink[] = [
@@ -51,7 +48,6 @@ const resourceLinks: NavLink[] = [
   { href: "/real-estate", label: "Real Estate", description: "Property" },
   { href: "/homelab", label: "Homelab", description: "Servers" },
   { href: "/documentation", label: "Docs", description: "Reference" },
-  { href: "/manufacturing", label: "Manufacturing", description: "Projects" },
 ];
 
 const adminLinks: NavLink[] = [

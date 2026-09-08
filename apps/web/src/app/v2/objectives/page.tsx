@@ -130,13 +130,13 @@ export default function ObjectivesPage() {
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Objective, e.g. Become excellent in manufacturing IT"
+          placeholder="Objective, e.g. Finish the home network upgrade"
           className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500 lg:col-span-2"
         />
         <input
           value={area}
           onChange={(event) => setArea(event.target.value)}
-          placeholder="Area, e.g. Career"
+          placeholder="Area, e.g. Projects"
           className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
         />
         <input

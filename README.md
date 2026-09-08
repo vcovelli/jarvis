@@ -8,11 +8,11 @@ The current product is a responsive Next.js application with credentials-based a
 
 - **Start:** Home, Plan, and Assistant.
 - **Daily rhythm:** Must Win, Habits, Mood, Journal, and Sleep.
-- **Growth:** Focus, Objectives, Review, Fitness, and Career.
+- **Growth:** Objectives and Review.
 - **Resources:** Finances, Real Estate, Homelab, and the homelab Docs browser.
 - **Account:** Platform settings, themes, password management, and account deletion.
 
-Focus, Fitness, Career, and the unlisted Manufacturing route are currently product briefs rather than complete trackers. Finance is read-only: Jarvis can organize and analyze connected data, but it cannot move money.
+Finance is read-only: Jarvis can organize and analyze connected data, but it cannot move money.
 
 ## Stack
 

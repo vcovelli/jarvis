@@ -49,10 +49,8 @@ The root page is a public landing page and redirects an already authenticated us
 | Start | `/v2`, `/v2/daily`, `/v2/assistant` | Active |
 | Daily rhythm | `/v2/must-win`, `/v2/habits`, `/v2/mood`, `/v2/journal`, `/v2/sleep` | Active |
 | Growth | `/v2/objectives`, `/v2/review` | Active |
-| Growth briefs | `/v2/focus`, `/v2/fitness`, `/v2/career` | Informational briefs |
 | Resources | `/v2/finance`, `/v2/real-estate`, `/v2/homelab`, `/v2/documentation` | Active, with optional integrations |
 | Account | `/v2/settings`, `/v2/account` | Active |
-| Deployment-specific | `/v2/manufacturing` | Informational brief, not in primary navigation |
 
 ## Daily-life state
 

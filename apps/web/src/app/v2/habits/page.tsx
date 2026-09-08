@@ -37,7 +37,7 @@ type HabitDay = {
 
 const habitStarterSet: Array<HabitDraft> = [
   { title: "Drink water, no phone, meditate", icons: "🚫💧🧘", category: "Private", intent: "build" },
-  { title: "Get moving", icons: "💪", category: "Fitness", intent: "build" },
+  { title: "Get moving", icons: "💪", category: "Movement", intent: "build" },
   { title: "Plan, execute, repeat", icons: "📝", category: "Work", intent: "build" },
   { title: "Deep focus", icons: "🎯", category: "Work", intent: "build" },
   { title: "Stay ahead", icons: "🎓", category: "Private", intent: "build" },
