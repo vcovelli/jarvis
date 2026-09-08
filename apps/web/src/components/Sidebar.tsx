@@ -90,10 +90,12 @@ function useHydrated() {
 }
 
 type SidebarProps = {
+  canAdmin?: boolean;
   basePath?: string;
 };
 
-export function Sidebar({ basePath = "/" }: SidebarProps) {
+export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
+  const accountLinks = canAdmin ? [...adminLinks, { href: "/admin", label: "Admin", description: "Control" }] : adminLinks;
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
@@ -320,7 +322,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
             <NavGroup title="Daily rhythm">{navItems(dailyRhythmLinks)}</NavGroup>
             <NavGroup title="Growth">{navItems(growthLinks)}</NavGroup>
             <NavGroup title="Resources">{navItems(resourceLinks)}</NavGroup>
-            <NavGroup title="Account">{navItems(adminLinks)}</NavGroup>
+            <NavGroup title="Account">{navItems(accountLinks)}</NavGroup>
           </nav>
 
           <ShellControls
@@ -421,7 +423,7 @@ export function Sidebar({ basePath = "/" }: SidebarProps) {
               <NavGroup title="Daily rhythm">{navItems(dailyRhythmLinks, true, () => setMobileOpen(false))}</NavGroup>
               <NavGroup title="Growth">{navItems(growthLinks, true, () => setMobileOpen(false))}</NavGroup>
               <NavGroup title="Resources">{navItems(resourceLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Account">{navItems(adminLinks, true, () => setMobileOpen(false))}</NavGroup>
+              <NavGroup title="Account">{navItems(accountLinks, true, () => setMobileOpen(false))}</NavGroup>
             </nav>
             <ShellControls
               sessionEmail={session?.user?.email}

@@ -4,6 +4,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 
 import { writeAuditLog } from "@/lib/audit";
+import { recordUserActivity } from "@/lib/userActivity";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
@@ -54,6 +55,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         await writeAuditLog({ action: "auth.login", userId: user.id, request });
+        await recordUserActivity(user.id, user.lastActiveAt);
         return {
           id: user.id,
           email: user.email,
@@ -76,13 +78,14 @@ export const authOptions: NextAuthOptions = {
       if (!token.id || token.invalidated) return token;
       const current = await prisma.user.findUnique({
         where: { id: token.id },
-        select: { sessionVersion: true, emailVerified: true },
+        select: { sessionVersion: true, emailVerified: true, lastActiveAt: true },
       });
       if (!current || current.sessionVersion !== token.sessionVersion || (verificationRequired() && !current.emailVerified)) {
         token.invalidated = true;
         delete token.id;
         return token;
       }
+      await recordUserActivity(token.id, current.lastActiveAt);
       token.emailVerified = current.emailVerified;
       return token;
     },

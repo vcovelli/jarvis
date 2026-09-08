@@ -7,6 +7,7 @@ import { MobileSyncStatus } from "@/components/MobileSyncStatus";
 import { WalkthroughCoach } from "@/components/onboarding/WalkthroughCoach";
 import { PageViewport } from "@/components/PageViewport";
 import { Sidebar } from "@/components/Sidebar";
+import { userHasEntitlement } from "@/lib/entitlements";
 import { authOptions } from "@/lib/auth";
 import { JarvisStateProvider } from "@/lib/jarvisStore";
 
@@ -24,12 +25,13 @@ export default async function V2Layout({
   if (!session?.user?.id) {
     redirect("/login");
   }
+  const canAdmin = await userHasEntitlement(session.user.id, "ADMIN");
   return (
     <JarvisStateProvider>
       <FirstRunWalkthrough>
         <MobileSyncStatus />
         <div className="app-shell theme-shell flex h-dvh min-h-dvh overflow-hidden flex-col lg:flex-row">
-          <Sidebar basePath="/v2" />
+          <Sidebar basePath="/v2" canAdmin={canAdmin} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <PageViewport>
               {children}

@@ -51,6 +51,7 @@ The root page is a public landing page and redirects an already authenticated us
 | Growth | `/v2/objectives`, `/v2/review` | Active |
 | Resources | `/v2/finance`, `/v2/real-estate`, `/v2/homelab`, `/v2/documentation` | Active, with optional integrations |
 | Account | `/v2/settings`, `/v2/account` | Active |
+| Admin | `/v2/admin`, `/v2/admin/users`, `/v2/admin/users/[id]`, `/v2/admin/activity` | Server-protected ADMIN/OWNER access |
 
 ## Daily-life state
 

@@ -11,6 +11,7 @@ The current product is a responsive Next.js application with credentials-based a
 - **Growth:** Objectives and Review.
 - **Resources:** Finances, Real Estate, Homelab, and the homelab Docs browser.
 - **Account:** Platform settings, themes, password management, and account deletion.
+- **Admin (authorized accounts):** System status, users, entitlements, rollout levels, and recent activity.
 
 Finance is read-only: Jarvis can organize and analyze connected data, but it cannot move money.
 

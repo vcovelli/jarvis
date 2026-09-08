@@ -30,6 +30,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  typescript: { tsconfigPath: production ? "tsconfig.build.json" : "tsconfig.json" },
   turbopack: { root: process.cwd() },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];

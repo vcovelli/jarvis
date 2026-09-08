@@ -1,10 +1,4 @@
 import { NextResponse } from "next/server";
-
+import { getAppHealth } from "@/lib/health";
 export const dynamic = "force-dynamic";
-
-export async function GET() {
-  return NextResponse.json(
-    { status: "ok", service: "jarvis-web", timestamp: new Date().toISOString() },
-    { headers: { "Cache-Control": "no-store" } },
-  );
-}
+export async function GET() { return NextResponse.json(getAppHealth(), { headers: { "Cache-Control": "no-store" } }); }
