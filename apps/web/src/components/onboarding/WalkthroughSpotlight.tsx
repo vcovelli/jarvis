@@ -38,8 +38,10 @@ export function WalkthroughSpotlight({ step, onPractice, onTargetFound }: {
     }
     function refresh() {
       frame = 0;
-      const modalOpen = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], dialog[open]')).some(isVisible);
-      const found = modalOpen ? null : locateGuideTarget(selector);
+      const candidate = locateGuideTarget(selector);
+      const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], dialog[open]')).filter(isVisible);
+      const modalOpen = dialogs.some((dialog) => !(step.shell && dialog.matches("[data-guide-shell]") && candidate && dialog.contains(candidate)));
+      const found = modalOpen ? null : candidate;
       if (found !== target) {
         releaseTarget();
         target = found;
@@ -56,23 +58,32 @@ export function WalkthroughSpotlight({ step, onPractice, onTargetFound }: {
       }
       if (!target || !step.anchor || !page) { setLayout(null); return; }
       const visual = window.visualViewport;
-      let bounds: GuideRect | null = intersectGuideRects(page.getBoundingClientRect(), {
+      const surface = step.shell ? target.closest<HTMLElement>("[data-guide-shell], .jarvis-desktop-sidebar") : page;
+      let bounds: GuideRect | null = surface ? intersectGuideRects(surface.getBoundingClientRect(), {
         left: visual?.offsetLeft ?? 0, top: visual?.offsetTop ?? 0,
         width: visual?.width ?? innerWidth, height: visual?.height ?? innerHeight,
-      });
-      // Respect nested scrollers; never point at the clipped part of a control.
-      for (let parent = target.parentElement; bounds && parent && parent !== page; parent = parent.parentElement) {
-        if (/(auto|scroll|hidden|clip)/.test(getComputedStyle(parent).overflow)) bounds = intersectGuideRects(bounds, parent.getBoundingClientRect());
+      }) : null;
+      // The mobile coach is inside the drawer. Keep its tips above that row.
+      if (bounds && dock && surface?.contains(dock)) {
+        const dockRect = dock.getBoundingClientRect();
+        bounds = dockRect.left > bounds.left + bounds.width / 3
+          ? { ...bounds, width: dockRect.left - bounds.left }
+          : { ...bounds, height: Math.max(0, Math.min(bounds.top + bounds.height, dockRect.top) - bounds.top) };
       }
-      // Sticky section navigation occupies the top of the page while scrolling.
-      const sectionNav = page.querySelector<HTMLElement>(".mobile-section-nav");
+      // Clip the highlight to nested scrollers, but give the tooltip the whole
+      // surface to fit in. A tightly fitted control group still gets a pointer.
+      let visibleTarget: GuideRect | null = target.getBoundingClientRect();
+      for (let parent = target.parentElement; visibleTarget && parent && parent !== surface; parent = parent.parentElement) {
+        if (/(auto|scroll|hidden|clip)/.test(getComputedStyle(parent).overflow)) visibleTarget = intersectGuideRects(visibleTarget, parent.getBoundingClientRect());
+      }
+      const sectionNav = !step.shell ? page.querySelector<HTMLElement>(".mobile-section-nav") : null;
       if (bounds && sectionNav && isVisible(sectionNav) && !sectionNav.contains(target)) {
         const navRect = sectionNav.getBoundingClientRect();
         const top = Math.max(bounds.top, navRect.bottom);
         bounds = { ...bounds, top, height: Math.max(0, bounds.top + bounds.height - top) };
       }
       const size = { width: Math.min(248, (bounds?.width ?? 0) - 16), height: hintRef.current?.offsetHeight ?? 56 };
-      const position = bounds ? positionGuide(target.getBoundingClientRect(), bounds, size, step.anchor.placement) : null;
+      const position = bounds && visibleTarget ? positionGuide(visibleTarget, bounds, size, step.anchor.placement) : null;
       const next = bounds && position ? { bounds, position } : null;
       setLayout((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
       const ids = new Set(target.getAttribute("aria-describedby")?.split(/\s+/).filter(Boolean));
@@ -82,7 +93,7 @@ export function WalkthroughSpotlight({ step, onPractice, onTargetFound }: {
     }
     function schedule() { if (!frame) frame = window.requestAnimationFrame(refresh); }
     function action(event: Event) {
-      if (!(event.target instanceof Element)) return;
+      if (!target || !(event.target instanceof Element) || !isVisible(target)) return;
       const inControl = step.interactionTarget ? event.target.closest(step.interactionTarget) : target?.contains(event.target);
       if (!inControl) return;
       if (event.type === "input" && (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) && !event.target.value.trim()) return;
@@ -130,7 +141,7 @@ export function WalkthroughSpotlight({ step, onPractice, onTargetFound }: {
         {step.anchor.label}
         <span className="walkthrough-anchor-arrow" aria-hidden="true" style={verticalArrow ? { left: tooltip.arrow } : { top: tooltip.arrow }} />
       </div>}
-    </>, document.body,
+    </>, (step.shell ? document.querySelector("[data-guide-shell]") : null) ?? document.body,
   );
 }
 

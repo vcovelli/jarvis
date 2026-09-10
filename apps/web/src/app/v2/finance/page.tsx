@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MobileSectionNav } from "@/components/MobileSectionNav";
 
+import { buildEventFlags } from "@/lib/finance/classification";
+import { buildSpendingBreakdown, filterSpendingEvents, matchesSpendingScope, readSpendingScope, spendingAmount, spendingHref, type SpendingScope } from "@/lib/finance/spending";
 import { useJarvisState } from "@/lib/jarvisStore";
 
 type PlaidInstitution = {
@@ -123,6 +127,7 @@ type FinanceEvent = {
   confidence: number;
   classificationSource: string;
   classificationReason: string | null;
+  readOnly?: boolean;
 };
 
 type ManualFinancialPosition = {
@@ -145,6 +150,7 @@ type FinanceAnalyticsBreakdownItem = {
   detail: string;
   count: number;
   percent: number;
+  keys?: Array<string | null>;
 };
 
 type FinanceAnalytics = {
@@ -246,7 +252,7 @@ type FinanceConnectionDeleteResponse = {
   };
 };
 
-type RangeKey = "1" | "7" | "14" | "30" | "60" | "90" | "180";
+type RangeKey = "1" | "7" | "14" | "30" | "60" | "90" | "180" | "365" | "730";
 type ChartId = "cashflow" | "categories" | "accounts" | "investments" | "merchants";
 type BreakdownMode = "category" | "account";
 type Tone = "good" | "warn" | "bad" | "neutral";
@@ -258,6 +264,7 @@ type BreakdownItem = {
   detail: string;
   color: string;
   percent: number;
+  keys?: Array<string | null>;
 };
 
 type FlowPoint = {
@@ -306,6 +313,8 @@ const RANGE_OPTIONS: Array<{ value: RangeKey; label: string }> = [
   { value: "60", label: "60D" },
   { value: "90", label: "90D" },
   { value: "180", label: "180D" },
+  { value: "365", label: "1Y" },
+  { value: "730", label: "2Y" },
 ];
 
 const RANGE_VALUES = RANGE_OPTIONS.map((option) => option.value);
@@ -492,7 +501,7 @@ const REVIEW_PRESETS: Array<{
   { label: "Ignore", eventType: "ignored", primaryCategory: "uncategorized", subcategory: "ignored" },
 ];
 
-function buildDemoFinanceSummary(rangeDays = 30): FinanceSummary {
+function buildDemoFinanceSummary(rangeDays = 30, includePending = false): FinanceSummary {
   const now = new Date();
   const updatedAt = now.getTime();
   const nowIso = now.toISOString();
@@ -523,22 +532,26 @@ function buildDemoFinanceSummary(rangeDays = 30): FinanceSummary {
     buildDemoEvent({ id: "demo-event-review-payroll", accountId: "demo-checking", accountName: "Demo Checking", offset: -1, name: "Northstar Payroll Bonus", amount: -850, cashFlowAmount: 850, eventType: "unknown", category: "uncategorized", subcategory: "needs_review", income: false, review: true, confidence: 0.48, reason: "Demo low-confidence income candidate ready for review." }),
     buildDemoEvent({ id: "demo-event-review-transfer", accountId: "demo-checking", accountName: "Demo Checking", offset: -3, name: "Atlas Brokerage Recurring", amount: 250, cashFlowAmount: 250, eventType: "unknown", category: "uncategorized", subcategory: "needs_review", review: true, confidence: 0.52, reason: "Demo investment transfer candidate ready for review." }),
   ];
-  const spendingByCategory = [
-    buildDemoBreakdown("housing", "Housing", 1742.88, "2 events", 0.48),
-    buildDemoBreakdown("groceries", "Groceries", 396.2, "4 events", 0.11),
-    buildDemoBreakdown("food", "Food Dining", 334.92, "5 events", 0.09),
-    buildDemoBreakdown("transport", "Transportation", 288.5, "3 events", 0.08),
-    buildDemoBreakdown("shopping", "Shopping", 224.18, "3 events", 0.06),
-    buildDemoBreakdown("health", "Healthcare", 184.75, "2 events", 0.05),
-    buildDemoBreakdown("other", "Other", 471.57, "8 events", 0.13),
-  ];
+  for (let index = 0; index < 32; index++) {
+    events.push(buildDemoEvent({ id: "demo-grocery-" + index, accountId: index % 3 ? "demo-card" : "demo-checking",
+      accountName: index % 3 ? "Demo Rewards Card" : "Demo Checking", offset: -index - 1,
+      name: index % 2 ? "Market Basket" : "Neighborhood Grocer", amount: 18.25 + index * 1.17,
+      cashFlowAmount: -(18.25 + index * 1.17), eventType: "expense", category: "groceries", subcategory: "supermarket", spend: true, confidence: 0.94 }));
+  }
+  for (const [index, category] of ["shopping", "transportation", "healthcare", "travel", "entertainment", "services", "personal_care", "fees"].entries()) {
+    events.push(buildDemoEvent({ id: "demo-spend-" + category, accountId: "demo-card", accountName: "Demo Rewards Card",
+      offset: -index - 2, name: ["Everyday Supply", "City Transit", "Neighborhood Pharmacy", "Weekend Stay", "Cinema", "Internet Service", "Barber", "Account Fee"][index],
+      amount: 130 - index * 11, cashFlowAmount: -(130 - index * 11), eventType: "expense", category, subcategory: "general", spend: true, confidence: 0.92 }));
+  }
+  events.push({ ...buildDemoEvent({ id: "demo-pending-cafe", accountId: "demo-card", accountName: "Demo Rewards Card", offset: 0,
+    name: "Bluebird Cafe", amount: 12.5, cashFlowAmount: -12.5, eventType: "expense", category: "food_dining", subcategory: "cafe", spend: true, confidence: 0.9 }), pending: true });
+  events.push(buildDemoEvent({ id: "demo-old-grocery", accountId: "demo-card", accountName: "Demo Rewards Card", offset: -210,
+    name: "Market Basket", amount: 84.3, cashFlowAmount: -84.3, eventType: "expense", category: "groceries", subcategory: "supermarket", spend: true, confidence: 0.94 }));
+  const spendingByCategory = buildSpendingBreakdown(events, "category");
   const spendingTotal = spendingByCategory.reduce((total, item) => total + item.value, 0);
-  spendingByCategory.forEach((item) => {
-    item.percent = spendingTotal > 0 ? item.value / spendingTotal : item.percent;
-  });
   const reviewQueue = events.filter((event) => event.needsReview);
 
-  return {
+  const summary: FinanceSummary = {
     setup: {
       configured: true,
       environment: "demo",
@@ -692,6 +705,31 @@ function buildDemoFinanceSummary(rangeDays = 30): FinanceSummary {
       ],
     },
     updatedAt,
+  };
+  return refreshDemoSpending(summary, rangeDays, includePending);
+}
+
+function refreshDemoSpending(summary: FinanceSummary, rangeDays: number, includePending: boolean): FinanceSummary {
+  const cutoff = getRangeCutoff(rangeDays).getTime();
+  const events = summary.events.filter((event) => new Date(event.date).getTime() >= cutoff && (includePending || !event.pending));
+  if (!summary.analytics) return { ...summary, events };
+  const spend = events.filter((event) => event.countsAsSpend).reduce((sum, event) => sum + spendingAmount(event), 0);
+  const income = events.filter((event) => event.countsAsIncome).reduce((sum, event) => sum + Math.max(0, event.cashFlowAmount), 0);
+  const recent = [...events].sort((a, b) => b.date.localeCompare(a.date));
+  return {
+    ...summary, events,
+    analytics: {
+      ...summary.analytics, rangeDays, transactionCount: events.length,
+      pendingExcludedCount: includePending ? 0 : summary.events.filter((event) => event.pending && new Date(event.date).getTime() >= cutoff).length,
+      cashFlow: { ...summary.analytics.cashFlow, spending: spend, income, netCashFlow: events.reduce((sum, event) => sum + event.cashFlowAmount, 0) },
+      savings: { ...summary.analytics.savings, grossIncome: income, consumptionSpending: spend, savedAmount: income - spend, savingsRate: income ? (income - spend) / income : null },
+      spendingByCategory: buildSpendingBreakdown(events, "category"),
+      spendingByMerchant: buildSpendingBreakdown(events, "merchant"),
+      accountSpendBreakdown: buildSpendingBreakdown(events, "account"),
+      recentEvents: recent.slice(0, 24),
+      reviewQueue: summary.events.filter((event) => event.needsReview),
+      reviewQueueCount: summary.events.filter((event) => event.needsReview).length,
+    },
   };
 }
 
@@ -873,7 +911,7 @@ function applyDemoFinanceReview(
     const subcategory = typeof payload.subcategory === "string" ? payload.subcategory : event.subcategory;
     const merchant = typeof payload.normalizedMerchant === "string" ? payload.normalizedMerchant : event.normalizedMerchant;
     const displayName = typeof payload.displayName === "string" ? payload.displayName : event.displayName;
-    const impact = getDemoEventImpactFlags(eventType);
+    const impact = buildEventFlags(eventType, event.amount);
     return {
       ...event,
       eventType,
@@ -883,12 +921,7 @@ function applyDemoFinanceReview(
       displayName,
       needsReview: false,
       confidence: 1,
-      countsAsIncome: impact.income,
-      countsAsSpend: impact.spend,
-      countsAsTransfer: impact.transfer,
-      countsAsInvestmentContribution: impact.investing,
-      countsAsSavings: eventType === "savings_transfer",
-      internalTransfer: eventType === "transfer" || eventType === "savings_transfer",
+      ...impact,
       classificationSource: "demo-review",
       classificationReason: "Demo correction saved locally. Real finance data is unchanged.",
     };
@@ -930,15 +963,6 @@ function removeConnectionFromSummary(summary: FinanceSummary | null, connectionI
   };
 }
 
-function getDemoEventImpactFlags(eventType: string) {
-  return {
-    income: ["income", "dividend", "interest"].includes(eventType),
-    spend: ["expense", "fee", "debt_payment"].includes(eventType),
-    transfer: ["transfer", "credit_card_payment", "savings_transfer", "investment_withdrawal"].includes(eventType),
-    investing: ["investment_contribution", "investment_trade", "asset_purchase"].includes(eventType),
-  };
-}
-
 function buildDemoFinanceAssistantAnswer(question: string, dashboard: FinanceDashboard, rangeDays: number) {
   const topCategory = dashboard.categoryBreakdown[0];
   const topMerchant = dashboard.topMerchants[0];
@@ -964,6 +988,13 @@ function buildDemoFinanceAssistantAnswer(question: string, dashboard: FinanceDas
 let plaidScriptPromise: Promise<void> | null = null;
 
 export default function FinancePage() {
+  return <Suspense fallback={<p className="theme-muted p-5">Opening finances…</p>}><FinanceContent /></Suspense>;
+}
+
+function FinanceContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const spendingScope = readSpendingScope(searchParams);
   const { demoMode } = useJarvisState();
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [status, setStatus] = useState<ActionStatus>("loading");
@@ -973,7 +1004,7 @@ export default function FinancePage() {
     "cashflow",
     CHART_VALUES,
   );
-  const [rangeKey, setRangeKey] = usePersistentOption<RangeKey>(
+  const [savedRangeKey, saveRangeKey] = usePersistentOption<RangeKey>(
     financePreferenceKeys.range,
     "60",
     RANGE_VALUES,
@@ -983,7 +1014,26 @@ export default function FinancePage() {
     "category",
     BREAKDOWN_VALUES,
   );
-  const [hidePending, setHidePending] = usePersistentBoolean(financePreferenceKeys.hidePending, true);
+  const [savedHidePending, saveHidePending] = usePersistentBoolean(financePreferenceKeys.hidePending, true);
+  const requestedRange = searchParams.get("range") as RangeKey;
+  const rangeKey = RANGE_VALUES.includes(requestedRange) ? requestedRange : savedRangeKey;
+  const hidePending = searchParams.has("pending") ? searchParams.get("pending") !== "true" : savedHidePending;
+  function setRangeKey(value: RangeKey) {
+    saveRangeKey(value);
+    if (searchParams.has("range")) {
+      const params = new URLSearchParams(searchParams);
+      params.set("range", value);
+      router.replace("/v2/finance?" + params.toString(), { scroll: false });
+    }
+  }
+  function setHidePending(value: boolean) {
+    saveHidePending(value);
+    if (searchParams.has("pending")) {
+      const params = new URLSearchParams(searchParams);
+      params.set("pending", String(!value));
+      router.replace("/v2/finance?" + params.toString(), { scroll: false });
+    }
+  }
   const [overviewOpen, setOverviewOpen] = usePersistentBoolean(financePreferenceKeys.overviewOpen, true);
   const [chartsOpen, setChartsOpen] = usePersistentBoolean(financePreferenceKeys.chartsOpen, true);
   const [reviewOpen, setReviewOpen] = usePersistentBoolean(financePreferenceKeys.reviewOpen, true);
@@ -993,22 +1043,37 @@ export default function FinancePage() {
   const [assistantOpen, setAssistantOpen] = usePersistentBoolean(financePreferenceKeys.assistantOpen, true);
   const [reviewEvent, setReviewEvent] = useState<FinanceEvent | null>(null);
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [connectionToRemove, setConnectionToRemove] = useState<FinanceConnection | null>(null);
   const [removalSourceAccount, setRemovalSourceAccount] = useState<FinanceAccount | null>(null);
   const [removingConnectionId, setRemovingConnectionId] = useState<string | null>(null);
   const [assistantQuestion, setAssistantQuestion] = useState("");
   const [assistantAnswer, setAssistantAnswer] = useState<string | null>(null);
   const [assistantStatus, setAssistantStatus] = useState<FinanceAssistantStatus>("idle");
-  const [mobileView, setMobileView] = useState<FinanceMobileView>("overview");
+  const [selectedMobileView, setMobileView] = useState<FinanceMobileView>("overview");
+  const requestedView = searchParams.get("section") as FinanceMobileView;
+  const mobileView = ["overview", "spending", "accounts", "activity", "investments"].includes(requestedView) ? requestedView : selectedMobileView;
+  const summaryQuery = JSON.stringify([demoMode, rangeKey, hidePending]);
+  const [loadedQuery, setLoadedQuery] = useState<string | null>(null);
+  const summaryOptions = useRef({ demoMode, rangeKey, hidePending, query: summaryQuery });
+  useEffect(() => {
+    summaryOptions.current = { demoMode, rangeKey, hidePending, query: summaryQuery };
+  }, [demoMode, rangeKey, hidePending, summaryQuery]);
+  const loadRequest = useRef(0);
+  const demoSummary = useRef<FinanceSummary | null>(null);
 
   const loadSummary = useCallback(async () => {
+    const { demoMode, rangeKey, hidePending, query: requestedQuery } = summaryOptions.current;
+    const requestId = ++loadRequest.current;
     if (demoMode) {
-      setSummary(buildDemoFinanceSummary(Number(rangeKey)));
+      demoSummary.current ??= buildDemoFinanceSummary(730, true);
+      setSummary(refreshDemoSpending(demoSummary.current, Number(rangeKey), !hidePending));
+      setLoadedQuery(requestedQuery);
       setMessage(null);
       setStatus("idle");
       return;
     }
-    setStatus((current) => (current === "idle" ? "loading" : current));
+    setStatus((current) => (current === "syncing" ? "syncing" : "loading"));
     try {
       const query = new URLSearchParams({
         rangeDays: rangeKey,
@@ -1017,18 +1082,21 @@ export default function FinancePage() {
       const data = await fetchJson<FinanceSummary>(`/api/finance/summary?${query.toString()}`, {
         cache: "no-store",
       });
+      if (requestId !== loadRequest.current || summaryOptions.current.query !== requestedQuery) return;
       setSummary(data);
+      setLoadedQuery(requestedQuery);
       setMessage(null);
       setStatus("idle");
     } catch (error) {
+      if (requestId !== loadRequest.current || summaryOptions.current.query !== requestedQuery) return;
       setStatus("error");
       setMessage(getErrorMessage(error));
     }
-  }, [demoMode, hidePending, rangeKey]);
+  }, []);
 
   useEffect(() => {
     void loadSummary();
-  }, [loadSummary]);
+  }, [loadSummary, summaryQuery]);
 
   const rangeDays = Number(rangeKey);
   const dashboard = useMemo(
@@ -1110,9 +1178,8 @@ export default function FinancePage() {
 
   const syncFinance = useCallback(async () => {
     if (demoMode) {
-      setSummary(buildDemoFinanceSummary(Number(rangeKey)));
+      await loadSummary();
       setMessage("Demo finance data refreshed. Real Plaid data is unchanged.");
-      setStatus("idle");
       return;
     }
     setStatus("syncing");
@@ -1125,7 +1192,7 @@ export default function FinancePage() {
       setStatus("error");
       setMessage(getErrorMessage(error));
     }
-  }, [demoMode, loadSummary, rangeKey]);
+  }, [demoMode, loadSummary]);
 
   const removeConnection = useCallback(async (connection: FinanceConnection) => {
     const connectionName = formatConnectionName(connection);
@@ -1133,7 +1200,8 @@ export default function FinancePage() {
     setMessage(null);
 
     if (demoMode) {
-      setSummary((current) => removeConnectionFromSummary(current, connection.id));
+      demoSummary.current = removeConnectionFromSummary(demoSummary.current, connection.id);
+      await loadSummary();
       setConnectionToRemove(null);
       setRemovalSourceAccount(null);
       setRemovingConnectionId(null);
@@ -1163,9 +1231,11 @@ export default function FinancePage() {
 
   const saveEventReview = useCallback(async (eventId: string, payload: Record<string, string | boolean>) => {
     setReviewSaving(true);
+    setReviewError(null);
     setMessage(null);
     if (demoMode) {
-      setSummary((current) => applyDemoFinanceReview(current, eventId, payload));
+      demoSummary.current = applyDemoFinanceReview(demoSummary.current, eventId, payload);
+      if (demoSummary.current) setSummary(refreshDemoSpending(demoSummary.current, Number(rangeKey), !hidePending));
       setReviewEvent(null);
       setReviewSaving(false);
       setStatus("idle");
@@ -1182,12 +1252,11 @@ export default function FinancePage() {
       await loadSummary();
       setMessage("Finance event reviewed.");
     } catch (error) {
-      setStatus("error");
-      setMessage(getErrorMessage(error));
+      setReviewError(getErrorMessage(error));
     } finally {
       setReviewSaving(false);
     }
-  }, [demoMode, loadSummary]);
+  }, [demoMode, loadSummary, rangeKey, hidePending]);
 
   const openReviewQueue = useCallback(() => {
     setReviewEvent(dashboard.reviewQueue[0] ?? dashboard.recentEvents.find((event) => event.needsReview) ?? null);
@@ -1244,6 +1313,11 @@ export default function FinancePage() {
 
   function selectMobileView(nextView: FinanceMobileView) {
     setMobileView(nextView);
+    if (searchParams.has("section")) {
+      const params = new URLSearchParams(searchParams);
+      params.set("section", nextView);
+      router.replace("/v2/finance?" + params.toString(), { scroll: false });
+    }
     if (nextView === "spending") {
       setActiveChart("categories");
       setChartsOpen(true);
@@ -1251,6 +1325,26 @@ export default function FinancePage() {
     if (nextView === "accounts") setAccountsOpen(true);
     if (nextView === "activity") setTransactionsOpen(true);
     if (nextView === "investments") setInvestmentsOpen(true);
+  }
+
+  const transactionHref = (scope: SpendingScope, from = "spending") => spendingHref(scope, rangeKey, !hidePending, from);
+  const reviewModal = reviewEvent ? (
+    <ReviewEventModal key={reviewEvent.id} error={reviewError} event={reviewEvent} queue={dashboard.reviewQueue} currency={dashboard.currency} saving={reviewSaving}
+      onClose={() => { setReviewEvent(null); setReviewError(null); }} onSelectEvent={(event) => { setReviewEvent(event); setReviewError(null); }} onSave={(payload) => void saveEventReview(reviewEvent.id, payload)} />
+  ) : null;
+
+  if (spendingScope) {
+    const from = searchParams.get("from") === "accounts" ? "accounts" : searchParams.get("from") === "activity" ? "activity" : "spending";
+    return <>
+      <SpendingDetail key={JSON.stringify([spendingScope.group, spendingScope.keys, demoMode])}
+        scope={spendingScope} events={summary?.events ?? []} accounts={summary?.accounts ?? []}
+        currency={dashboard.currency} rangeKey={rangeKey} hidePending={hidePending} onRangeChange={setRangeKey} onPendingChange={setHidePending}
+        loading={status !== "error" && (isBusy || loadedQuery !== summaryQuery)} error={status === "error" ? message : null} onRetry={() => void loadSummary()} onReview={setReviewEvent}
+        backHref={"/v2/finance?" + new URLSearchParams({ section: from, range: rangeKey, pending: String(!hidePending) }).toString()}
+        onSpendOnlyChange={(spendOnly) => router.replace(transactionHref({ ...spendingScope, spendOnly }, from), { scroll: false })}
+      />
+      {reviewModal}
+    </>;
   }
 
   return (
@@ -1552,12 +1646,20 @@ export default function FinancePage() {
             </div>
           ) : null}
 
+          {(activeChart === "categories" || activeChart === "merchants") && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="theme-muted text-sm">Choose a row to explore its transactions.</p>
+              <Link href={transactionHref({ group: "all", keys: [], label: "All spending", spendOnly: true })} className="theme-button-secondary rounded-xl px-3 py-2 text-sm font-semibold">View all spending</Link>
+            </div>
+          )}
           <div className="mt-5">
             {renderFinanceChart({
               chartId: activeChart,
               dashboard,
               currency: dashboard.currency,
               breakdownItems: activeBreakdown,
+              breakdownMode,
+              transactionHref,
             })}
           </div>
         </CollapsiblePanel>
@@ -1636,6 +1738,7 @@ export default function FinancePage() {
                   <AccountRow
                     key={account.id}
                     account={account}
+                    transactionsHref={transactionHref({ group: "account", keys: [account.id], label: formatAccountName(account), spendOnly: false }, "accounts")}
                     currency={dashboard.currency}
                     institutionName={institutionNameByConnectionId.get(account.connectionId)}
                     maxBalance={maxAccountBalance}
@@ -1699,6 +1802,7 @@ export default function FinancePage() {
           bodyClassName="min-h-0 xl:flex xl:flex-1 xl:flex-col"
           actions={
             <>
+              <Link href={transactionHref({ group: "all", keys: [], label: "All transactions", spendOnly: false }, "activity")} className="theme-button-secondary rounded-xl px-3 py-2 text-xs font-semibold">All transactions</Link>
               {dashboard.reviewCount > 0 ? <StatusPill label={`${dashboard.reviewCount} review`} tone="warn" /> : null}
               {dashboard.pendingCount > 0 ? <StatusPill label={`${dashboard.pendingCount} pending`} tone="warn" /> : null}
             </>
@@ -1757,18 +1861,7 @@ export default function FinancePage() {
         </div>
       </CollapsiblePanel>
 
-      {reviewEvent ? (
-        <ReviewEventModal
-          key={reviewEvent.id}
-          event={reviewEvent}
-          queue={dashboard.reviewQueue}
-          currency={dashboard.currency}
-          saving={reviewSaving}
-          onClose={() => setReviewEvent(null)}
-          onSelectEvent={setReviewEvent}
-          onSave={(payload) => void saveEventReview(reviewEvent.id, payload)}
-        />
-      ) : null}
+      {reviewModal}
 
       {connectionToRemove ? (
         <RemoveConnectionModal
@@ -1785,6 +1878,114 @@ export default function FinancePage() {
           onConfirm={() => void removeConnection(connectionToRemove)}
         />
       ) : null}
+    </div>
+  );
+}
+
+function SpendingDetail({
+  scope, events, accounts, currency, rangeKey, hidePending, onRangeChange, onPendingChange,
+  loading, error, onRetry, onReview, backHref, onSpendOnlyChange,
+}: {
+  scope: SpendingScope; events: FinanceEvent[]; accounts: FinanceAccount[]; currency: string;
+  rangeKey: RangeKey; hidePending: boolean; onRangeChange: (range: RangeKey) => void; onPendingChange: (hidden: boolean) => void;
+  loading: boolean; error: string | null; onRetry: () => void; onReview: (event: FinanceEvent) => void;
+  backHref: string; onSpendOnlyChange: (value: boolean) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [category, setCategory] = useState("");
+  const [sort, setSort] = useState<"newest" | "oldest" | "largest">("newest");
+  const [pagination, setPagination] = useState({ key: "", count: 25 });
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const scopeKey = JSON.stringify([scope.group, scope.keys]);
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+    document.querySelector(".jarvis-page-viewport")?.scrollTo({ top: 0, behavior: "instant" });
+  }, [scopeKey]);
+
+  const scopedEvents = events.filter((event) => matchesSpendingScope(event, scope));
+  const filtered = filterSpendingEvents(events, scope, { query, accountId, category, sort });
+  const accountIds = new Set(scopedEvents.map((event) => event.accountId));
+  const categoryOptions = [...new Set(scopedEvents.map((event) => event.primaryCategory))].sort();
+  const filterKey = JSON.stringify([query, accountId, category, sort, rangeKey, hidePending, scope.spendOnly]);
+  const visibleCount = pagination.key === filterKey ? pagination.count : 25;
+  const spending = filtered.filter((event) => event.countsAsSpend);
+  const totalSpent = spending.reduce((total, event) => total + spendingAmount(event), 0);
+  const scopeAccount = scope.group === "account" && scope.keys.length === 1 ? accounts.find((account) => account.id === scope.keys[0]) : undefined;
+  const title = scopeAccount ? formatAccountName(scopeAccount) : scope.group === "all" ? scope.spendOnly ? "All spending" : "All transactions" : scope.label;
+  const hasFilters = Boolean(query || accountId || category);
+
+  return (
+    <div data-finance-detail className="mx-auto flex w-full max-w-5xl flex-col gap-4 pb-4">
+      <header className="theme-surface rounded-3xl p-4 sm:p-6">
+        <Link href={backHref} className="theme-muted inline-flex min-h-11 items-center text-sm font-semibold hover:underline">← Back to finance</Link>
+        <p className="theme-kicker mt-3 text-xs font-semibold">{scope.group === "all" ? "Transaction explorer" : titleCase(scope.group) + " transactions"}</p>
+        <h1 ref={headingRef} tabIndex={-1} className="theme-text mt-2 break-words text-2xl font-semibold outline-none sm:text-3xl">{title}</h1>
+        <p className="theme-muted mt-2 text-sm leading-6">{scope.spendOnly ? "Every transaction included in this spending total." : "All activity for this selection, including income and transfers."} Last {rangeKey} days{hidePending ? " · Posted only" : " · Including pending"}.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <SegmentedControl label="Transaction range" value={rangeKey} options={RANGE_OPTIONS} onChange={onRangeChange} />
+          <ToggleSwitch label="Pending" checked={!hidePending} onChange={(checked) => onPendingChange(!checked)} />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Transaction type">
+          <button type="button" aria-pressed={scope.spendOnly} onClick={() => onSpendOnlyChange(true)} className={(scope.spendOnly ? "theme-button-primary" : "theme-button-secondary") + " min-h-11 rounded-xl px-4 py-2 text-sm font-semibold"}>Spending only</button>
+          <button type="button" aria-pressed={!scope.spendOnly} onClick={() => onSpendOnlyChange(false)} className={(!scope.spendOnly ? "theme-button-primary" : "theme-button-secondary") + " min-h-11 rounded-xl px-4 py-2 text-sm font-semibold"}>All transactions</button>
+        </div>
+      </header>
+
+      <section aria-label="Filter transactions" className="theme-card rounded-2xl p-4">
+        <label className="block">
+          <span className="theme-text text-sm font-semibold">Search transactions</span>
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Merchant, description, account, or category" className="theme-input mt-2 min-h-11 w-full rounded-xl px-3 py-2 text-base" />
+        </label>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <label className="min-w-0">
+            <span className="theme-muted text-xs">Account</span>
+            <select aria-label="Filter by account" value={accountId} onChange={(event) => setAccountId(event.target.value)} className="theme-input mt-1 min-h-11 w-full min-w-0 rounded-xl px-3 py-2 text-base">
+              <option value="">All accounts in this view</option>
+              {accounts.filter((account) => accountIds.has(account.id)).map((account) => <option key={account.id} value={account.id}>{formatAccountName(account)}</option>)}
+              {accountIds.has(null) && <option value="__unknown__">Unknown account</option>}
+              {accountId && !accountIds.has(accountId === "__unknown__" ? null : accountId) && <option value={accountId}>{accounts.find((account) => account.id === accountId)?.name ?? "Unknown account"} (no transactions in this view)</option>}
+            </select>
+          </label>
+          <label className="min-w-0">
+            <span className="theme-muted text-xs">Category</span>
+            <select aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)} className="theme-input mt-1 min-h-11 w-full min-w-0 rounded-xl px-3 py-2 text-base">
+              <option value="">All categories in this view</option>
+              {category && !categoryOptions.includes(category) && <option value={category}>{titleCase(category)} (no transactions in this view)</option>}
+              {categoryOptions.map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
+            </select>
+          </label>
+          <label className="min-w-0">
+            <span className="theme-muted text-xs">Sort</span>
+            <select aria-label="Sort transactions" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} className="theme-input mt-1 min-h-11 w-full rounded-xl px-3 py-2 text-base">
+              <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="largest">Largest amount first</option>
+            </select>
+          </label>
+        </div>
+        {hasFilters && <button type="button" onClick={() => { setQuery(""); setAccountId(""); setCategory(""); }} className="theme-button-secondary mt-3 min-h-11 rounded-xl px-3 py-2 text-sm">Clear filters</button>}
+      </section>
+
+      {loading ? <p role="status" className="theme-muted p-4">Loading transactions…</p> : error ? (
+        <div role="alert" className="theme-card rounded-2xl p-4">
+          <p className="theme-text font-semibold">Couldn’t load transactions</p><p className="theme-muted mt-2 text-sm">{error}</p>
+          <button type="button" onClick={onRetry} className="theme-button-primary mt-3 min-h-11 rounded-xl px-4 py-2 text-sm">Try again</button>
+        </div>
+      ) : <>
+        <section aria-label="Transaction totals" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <MetricCard label="Total spent" value={formatExactMoney(totalSpent, currency)} detail={hasFilters ? "Matching your filters" : "For this selection"} tone="warn" />
+          <MetricCard label="Transactions" value={String(filtered.length)} detail={scope.spendOnly ? "Spending transactions" : "All matching activity"} tone="neutral" />
+          <div className="col-span-2 sm:col-span-1"><MetricCard label="Average spend" value={formatExactMoney(spending.length ? totalSpent / spending.length : 0, currency)} detail="Per spending transaction" tone="neutral" /></div>
+        </section>
+        <section aria-label="Matching transactions">
+          <p role="status" className="theme-muted mb-3 text-sm">Showing {Math.min(visibleCount, filtered.length)} of {filtered.length} transactions{hasFilters ? " matching your filters" : ""}.</p>
+          {filtered.length ? (
+            <div className="space-y-3">
+              {filtered.slice(0, visibleCount).map((event) => <FinancialEventRow key={event.id} event={event} currency={currency} onReview={onReview} />)}
+            </div>
+          ) : <EmptyState text={hasFilters ? "No transactions match these filters. Clear them to see this selection again." : "No transactions in this selection for this date range. Try a longer range or include pending activity."} />}
+          {visibleCount < filtered.length && <button type="button" onClick={() => setPagination({ key: filterKey, count: visibleCount + 25 })} className="theme-button-secondary mt-4 min-h-11 w-full rounded-xl px-4 py-3 text-sm font-semibold">Show more transactions</button>}
+        </section>
+      </>}
     </div>
   );
 }
@@ -2051,15 +2252,19 @@ function renderFinanceChart({
   dashboard,
   currency,
   breakdownItems,
+  breakdownMode,
+  transactionHref,
 }: {
   chartId: ChartId;
   dashboard: FinanceDashboard;
   currency: string;
   breakdownItems: BreakdownItem[];
+  breakdownMode: BreakdownMode;
+  transactionHref: (scope: SpendingScope) => string;
 }) {
   switch (chartId) {
     case "categories":
-      return <BreakdownBars items={breakdownItems} currency={currency} emptyText="No spend breakdown for this range." />;
+      return <BreakdownBars items={breakdownItems} currency={currency} emptyText="No spend breakdown for this range." hrefForItem={(item) => transactionHref({ group: breakdownMode, keys: item.keys ?? [item.label], label: item.label, spendOnly: true })} />;
     case "accounts":
       return (
         <AllocationChart
@@ -2077,7 +2282,7 @@ function renderFinanceChart({
         />
       );
     case "merchants":
-      return <BreakdownBars items={dashboard.topMerchants} currency={currency} emptyText="No merchant spend for this range." />;
+      return <BreakdownBars items={dashboard.topMerchants} currency={currency} emptyText="No merchant spend for this range." hrefForItem={(item) => transactionHref({ group: "merchant", keys: item.keys ?? [item.label], label: item.label, spendOnly: true })} />;
     default:
       return <CashflowChart series={dashboard.flowSeries} currency={currency} />;
   }
@@ -2361,77 +2566,32 @@ function CashflowChart({ series, currency }: { series: FlowPoint[]; currency: st
   );
 }
 
-function BreakdownBars({
-  items,
-  currency,
-  emptyText,
-}: {
-  items: BreakdownItem[];
-  currency: string;
-  emptyText: string;
+function BreakdownBars({ items, currency, emptyText, hrefForItem }: {
+  items: BreakdownItem[]; currency: string; emptyText: string; hrefForItem: (item: BreakdownItem) => string;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const max = Math.max(1, ...items.map((item) => item.value));
-  const selectedItem = items.find((item) => item.id === selectedId) ?? items[0];
-
   if (!items.length) return <EmptyState text={emptyText} />;
   return (
-    <div className="space-y-3">
-      {selectedItem ? (
-        <div className="rounded-2xl border border-cyan-300/25 bg-cyan-300/10 p-4">
+    <div className="space-y-2" data-finance-breakdown>
+      {items.map((item) => (
+        <Link key={item.id} href={hrefForItem(item)} aria-label={"View " + item.label + " transactions"}
+          className="block w-full touch-manipulation rounded-2xl border border-white/10 bg-black/25 p-4 text-left transition hover:border-cyan-300/45 hover:bg-white/[0.07] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: selectedItem.color }} />
-                <p className="truncate text-sm font-semibold text-white">{selectedItem.label}</p>
-              </div>
-              <p className="mt-1 text-xs text-cyan-100/70">{selectedItem.detail}</p>
+              <p className="text-sm font-semibold text-white">{item.label}</p>
+              <p className="mt-1 text-xs text-zinc-500">{item.detail}</p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-sm font-semibold text-white tabular-nums">{formatMoney(selectedItem.value, currency)}</p>
-              <p className="mt-1 text-[11px] text-cyan-100/70">{formatPercent(selectedItem.percent)}</p>
+              <p className="text-sm font-semibold text-white tabular-nums">{formatExactMoney(item.value, currency)}</p>
+              <p className="mt-1 text-[11px] text-zinc-500">{formatPercent(item.percent)}</p>
             </div>
           </div>
-        </div>
-      ) : null}
-      <div className="space-y-2">
-        {items.map((item) => {
-          const active = item.id === selectedItem?.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setSelectedId(item.id)}
-              onPointerEnter={() => setSelectedId(item.id)}
-              onFocus={() => setSelectedId(item.id)}
-              aria-pressed={active}
-              className={
-                "w-full touch-manipulation rounded-2xl border p-4 text-left transition active:scale-[0.995] " +
-                (active
-                  ? "border-cyan-300/45 bg-cyan-300/12 shadow-[0_16px_40px_rgba(34,211,238,0.08)]"
-                  : "border-white/10 bg-black/25 hover:border-white/25 hover:bg-white/[0.07]")
-              }
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">{item.label}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{item.detail}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-sm font-semibold text-white tabular-nums">{formatMoney(item.value, currency)}</p>
-                  <p className="mt-1 text-[11px] text-zinc-500">{formatPercent(item.percent)}</p>
-                </div>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
-                <div
-                  className="h-full rounded-full transition-[width,opacity] duration-300"
-                  style={{ width: Math.max(3, (item.value / max) * 100) + "%", backgroundColor: item.color, opacity: active ? 1 : 0.58 }}
-                />
-              </div>
-            </button>
-          );
-        })}
-      </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8" aria-hidden="true">
+            <div className="h-full rounded-full" style={{ width: Math.max(3, (item.value / max) * 100) + "%", backgroundColor: item.color }} />
+          </div>
+          <p className="mt-3 text-xs font-semibold text-cyan-200">View transactions <span aria-hidden="true">→</span></p>
+        </Link>
+      ))}
     </div>
   );
 }
@@ -2625,6 +2785,7 @@ function ConnectionRow({
 
 function AccountRow({
   account,
+  transactionsHref,
   institutionName,
   maxBalance,
   currency,
@@ -2633,6 +2794,7 @@ function AccountRow({
   onRemoveConnection,
 }: {
   account: FinanceAccount;
+  transactionsHref: string;
   institutionName?: string;
   maxBalance: number;
   currency: string;
@@ -2648,7 +2810,7 @@ function AccountRow({
     <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{account.name}</p>
+          <Link href={transactionsHref} className="text-sm font-semibold text-white underline decoration-white/25 underline-offset-4 hover:decoration-cyan-300">{account.name}</Link>
           <p className="mt-1 truncate text-xs text-zinc-500">
             {[institutionName, meta.label, account.subtype, account.mask ? "xx" + account.mask : undefined].filter(Boolean).join(" - ")}
           </p>
@@ -2670,6 +2832,7 @@ function AccountRow({
           ) : null}
         </div>
       </div>
+      <Link href={transactionsHref} className="theme-button-secondary mt-3 inline-flex min-h-11 items-center rounded-xl px-3 py-2 text-xs font-semibold">View all transactions <span aria-hidden="true" className="ml-2">→</span></Link>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
         <div className="h-full rounded-full" style={{ width: Math.max(4, percent) + "%", backgroundColor: meta.color }} />
       </div>
@@ -2733,11 +2896,11 @@ function FinancialEventRow({
     .filter(Boolean)
     .join(" / ");
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+    <div data-finance-event={event.id} className="rounded-2xl border border-white/10 bg-black/25 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-semibold text-white">{event.normalizedMerchant ?? event.displayName}</p>
+            <p className="break-words text-sm font-semibold text-white">{event.normalizedMerchant ?? event.displayName}</p>
             <EventBadge eventType={event.eventType} />
             {event.pending ? (
               <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-amber-100">
@@ -2754,20 +2917,21 @@ function FinancialEventRow({
             {formatDate(event.date)}
             {event.accountName ? ` - ${event.accountName}` : ""}
           </p>
-          <p className="mt-2 truncate text-xs text-zinc-400">{category}</p>
+          <p className="mt-2 break-words text-xs text-zinc-400">{category}</p>
+          {event.readOnly && <p className="theme-muted mt-2 text-xs">Sync this account to enable transaction corrections.</p>}
         </div>
         <div className="shrink-0 text-right">
           <p className={`${amountClass} text-sm font-semibold tabular-nums`}>
             {isTransfer ? "" : prefix}
-            {formatMoney(Math.abs(amount), currency)}
+            {formatExactMoney(Math.abs(amount), currency)}
           </p>
-          <button
+          {!event.readOnly && <button
             type="button"
             onClick={() => onReview(event)}
             className="mt-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-300 transition hover:border-cyan-300/50 hover:text-white"
           >
             {event.needsReview ? "Review" : "Edit"}
-          </button>
+          </button>}
         </div>
       </div>
     </div>
@@ -2883,6 +3047,7 @@ function RemoveConnectionModal({
 }
 
 function ReviewEventModal({
+  error,
   event,
   queue,
   currency,
@@ -2891,6 +3056,7 @@ function ReviewEventModal({
   onSelectEvent,
   onSave,
 }: {
+  error?: string | null;
   event: FinanceEvent;
   queue: FinanceEvent[];
   currency: string;
@@ -3142,6 +3308,7 @@ function ReviewEventModal({
             </div>
           </div>
 
+          {error && <p role="alert" className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 p-3 text-sm text-rose-100">{error}</p>}
           <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"
@@ -3417,10 +3584,7 @@ function buildFinanceDashboard(
     const timestamp = new Date(transaction.date).getTime();
     return !Number.isNaN(timestamp) && timestamp >= cutoff.getTime() && transaction.pending;
   }).length;
-  const accountNameById = new Map(accounts.map((account) => [account.id, account.name]));
-  const analytics = summary?.analytics && (summary.analytics.transactionCount > 0 || summary.analytics.recentEvents.length > 0 || transactions.length === 0)
-    ? summary.analytics
-    : null;
+  const analytics = summary?.analytics;
 
   if (analytics) {
     const periodIncome = analytics.cashFlow.income;
@@ -3487,21 +3651,10 @@ function buildFinanceDashboard(
   const dailySpend = fallbackSpend / Math.max(1, options.rangeDays);
   const cashBufferMonths = dailySpend > 0 ? fallbackCash / dailySpend / 30 : null;
   const savingsRate = fallbackIncome > 0 ? fallbackNetFlow / fallbackIncome : null;
-  const categoryBreakdown = buildTransactionBreakdown(
-    outflows,
-    (transaction) => getTransactionCategory(transaction),
-    "transactions",
-  );
-  const accountSpendBreakdown = buildTransactionBreakdown(
-    outflows,
-    (transaction) => (transaction.accountId ? accountNameById.get(transaction.accountId) ?? "Unknown account" : "Unknown account"),
-    "transactions",
-  );
-  const topMerchants = buildTransactionBreakdown(
-    outflows,
-    (transaction) => transaction.merchantName ?? transaction.name,
-    "transactions",
-  );
+  const rangeEvents = (summary?.events ?? []).filter((event) => new Date(event.date).getTime() >= cutoff.getTime() && (!options.hidePending || !event.pending));
+  const categoryBreakdown = toBreakdownItems(buildSpendingBreakdown(rangeEvents, "category"));
+  const accountSpendBreakdown = toBreakdownItems(buildSpendingBreakdown(rangeEvents, "account"), 2);
+  const topMerchants = toBreakdownItems(buildSpendingBreakdown(rangeEvents, "merchant"), 5);
 
   return {
     currency,
@@ -3675,47 +3828,6 @@ function buildCashflowSeries(transactions: FinanceTransaction[], rangeDays: numb
   return buckets;
 }
 
-function buildTransactionBreakdown(
-  transactions: FinanceTransaction[],
-  getKey: (transaction: FinanceTransaction) => string,
-  detailLabel: string,
-): BreakdownItem[] {
-  const totals = new Map<string, { total: number; count: number }>();
-  transactions.forEach((transaction) => {
-    const key = cleanLabel(getKey(transaction));
-    const current = totals.get(key) ?? { total: 0, count: 0 };
-    current.total += transaction.amount;
-    current.count += 1;
-    totals.set(key, current);
-  });
-  const total = Array.from(totals.values()).reduce((sum, item) => sum + item.total, 0);
-  const sorted = Array.from(totals.entries())
-    .sort((left, right) => right[1].total - left[1].total);
-  const visible = sorted.slice(0, 7);
-  const rest = sorted.slice(7);
-  const items = visible.map(([label, item], index) => ({
-    id: `${label}-${index}`,
-    label,
-    value: item.total,
-    detail: `${item.count} ${detailLabel}`,
-    color: CHART_COLORS[index % CHART_COLORS.length],
-    percent: total > 0 ? item.total / total : 0,
-  }));
-  if (rest.length) {
-    const otherTotal = rest.reduce((sum, [, item]) => sum + item.total, 0);
-    const otherCount = rest.reduce((sum, [, item]) => sum + item.count, 0);
-    items.push({
-      id: "other",
-      label: "Other",
-      value: otherTotal,
-      detail: `${otherCount} ${detailLabel}`,
-      color: "#94a3b8",
-      percent: total > 0 ? otherTotal / total : 0,
-    });
-  }
-  return items;
-}
-
 function toBreakdownItems(items: FinanceAnalyticsBreakdownItem[], colorOffset = 0): BreakdownItem[] {
   return items.map((item, index) => ({
     id: item.id,
@@ -3724,6 +3836,7 @@ function toBreakdownItems(items: FinanceAnalyticsBreakdownItem[], colorOffset = 
     detail: item.detail,
     color: CHART_COLORS[(index + colorOffset) % CHART_COLORS.length],
     percent: item.percent,
+    keys: item.keys,
   }));
 }
 
@@ -3892,6 +4005,10 @@ function formatMoney(value: number, currency = "USD") {
   }).format(value);
 }
 
+function formatExactMoney(value: number, currency = "USD") {
+  return new Intl.NumberFormat(DISPLAY_LOCALE, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
+
 function formatSignedMoney(value: number, currency = "USD") {
   const prefix = value >= 0 ? "+" : "-";
   return `${prefix}${formatMoney(Math.abs(value), currency)}`;
@@ -3958,10 +4075,6 @@ function formatRelativeSync(connections: FinanceConnection[] | undefined) {
   if (!timestamps.length) return "Not synced";
   const latest = Math.max(...timestamps);
   return `Synced ${formatDateTime(latest)}`;
-}
-
-function cleanLabel(value: string) {
-  return value.trim() || "Uncategorized";
 }
 
 function titleCase(value: string) {

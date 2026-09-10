@@ -4,39 +4,42 @@ Start with one useful action. You do not need to use every module every day.
 
 ## Open a walkthrough
 
-- New users receive one welcome popup. **Personalize Jarvis** starts a six-step quick start in their own workspace.
+- New users receive one welcome popup. **Show me around** starts quick start in their own workspace; **Explore on my own** closes it.
 - **User guide** in the sidebar or **More → User guide** opens the searchable guide library. It is also available from Home and Settings.
-- **Start / resume quick start** covers Theme → Must Win → Todos → Habits → Sleep → Mood in about three minutes.
+- Quick start takes about three minutes: try a theme, hide its controls, learn the daily routine, and see what the entries contribute to Review.
 - **Explore the whole app** visits every module. Individual page guides explain each workflow in more detail.
-- During quick start, a short pointer sits beside the real control while the bottom panel explains its purpose. Both follow the available screen space; pointers disappear while an editor is open. The highlighted control is usable. Try the action or choose **Next** to keep reading. **Minimize** gives you more working room. Leaving the page pauses guidance until you return.
-- **Read the steps** in the guide library provides a written version without starting popups.
+- Each quick-start tip points to a real control. Try it or choose **Next**. Changing a setting does not rush you into the next step. On mobile, the theme tour and its navigation live together inside More. Pointers disappear while an editor is open.
+- **Minimize** gives you more working room. Leaving the page pauses guidance until you return. **Read the steps** in the library provides a written version without starting popups.
 
 ## Your quick start
 
-1. **Make Jarvis yours.** Open the existing Account → Appearance controls, choose a foundation and color palette, and see the app change immediately. Appearance saves automatically, including during a demo.
-2. **Must Win.** Choose the one thing that needs to get done today. Changes save when you leave the form.
-3. **Todos.** Open Plan’s task editor for everything else. Save a task when ready, with or without a scheduled time.
-4. **Habits.** Open Add habit for a routine you want to build consistently.
-5. **Sleep.** Track the sleep window and rate quality and recovery. Log sleep saves the night.
-6. **Mood.** Capture how you feel and choose Log mood to save; a history can help you notice patterns.
+1. **Choose your mode.** Quick settings opens in the sidebar or mobile More menu. Try Light, Dark, or High Contrast. The app changes immediately and your choice saves automatically.
+2. **Choose your color.** Try a palette with your selected mode. Appearance changes apply during demo mode too.
+3. **Clear some space.** Choose **Hide** on Quick settings. Your look stays saved. Later, choose **Show** in the sidebar, or **More → Quick settings → Show** on mobile.
+4. **Must Win.** Choose one outcome that would make today count. Changes save when you leave the form.
+5. **Plan.** Open the task editor for everything else. Save a task when ready, with or without a scheduled time.
+6. **Habits.** Open Add habit for one small routine you want to repeat.
+7. **Sleep.** Set your sleep window and rate the night. **Log sleep** saves the entry.
+8. **Mood.** Set your score and choose **Log mood** to save.
+9. **Review.** See sleep, mood, task completion, and Must Wins together. On mobile, open **View insights**. Regular entries make these summaries more useful for reflecting on what to adjust.
 
-Every interaction is optional. At the end, return to using Jarvis. Finance is introduced only as something to explore later, when you want to connect accounts. Quick start does not open Finance, bank authentication, or Assistant configuration. Page guides remain available when you choose to explore deeper features.
+Every interaction is optional. Start with one win and one check-in; the completion button takes you to Must Win. Explore Finance, projects, and other tools when you need them. Their page guides stay available in User guide.
 
 ## Practice with demo data
 
-Turn on **Demo** on Home, then choose **Start walkthrough with fresh demo data**. You can also use **Settings → Start demo walkthrough** or **Start a fresh demo walkthrough** in the guide library.
+Choose **Try with demo data** in the welcome, or open **User guide → Start a fresh demo walkthrough**. Home and Settings both link to the guide library.
 
-Fresh demo restarts the sample daily workspace and all demo walkthrough progress. Your personal records and personal guide choices are separate. Demo supplies sample planning, finance, and monitoring data; account settings and external services still apply to the real account. Return to real data in Settings when finished.
+Fresh demo restarts the sample daily workspace and all demo walkthrough progress. Personal records and guide progress remain separate. Demo supplies sample planning, finance, and monitoring data; account settings and external services still apply to the real account. Return to real data in Settings when finished.
 
-## Pause, skip, and reminders
+## Close, resume, and replay
 
-- **Skip for now** saves the current step. Resume from **Paused & skipped** in the user guide.
-- A skipped guide can receive a quiet, optional reminder after seven days, when you return to a relevant page.
-- Reminders do not interrupt forms or open dialogs, and no more than one is offered in a browser session. After any suggestion, another cannot appear for at least a week.
-- Check **I’ve got it. Don’t suggest this guide again.** before dismissing a guide to silence it permanently.
-- **Don’t show walkthrough suggestions again** turns off all automatic suggestions for that workspace. Manually opening a guide still works.
-- Completed guides do not prompt again. **Replay guide** and **Start over** remain available.
-- Guide progress is saved per signed-in account in this browser, with separate personal and demo records.
+- The welcome appears once. There are no recurring reminders or automatic page-guide suggestions.
+- **Next** immediately saves the next step and dismisses the current tip, including if you reload right away.
+- **Close tour**, Escape, and finishing keep the tour closed on future visits. Reopening a page does not restart it.
+- Use **Resume quick start** or **Resume guide** in User guide to continue from the saved step. **Replay quick start**, **Replay guide**, **Replay from the beginning**, and **Start over** let you revisit earlier tips intentionally.
+- **Back** revisits a tip during an active tour; returning to theme controls opens them again. Leaving the theme portion folds the panel away.
+- The **Paused & in progress** filter finds unfinished guides. Old saved guide positions migrate to the matching steps.
+- Progress is saved per signed-in account in this browser, with separate personal and demo records. Changes synchronize between tabs. When browser storage is blocked, progress lasts for the visit and the guide explains that limitation.
 
 ## Walkthroughs
 
@@ -138,10 +141,12 @@ Move from summary to the details that matter.
 1. **Start with the snapshot.** The summary shows balances and recent activity from available finance data. Demo mode uses generated finance data. In your own workspace, Accounts is where setup and account management live.
    On phone and tablet: Snapshot is the quick overview. Spending, Accounts, Activity, and Invest each open one focused view. Swipe the section bar sideways if a tab is out of view.
 
-2. **Follow the money into a detail view.** Spending breaks down outflows. Activity lists recent transactions and review items. Check the time range and pending setting before comparing totals. On desktop, these panels are visible together.
-   Try it: On a small screen, open Spending.
+2. **Open the spending you want to understand.** Choose a category, account, or merchant row in Spending to open its transactions. **Other** opens every group combined in that row. These chart links start with **Spending only**; choose **All transactions** to include other activity for the same selection. An account’s **View all transactions** link opens all its activity, including income and transfers.
+   Try it: Open Spending, then choose a category.
 
-3. **Connect only when you are ready.** Accounts contains connection and sync controls. Invest shows holdings when that data is available. You can learn the screens in demo mode without connecting a bank.
+3. **Narrow the list and check the total.** Search by merchant or description, filter by account or category, and sort by date or amount. Check the date range and **Pending** setting; **1Y** and **2Y** let you explore longer histories. Totals show cents and include every matching transaction in the selected range. **Show more transactions** reveals the rest of the list, beyond Activity’s recent 24 entries. **Back to finance** returns to the dashboard. Reloading the explorer’s URL preserves its original selection, range, pending setting, and spending/all-activity choice.
+
+4. **Connect only when you are ready.** Accounts contains connection and sync controls. Invest shows holdings when that data is available. Older transactions may appear with a note to sync the account before making corrections; they still contribute to the explorer’s totals. You can learn the screens in demo mode without connecting a bank.
    Try it: On a small screen, open Accounts.
 
 ### Explore a property deal
@@ -190,7 +195,7 @@ Practice and replay without losing your place.
 
 1. **Choose a workspace deliberately.** Demo uses sample planning, finance, and monitoring data. Return to real data restores your personal workspace. Account settings and external services still apply to your actual account.
 
-2. **Restart a demo or resume learning.** Start demo walkthrough resets the sample workspace and demo guide progress. The user guide lets you resume a skipped guide, explore another page, or turn off future suggestions.
+2. **Restart a demo or resume learning.** Start a fresh demo walkthrough in User guide resets the sample workspace and demo guide progress. Resume or replay any guide there; tips stay closed until you choose to run one.
 
 ### Personalize and manage your account
 

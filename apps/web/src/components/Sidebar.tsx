@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { signOut, useSession } from "next-auth/react";
 
@@ -15,6 +15,10 @@ import {
   type ThemePreference,
 } from "@/lib/theme";
 import { useJarvisState, type StateSyncStatus } from "@/lib/jarvisStore";
+import { WalkthroughCoach } from "./onboarding/WalkthroughCoach";
+import { useOptionalWalkthrough } from "./onboarding/WalkthroughProvider";
+import { findGuide, matchesGuideRoute } from "@/lib/userGuides";
+import { useMobileLayout } from "@/lib/useMobileLayout";
 import { mobileSidebarOpenEvent } from "@/lib/shellEvents";
 
 type NavLink = {
@@ -104,7 +108,36 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const hydrated = useHydrated();
   const [desktopPreference, setDesktopOpen] = useState(() => getStoredDesktopSidebarOpen());
-  const desktopOpen = hydrated ? desktopPreference : true;
+  const walkthrough = useOptionalWalkthrough();
+  const guideStep = walkthrough?.active ? findGuide(walkthrough.active.id)?.steps[walkthrough.active.step] : undefined;
+  const guidedTheme = Boolean(guideStep?.shell && matchesGuideRoute(pathname, guideStep.route));
+  const mobile = useMobileLayout();
+  const mobileVisible = mobile && (mobileOpen || guidedTheme);
+  const desktopOpen = guidedTheme || (hydrated ? desktopPreference : true);
+  const [shellExpandedPreference, setShellExpanded] = useState(getStoredShellControlsExpanded);
+  const shellExpanded = hydrated && shellExpandedPreference;
+  const guidedThemeStep = guidedTheme ? guideStep!.id : null;
+  const previousGuidedThemeStep = useRef<string | null>(null);
+  const updateShellExpanded = useCallback((next: boolean) => {
+    setShellExpanded(next);
+    try { window.localStorage.setItem(shellControlsStorageKey, String(next)); } catch { /* Keep controls usable. */ }
+  }, []);
+
+  useEffect(() => {
+    if (previousGuidedThemeStep.current === guidedThemeStep) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      previousGuidedThemeStep.current = guidedThemeStep;
+      updateShellExpanded(Boolean(guidedThemeStep));
+    });
+    return () => { cancelled = true; };
+  }, [guidedThemeStep, updateShellExpanded]);
+
+  function closeMobileSidebar() {
+    setMobileOpen(false);
+    if (guidedTheme) walkthrough?.skip();
+  }
   const [mobileNavigation, setMobileNavigation] = useState<{ href: string; fromRoute: string } | null>(null);
   const mobileDrawerRef = useRef<HTMLDivElement>(null);
 
@@ -133,7 +166,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   }, []);
 
   useEffect(() => {
-    if (!mobileOpen) return;
+    if (!mobileVisible) return;
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const drawer = mobileDrawerRef.current;
@@ -150,20 +183,20 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
     function handleDrawerKeydown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        setMobileOpen(false);
+        drawer?.querySelector<HTMLButtonElement>("[data-sidebar-close]")?.click();
         return;
       }
       if (event.key !== "Tab" || !drawer) return;
       const focusable = Array.from(
         drawer.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)"),
-      ).filter((element) => element.getAttribute("aria-hidden") !== "true");
+      ).filter((element) => element.getClientRects().length > 0 && !element.closest('[hidden], [aria-hidden="true"]'));
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === drawer)) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === drawer)) {
         event.preventDefault();
         first.focus();
       }
@@ -177,7 +210,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
       document.body.classList.remove("scroll-locked");
       previousFocus?.focus();
     };
-  }, [mobileOpen]);
+  }, [mobileVisible]);
 
   const normalizedBase =
     !basePath || basePath === "/" ? "" : basePath.replace(/\/$/, "");
@@ -326,6 +359,8 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
           </nav>
 
           <ShellControls
+            expanded={shellExpanded}
+            onExpandedChange={updateShellExpanded}
             sessionEmail={session?.user?.email}
             theme={theme}
             setTheme={setTheme}
@@ -394,7 +429,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
         </nav>
       )}
 
-      {mobileOpen && (
+      {mobileVisible && (
         <div data-no-pull-refresh="true" className="fixed inset-0 z-50 flex bg-slate-950/50 backdrop-blur-sm mobile-sidebar-overlay lg:hidden">
           <div
             ref={mobileDrawerRef}
@@ -402,7 +437,8 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
             aria-modal="true"
             aria-labelledby="mobile-navigation-title"
             tabIndex={-1}
-            className="mobile-sidebar theme-modal flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] px-6 py-8 text-sm shadow-[24px_0_80px_rgba(2,6,23,0.45)]"
+            data-guide-shell={guidedTheme || undefined}
+            className={"mobile-sidebar theme-modal flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] px-6 py-8 text-sm shadow-[24px_0_80px_rgba(2,6,23,0.45)] " + (guidedTheme ? "is-guided-theme" : "")}
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
               paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -412,13 +448,14 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
               <p id="mobile-navigation-title" className="text-xs uppercase tracking-[0.5em] text-cyan-200/80">Jarvis OS</p>
               <button
                 type="button"
-                onClick={() => setMobileOpen(false)}
+                data-sidebar-close
+                onClick={closeMobileSidebar}
                 className="min-h-10 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70"
               >
-                Close
+                {guidedTheme ? "Close tour" : "Close"}
               </button>
             </div>
-            <nav className="flex flex-1 flex-col gap-5 overflow-y-auto overscroll-contain">
+            <nav hidden={guidedTheme} className={guidedTheme ? "hidden" : "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain"}>
               <NavGroup title="Start">{navItems(startLinks, true, () => setMobileOpen(false))}</NavGroup>
               <NavGroup title="Daily rhythm">{navItems(dailyRhythmLinks, true, () => setMobileOpen(false))}</NavGroup>
               <NavGroup title="Growth">{navItems(growthLinks, true, () => setMobileOpen(false))}</NavGroup>
@@ -426,14 +463,17 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
               <NavGroup title="Account">{navItems(accountLinks, true, () => setMobileOpen(false))}</NavGroup>
             </nav>
             <ShellControls
+              expanded={shellExpanded}
+              onExpandedChange={updateShellExpanded}
               sessionEmail={session?.user?.email}
               theme={theme}
               setTheme={setTheme}
               syncStatus={syncStatus}
               onRefresh={refreshRemoteState}
             />
+            {guidedTheme && <WalkthroughCoach inMobileSidebar />}
           </div>
-          <button type="button" className="h-full flex-1" onClick={() => setMobileOpen(false)}>
+          <button type="button" className="h-full flex-1" onClick={closeMobileSidebar}>
             <span className="sr-only">Close menu</span>
           </button>
         </div>
@@ -609,24 +649,6 @@ function RefreshIcon({ className }: { className?: string }) {
   );
 }
 
-function ChevronDownIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
 function NavGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
@@ -687,35 +709,28 @@ function formatShellTime(timestamp: number) {
 }
 
 function ShellControls({
+  expanded,
+  onExpandedChange,
   sessionEmail,
   theme,
   setTheme,
   syncStatus,
   onRefresh,
 }: {
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
   sessionEmail?: string | null;
   theme: ThemePreference;
   setTheme: (theme: ThemePreference) => void;
   syncStatus: StateSyncStatus;
   onRefresh: () => Promise<boolean>;
 }) {
-  const hydrated = useHydrated();
-  const [expandedPreference, setExpanded] = useState(() => getStoredShellControlsExpanded());
-  const expanded = hydrated ? expandedPreference : false;
+  const panelId = useId();
   const status = getSaveStatusDisplay(syncStatus);
   const refreshDisabled =
     syncStatus.local === "loading" ||
     syncStatus.remote === "saving" ||
     syncStatus.remote === "refreshing";
-
-  function updateExpanded(next: boolean) {
-    setExpanded(next);
-    try {
-      window.localStorage.setItem(shellControlsStorageKey, String(next));
-    } catch {
-      // Keep the current session usable even if browser storage is blocked.
-    }
-  }
 
   function updateTheme(patch: Partial<ThemePreference>) {
     const next = updateThemePreference(patch);
@@ -723,21 +738,22 @@ function ShellControls({
   }
 
   return (
-    <div className="theme-surface mt-auto max-h-[45dvh] shrink-0 overflow-y-auto overscroll-contain rounded-[24px] p-2 text-xs">
+    <div data-guide="quick-theme" className="quick-theme-controls theme-surface mt-auto max-h-[45dvh] shrink-0 overflow-y-auto overscroll-contain rounded-[24px] p-2 text-xs">
       <div className="flex items-stretch gap-2">
         <button
           type="button"
-          onClick={() => updateExpanded(!expanded)}
-          className="theme-button-secondary flex min-w-0 flex-1 items-center gap-2 rounded-[18px] px-3 py-2 text-left transition"
+          onClick={() => onExpandedChange(!expanded)}
+          className="theme-button-secondary flex min-w-0 flex-1 items-center gap-2 rounded-[18px] px-2 py-2 text-left transition"
+          data-guide="quick-theme-toggle"
           aria-expanded={expanded}
-          aria-label={expanded ? "Collapse shell controls" : "Expand shell controls"}
+          aria-controls={panelId}
+          aria-label={expanded ? "Hide quick settings controls" : "Show quick settings controls"}
         >
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${status.toneClass}`} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-xs font-semibold text-white/85">{status.label}</span>
-            {status.detail && <span className="mt-0.5 block truncate text-[11px] text-zinc-500">{status.detail}</span>}
+            <span className="theme-text block text-xs font-semibold leading-4">Quick Settings</span>
+            <span className="theme-muted mt-0.5 flex min-w-0 items-center gap-1 text-[10px]"><span className={`h-2 w-2 shrink-0 rounded-full ${status.toneClass}`} /><span className="truncate">{status.label}</span></span>
           </span>
-          <ChevronDownIcon className={`h-4 w-4 shrink-0 text-white/45 transition ${expanded ? "rotate-180" : ""}`} />
+          <span className="theme-muted text-[11px] font-semibold">{expanded ? "Hide" : "Show"}</span>
         </button>
         <button
           type="button"
@@ -752,16 +768,9 @@ function ShellControls({
       </div>
 
       {expanded && (
-        <div className="mt-2 space-y-2 border-t border-white/10 pt-2">
-          <StateSaveStatus syncStatus={syncStatus} />
-          {sessionEmail && (
-            <div className="theme-card rounded-2xl px-3 py-2">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Signed in</p>
-              <p className="mt-1 truncate text-xs text-white/80">{sessionEmail}</p>
-            </div>
-          )}
-          <div className="theme-card rounded-2xl p-2">
-            <p className="theme-muted px-1 text-[9px] font-semibold uppercase tracking-[0.24em]">Foundation</p>
+        <div id={panelId} className="mt-2 space-y-2 border-t border-white/10 pt-2">
+          <div data-guide="quick-theme-mode" className="theme-card rounded-2xl p-2">
+            <p className="theme-muted px-1 text-[9px] font-semibold uppercase tracking-[0.24em]">Mode</p>
             <div className="mt-2 grid grid-cols-3 gap-1">
               {themeModeOptions.map((option) => {
                 const active = theme.mode === option.value;
@@ -770,6 +779,7 @@ function ShellControls({
                     key={option.value}
                     type="button"
                     title={option.description}
+                    aria-label={option.label}
                     aria-pressed={active}
                     onClick={() => updateTheme({ mode: option.value })}
                     className={"theme-chip flex min-w-0 flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[9px] font-semibold uppercase tracking-[0.12em] transition " + (active ? "is-active" : "")}
@@ -781,8 +791,8 @@ function ShellControls({
               })}
             </div>
           </div>
-          <div className="theme-card rounded-2xl p-2">
-            <p className="theme-muted px-1 text-[9px] font-semibold uppercase tracking-[0.24em]">Palette</p>
+          <div data-guide="quick-theme-palette" className="theme-card rounded-2xl p-2">
+            <p className="theme-muted px-1 text-[9px] font-semibold uppercase tracking-[0.24em]">Color palette</p>
             <div className="mt-2 grid grid-cols-2 gap-1">
               {themePaletteOptions.map((option) => {
                 const active = theme.palette === option.value;
@@ -791,6 +801,7 @@ function ShellControls({
                     key={option.value}
                     type="button"
                     title={option.description}
+                    aria-label={option.label}
                     aria-pressed={active}
                     onClick={() => updateTheme({ palette: option.value })}
                     className={"theme-chip flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] transition " + (active ? "is-active" : "")}
@@ -802,6 +813,13 @@ function ShellControls({
               })}
             </div>
           </div>
+          <StateSaveStatus syncStatus={syncStatus} />
+          {sessionEmail && (
+            <div className="theme-card rounded-2xl px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Signed in</p>
+              <p className="mt-1 truncate text-xs text-white/80">{sessionEmail}</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => void onRefresh()}

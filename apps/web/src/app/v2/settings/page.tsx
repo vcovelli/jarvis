@@ -12,7 +12,7 @@ type DemoStat = {
 };
 
 export default function SettingsPage() {
-  const { startDemo, browse } = useWalkthrough();
+  const { browse } = useWalkthrough();
   const { state, hydrated, syncStatus, demoMode, enableDemoMode, disableDemoMode, resetDemoMode } = useJarvisState();
   const stats = useMemo<DemoStat[]>(() => {
     const todoCount = Object.values(state.todos).reduce((total, todos) => total + todos.length, 0);
@@ -73,14 +73,6 @@ export default function SettingsPage() {
                 className="rounded-full bg-cyan-300 px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {demoMode ? "Return to real data" : "Show dummy data"}
-              </button>
-              <button
-                type="button"
-                onClick={() => startDemo()}
-                disabled={!hydrated}
-                className="rounded-full border border-emerald-300/35 bg-emerald-300/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-300/20 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Start demo walkthrough
               </button>
               <button
                 type="button"

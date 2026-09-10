@@ -11,6 +11,8 @@ export type GuideStep = {
   anchor?: { label: string; placement?: "top" | "bottom" };
   /** Optional control group whose interactions count toward this step. */
   interactionTarget?: string;
+  /** Opens the actual quick settings controls, including the mobile drawer. */
+  shell?: "theme" | "theme-collapse";
   practice?: string;
   event?: "click" | "input" | "change";
 };
@@ -28,78 +30,121 @@ export const userGuides: UserGuide[] = [
   {
     "id": "essentials",
     "title": "Quick start",
-    "description": "Make Jarvis yours, then learn your daily loop.",
+    "description": "Try your theme, clear some space, and see how small daily entries add up.",
     "category": "Start here",
     "minutes": 3,
     "steps": [
       {
         "id": "theme-start",
-        "title": "Make Jarvis yours.",
-        "body": "Choose your appearance and see Jarvis change right away. Your choice saves automatically.",
-        "route": "/v2/account?section=appearance",
-        "target": "[data-guide=\"theme-mode\"]",
-        "interactionTarget": "[data-guide=\"theme-controls\"]",
+        "title": "First, make it feel like yours",
+        "body": "Quick settings changes the whole app instantly. Try Light, Dark, or High Contrast here. Your choice saves automatically.",
+        "compactBody": "This is Quick settings, inside More. Try Light, Dark, or High Contrast and watch the app change. Your choice saves automatically.",
+        "route": "/v2",
+        "target": "[data-guide=\"quick-theme-mode\"]",
+        "interactionTarget": "[data-guide=\"quick-theme-mode\"] button",
         "anchor": {
-          "label": "Choose a look. Colors are just below.",
+          "label": "Choose your brightness. Try as many as you like.",
           "placement": "top"
         },
-        "event": "click"
+        "event": "click",
+        "shell": "theme"
+      },
+      {
+        "id": "theme-palette",
+        "title": "Give it your color",
+        "body": "Choose a color palette. It works with the mode you just picked, so you can make Jarvis comfortable to use every day.",
+        "route": "/v2",
+        "target": "[data-guide=\"quick-theme-palette\"]",
+        "interactionTarget": "[data-guide=\"quick-theme-palette\"] button",
+        "anchor": {
+          "label": "Tap a color to preview it across Jarvis.",
+          "placement": "top"
+        },
+        "event": "click",
+        "shell": "theme"
+      },
+      {
+        "id": "theme-collapse",
+        "title": "Keep the look. Clear some space.",
+        "body": "Choose Hide on Quick settings to tuck the color controls away. Your look stays saved. Use Show in the sidebar whenever you want to change it again.",
+        "compactBody": "Choose Hide on Quick settings to tuck the colors away. Your look stays saved. Later, open More → Quick settings → Show to change it again.",
+        "route": "/v2",
+        "target": "[data-guide=\"quick-theme-toggle\"]",
+        "anchor": {
+          "label": "Hide folds these controls away. Show brings them back.",
+          "placement": "top"
+        },
+        "event": "click",
+        "shell": "theme-collapse"
       },
       {
         "id": "must-win-start",
-        "title": "Must Win: your one priority",
-        "body": "The one thing that needs to get done today. Write a clear finish line; it saves when you leave the form.",
+        "title": "Start small: choose one win",
+        "body": "You don’t need to fill every page. Must Win is the one outcome that would make today count. Write a clear finish line; it saves when you leave the form.",
         "route": "/v2/must-win",
         "target": "[data-guide=\"must-win-input\"]",
         "anchor": {
-          "label": "What would make today count?"
+          "label": "What is the one thing you want to finish today?"
         },
         "event": "input"
       },
       {
         "id": "todos-start",
-        "title": "Todos: everything else",
-        "body": "Everything else you need to handle lives in Plan. Add a task now, or leave it unscheduled for later.",
+        "title": "Plan holds everything else",
+        "body": "Use New to add a task or a time block. Leave a task unscheduled in Mind Sweep until you’re ready to plan it. Opening the editor does not save a task.",
+        "compactBody": "Use + to add a task. Keep it in Mind Sweep for later, or give it a time in Schedule. Opening the editor does not save a task.",
         "route": "/v2/daily",
         "target": "[data-guide=\"plan-add\"]",
         "anchor": {
-          "label": "Open the task editor. Saving is optional.",
+          "label": "Open the task editor. Save only when you’re ready.",
           "placement": "top"
         },
         "event": "click"
       },
       {
         "id": "habits-start",
-        "title": "Habits: build consistency",
-        "body": "The routines you’re trying to build consistently. Start with one small habit, then mark the days you do it.",
+        "title": "Build one repeatable habit",
+        "body": "Add habit creates a routine and its schedule. Start with something small, then mark each day you do it. The history helps you see your consistency.",
         "route": "/v2/habits",
         "target": "button[aria-label=\"Add habit\"]",
         "anchor": {
-          "label": "Add a routine you want to repeat."
+          "label": "Add one small routine you want to repeat."
         },
         "event": "click"
       },
       {
         "id": "sleep-start",
-        "title": "Sleep: check your recovery",
-        "body": "Track how you slept and how recovered you feel. Set your sleep window, rate the night, then choose Log sleep to save.",
+        "title": "Check in with your sleep",
+        "body": "Set bedtime and wake time, then rate how restful the night felt. Choose Log sleep to save. A few regular entries give you a recovery history to look back on.",
         "route": "/v2/sleep",
         "target": "[data-guide=\"sleep-quality\"] input",
         "anchor": {
-          "label": "How restful was your night?"
+          "label": "Rate the night, then use Log sleep to save."
         },
         "event": "input"
       },
       {
         "id": "mood-start",
-        "title": "Mood: notice your patterns",
-        "body": "Capture how you’re feeling so patterns can emerge over time. Move the slider, then choose Log mood to save.",
+        "title": "Give the day some context",
+        "body": "Move the slider to capture how you feel right now, then choose Log mood to save. Your mood history adds context alongside your sleep and daily progress.",
         "route": "/v2/mood",
         "target": "[data-guide=\"mood-score\"]",
         "anchor": {
-          "label": "How are you feeling right now?"
+          "label": "Set your score. Log mood saves the check-in."
         },
         "event": "input"
+      },
+      {
+        "id": "review-start",
+        "title": "This is why the small entries matter",
+        "body": "Review brings your sleep, mood, task completion, and Must Wins together. As you log more days, use the summaries to reflect on what’s working and decide what to adjust. Start with one win and one check-in; explore the other tools when you need them.",
+        "compactBody": "Open View insights to see sleep, mood, task completion, and Must Wins together. Regular check-ins make these summaries useful. Start with one win and one check-in; explore the other tools later.",
+        "route": "/v2/review",
+        "target": "[data-guide=\"review-insights\"], [data-guide=\"review-summary\"]",
+        "anchor": {
+          "label": "Your daily entries build this overview.",
+          "placement": "top"
+        }
       }
     ]
   },
@@ -657,7 +702,7 @@ export const userGuides: UserGuide[] = [
       {
         "id": "guides",
         "title": "Restart a demo or resume learning",
-        "body": "Start demo walkthrough resets the sample workspace and demo guide progress. The user guide lets you resume a skipped guide, explore another page, or turn off future suggestions.",
+        "body": "Start a fresh demo walkthrough in User guide resets the sample workspace and demo guide progress. The user guide lets you resume or replay any walkthrough. Tips stay closed until you choose to run a guide.",
         "route": "/v2/settings",
         "target": "[data-guide=\"guide-controls\"]"
       }
