@@ -89,8 +89,10 @@ export async function GET(request: Request) {
         updatedAt: true,
       },
     }),
-    getFinanceAnalytics(userId, { rangeDays, includePending }),
+    getFinanceAnalytics(userId, { rangeDays, includePending, includeEvents: true }),
   ]);
+
+  const { rangeEvents, ...publicAnalytics } = analytics;
 
   return NextResponse.json({
     setup,
@@ -98,9 +100,9 @@ export async function GET(request: Request) {
     accounts,
     transactions,
     holdings,
-    events: analytics.recentEvents,
+    events: rangeEvents ?? [],
     manualPositions: analytics.manualPositions,
-    analytics,
+    analytics: publicAnalytics,
     updatedAt: Date.now(),
   });
 }

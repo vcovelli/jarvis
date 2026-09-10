@@ -99,8 +99,13 @@ Finances is a read-only financial dashboard. It supports:
 - account balances, transactions, investment holdings, cash flow, and net-worth snapshots
 - manual assets and liabilities with valuation history
 - normalized financial events and a review queue
+- spending drill-downs by category, account, and merchant, including combined **Other** groups
 - user classification rules for future matching
 - finance questions through the assistant route
+
+Choose a spending row to open its transaction explorer. Chart rows start with **Spending only**; **All transactions** includes other activity for that selection. Account rows open all account activity directly. Search, account/category filters, and sorting help narrow the list. Date ranges include **1Y** and **2Y**, and **Pending** controls whether pending activity is included. Totals show cents and cover every matching transaction in the selected range; **Show more transactions** reveals additional rows beyond the recent activity preview’s 24 entries.
+
+Use **Back to finance** to return to the dashboard. The explorer URL retains the original selection, range, pending setting, and spending/all-activity choice when reloaded. Older transactions awaiting classification sync are visible in totals but require an account sync before corrections become available.
 
 If Plaid is not configured, the page explains what is missing. Demo mode supplies generated accounts and transactions without exposing or changing real financial data. Removing a real connection deletes its synchronized Jarvis records and attempts to unlink the Plaid item; it does not close the underlying financial account.
 
@@ -120,9 +125,9 @@ The page uses built-in demo inventory by default. A live scan is authenticated a
 
 ## Themes and appearance
 
-Expand the shell control in the sidebar or mobile More menu to choose appearance. Foundation and palette are independent:
+Choose **Show** on **Quick settings** in the sidebar or mobile More menu to choose appearance. **Hide** folds the controls away while keeping your look saved. Mode and palette are independent:
 
-- **Foundation:** Light, Dark, High Contrast
+- **Mode:** Light, Dark, High Contrast
 - **Palette:** Ocean, Forest & Wood, Rose, Violet
 
 Any palette works with any foundation, including High Contrast. Changes apply immediately to the document, app chrome, cards, buttons, icons, form controls, and supported page workspaces, then persist in browser storage. Older saved theme names are migrated to the closest mode/palette pair.
@@ -131,11 +136,11 @@ See [UI and theming](./ui-and-theming.md) for implementation rules.
 
 ## Interactive user guide
 
-Open **User guide** from the desktop sidebar, **More → User guide** on phone/tablet, Home, or Settings. Quick start begins with the real appearance controls, then introduces Must Win, Todos, Habits, Sleep, and Mood in about three minutes. A brief completion note leaves Finance for later. The library retains optional page guides and a full-app tour. Contextual pointers highlight real controls while the bottom explanation panel reserves its own screen space. You can minimize them, try an action, or move on without performing it.
+Open **User guide** from the desktop sidebar, **More → User guide** on phone/tablet, Home, or Settings. The one-time welcome offers **Show me around**. Quick start previews mode and color in Quick settings, teaches **Hide/Show**, introduces a small daily routine, then opens Review to explain how the entries become useful summaries. It takes about three minutes. The library also has page guides and a full-app tour. Tips point at real controls; the explanation panel reserves its own screen space and stays inside the menu during mobile theme steps. Trying a control is optional and does not advance the guide.
 
-**Skip for now** preserves the current step and allows an optional reminder after a week. Completed and permanently dismissed guides never prompt again. The library includes a global **Don’t show walkthrough suggestions again** preference and a **Paused & skipped** filter. Progress belongs to the signed-in account in this browser; demo progress is separate.
+**Next** saves your place immediately. **Close tour**, Escape, and completion keep the tour closed; there are no weekly reminders. Resume or replay explicitly from User guide. Progress belongs to the signed-in account in this browser, synchronizes between tabs, and stays separate from demo progress. If browser storage is blocked, the guide explains that progress lasts only for the visit.
 
-For a fresh presentation, enable Demo on Home and choose **Start walkthrough with fresh demo data**, or use **Settings → Start demo walkthrough**. This resets sample daily data and demo guide progress, while preserving personal records and personal guide preferences. Account settings and external service actions remain real.
+For a fresh presentation, choose **User guide → Start a fresh demo walkthrough**. This resets sample daily data and demo guide progress while preserving personal records. Account settings and external service actions remain real.
 
 See the [full user guide](./user-guide.md) for the written walkthrough.
 
@@ -165,7 +170,7 @@ The Account page shows the signed-in identity, duplicates the appearance control
 
 Account deletion requires the current password. Jarvis attempts to unlink connected Plaid items, then deletes user-owned relational data through cascading ownership rules. Provider revocation is best effort, and deleted data is not user-recoverable without an operator-managed backup.
 
-The Settings page controls demo mode. Sign out from the expanded shell controls.
+The Settings page controls demo mode. Sign out from the expanded Quick settings panel.
 
 ## Install as an app
 

@@ -1,66 +1,80 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { guideForPath, matchesGuideRoute, userGuides } from "./userGuides.ts";
-import { freshProgress, parseProgress, recordGuide, REMINDER_DELAY_MS, resumeStep, shouldSuggest, walkthroughKey } from "./walkthroughProgress.ts";
+import { freshProgress, parseProgress, recordGuide, resumeStep, shouldWelcome, walkthroughKey } from "./walkthroughProgress.ts";
 
 test("personal and demo walkthroughs are isolated by account", () => {
   assert.notEqual(walkthroughKey("alice", true), walkthroughKey("alice", false));
   assert.notEqual(walkthroughKey("alice", false), walkthroughKey("bob", false));
 });
 
-test("skip saves the current step and only allows a reminder after seven days", () => {
-  const now = 1000;
-  const skipped = recordGuide(freshProgress(), "essentials", 3, "skipped", now);
-  assert.equal(resumeStep(skipped, "essentials"), 3);
-  assert.equal(shouldSuggest(skipped, "essentials", now + REMINDER_DELAY_MS - 1), false);
-  assert.equal(shouldSuggest(skipped, "essentials", now + REMINDER_DELAY_MS), true);
-  assert.equal(shouldSuggest(skipped, "finance", now + 1), false);
+test("only a new personal workspace gets the one-time welcome", () => {
+  assert.equal(shouldWelcome(freshProgress(), false), true);
+  assert.equal(shouldWelcome(freshProgress(), true), false);
+  assert.equal(shouldWelcome(freshProgress(true), false), false);
 });
 
-test("completed and permanently dismissed guides never trigger reminders", () => {
-  for (const status of ["completed", "dismissed"] as const) {
-    const progress = recordGuide(freshProgress(), "mood", 1, status, 1000);
-    assert.equal(shouldSuggest(progress, "mood", 1000 + REMINDER_DELAY_MS * 10), false);
-    assert.equal(resumeStep(progress, "mood"), 0);
+test("Next saves the next tip and never makes an automatic tour eligible again", () => {
+  const started = recordGuide(freshProgress(), "essentials", 0, "in-progress", 1000);
+  const next = recordGuide(started, "essentials", 1, "in-progress", 2000);
+  const loaded = parseProgress(JSON.stringify(next));
+  assert.equal(resumeStep(loaded, "essentials"), 1);
+  assert.equal(loaded.guides.essentials.stepId, "theme-palette");
+  assert.equal(shouldWelcome(loaded, false), false);
+});
+
+test("closing, completing, and old dismissals all stay quiet after reload", () => {
+  for (const status of ["skipped", "completed", "dismissed"] as const) {
+    const loaded = parseProgress(JSON.stringify(recordGuide(freshProgress(), "mood", 1, status, 1)));
+    assert.equal(shouldWelcome(loaded, false), false);
+    assert.equal(resumeStep(loaded, "mood"), status === "skipped" ? 1 : 0);
   }
 });
 
-test("global opt out prevents even unseen guide prompts and survives progress changes", () => {
-  const progress = recordGuide({ ...freshProgress(true), neverPrompt: true }, "plan", 1, "in-progress", 1000);
-  assert.equal(shouldSuggest(progress, "plan", 1000 + REMINDER_DELAY_MS * 2), false);
-  assert.equal(shouldSuggest(progress, "finance", 1000 + REMINDER_DELAY_MS * 2), false);
+test("manual resume preserves the tip; replay starts at the first without re-enabling prompts", () => {
+  const saved = recordGuide(freshProgress(), "essentials", 5, "skipped", 1000);
+  const resumed = recordGuide(saved, "essentials", resumeStep(saved, "essentials"), "in-progress", 2000);
+  assert.equal(resumed.guides.essentials.step, 5);
+  const replay = recordGuide(saved, "essentials", 0, "in-progress", 3000);
+  assert.equal(replay.guides.essentials.step, 0);
+  assert.equal(shouldWelcome(replay, false), false);
 });
 
-test("fresh demo progress does not mutate the personal profile", () => {
-  const personal = recordGuide({ ...freshProgress(true), neverPrompt: true }, "plan", 2, "dismissed", 1000);
-  const demo = freshProgress(true);
-  assert.deepEqual(demo.guides, {});
-  assert.equal(demo.neverPrompt, false);
-  assert.equal(personal.guides.plan.status, "dismissed");
-  assert.equal(personal.neverPrompt, true);
+test("old opt outs and week-old skipped guides migrate without another prompt", () => {
+  assert.equal(shouldWelcome(parseProgress(JSON.stringify({ version: 2, neverPrompt: true })), false), false);
+  const loaded = parseProgress(JSON.stringify({ version: 2, welcomed: true, lastPromptAt: 1, guides: {
+    essentials: { status: "skipped", step: 3, remindAfter: 1, updatedAt: 1 },
+  } }));
+  assert.equal(shouldWelcome(loaded, false), false);
+  assert.equal(loaded.guides.essentials.stepId, "habits-start");
+  assert.equal(userGuides[0].steps[resumeStep(loaded, "essentials")].id, "habits-start");
 });
 
-test("storage loading handles malformed data, clamps old steps, and ignores unknown guides", () => {
+test("stable step IDs preserve progress when numeric indexes change", () => {
+  const loaded = parseProgress(JSON.stringify({ version: 2, guides: {
+    essentials: { status: "in-progress", step: 0, stepId: "mood-start", updatedAt: 100 },
+  } }));
+  assert.equal(userGuides[0].steps[resumeStep(loaded, "essentials")].id, "mood-start");
+  assert.equal(shouldWelcome(loaded, false), false);
+});
+
+test("fresh demo progress does not mutate personal guide history", () => {
+  const personal = recordGuide(freshProgress(), "plan", 2, "skipped", 1000);
+  const demo = recordGuide(freshProgress(true), "essentials", 0, "in-progress", 2000);
+  assert.equal(personal.guides.plan.step, 2);
+  assert.equal(demo.guides.plan, undefined);
+});
+
+test("storage loading handles malformed data, clamps steps, and ignores unknown guides", () => {
   assert.deepEqual(parseProgress("{"), freshProgress());
-  const loaded = parseProgress(JSON.stringify({ version: 2, welcomed: true, neverPrompt: true, lastPromptAt: -2, guides: {
-    mood: { status: "skipped", step: 999, updatedAt: "bad", remindAfter: 200 },
+  assert.deepEqual(parseProgress(null), freshProgress());
+  const loaded = parseProgress(JSON.stringify({ version: 2, welcomed: true, guides: {
+    mood: { status: "skipped", step: 999, updatedAt: "bad" },
     removed: { status: "completed", step: 0 }, plan: { status: "invalid" },
   } }));
   assert.equal(loaded.guides.mood.step, 2);
   assert.equal(loaded.guides.mood.updatedAt, 0);
   assert.deepEqual(Object.keys(loaded.guides), ["mood"]);
-  assert.equal(loaded.neverPrompt, true);
-  assert.equal(parseProgress(null, true).welcomed, true);
-});
-
-test("saved progress round trips and manual replay is available after dismissal", () => {
-  const saved = recordGuide(freshProgress(), "mood", 1, "dismissed", 1000);
-  const loaded = parseProgress(JSON.stringify(saved));
-  const replay = recordGuide(loaded, "mood", resumeStep(loaded, "mood"), "in-progress", 2000);
-  assert.equal(replay.guides.mood.step, 0);
-  assert.equal(replay.guides.mood.status, "in-progress");
-  assert.equal(replay.guides.mood.neverSuggest, true);
-  assert.equal(shouldSuggest(replay, "mood", 2000 + REMINDER_DELAY_MS * 2), false);
 });
 
 test("all module routes have a guide, including both planner URLs", () => {
@@ -76,25 +90,26 @@ test("all module routes have a guide, including both planner URLs", () => {
   }
 });
 
-test("quick start teaches only the daily loop, beginning at the real appearance controls", () => {
+test("quick start teaches quick settings and its collapse before daily tracking and Review", () => {
   const guide = userGuides.find((item) => item.id === "essentials")!;
-  assert.deepEqual(guide.steps.map((step) => step.route), [
-    "/v2/account?section=appearance", "/v2/must-win", "/v2/daily", "/v2/habits", "/v2/sleep", "/v2/mood",
+  assert.deepEqual(guide.steps.slice(0, 3).map((step) => step.shell), ["theme", "theme", "theme-collapse"]);
+  assert.ok(guide.steps.slice(0, 3).every((step) => step.route === "/v2"));
+  assert.equal(guide.steps[2].target, '[data-guide="quick-theme-toggle"]');
+  assert.deepEqual(guide.steps.slice(3).map((step) => step.route), [
+    "/v2/must-win", "/v2/daily", "/v2/habits", "/v2/sleep", "/v2/mood", "/v2/review",
   ]);
-  assert.ok(guide.steps.every((step) => step.target && step.anchor?.label && step.event));
-  assert.equal(guide.steps.length, 6);
+  assert.ok(guide.steps.every((step) => step.target && step.anchor?.label));
   assert.ok(guide.minutes <= 3);
 });
 
-test("retired page guides cannot be discovered or restored from old saved progress", () => {
+test("retired page guides cannot be discovered or restored", () => {
   const retired = ["manufacturing", "career", "fitness", "focus"];
   const stored = parseProgress(JSON.stringify({ version: 2, welcomed: true, guides: Object.fromEntries(
-    retired.map((id) => [id, { status: "skipped", step: 0, updatedAt: 1, remindAfter: 1 }]),
+    retired.map((id) => [id, { status: "skipped", step: 0, updatedAt: 1 }]),
   ) }));
   assert.deepEqual(stored.guides, {});
   for (const id of retired) {
     assert.equal(guideForPath(`/v2/${id}`), undefined);
-    assert.equal(shouldSuggest(stored, id, REMINDER_DELAY_MS * 2), false);
     assert.ok(userGuides.every((guide) => guide.id !== id && guide.steps.every((step) => step.route.split("?")[0] !== `/v2/${id}`)));
   }
 });

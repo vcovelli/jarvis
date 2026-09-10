@@ -1,19 +1,22 @@
 import "server-only";
 
-import type { FinancialAccount, InvestmentHolding, ManualFinancialPosition, Prisma } from "@prisma/client";
+import type { FinancialAccount, FinancialClassificationRule, InvestmentHolding, ManualFinancialPosition, Prisma } from "@prisma/client";
 
 import {
   ACCOUNT_ROLE_LABELS,
+  classifyTransaction,
   inferAccountRole,
   isInvestmentRole,
   isLiabilityRole,
   isRetirementRole,
 } from "@/lib/finance/classification";
+import { buildSpendingBreakdown } from "./spending";
 import { prisma } from "@/lib/prisma";
 
 export type FinanceAnalyticsOptions = {
   rangeDays?: number;
   includePending?: boolean;
+  includeEvents?: boolean;
 };
 
 export type FinanceBreakdownItem = {
@@ -23,6 +26,7 @@ export type FinanceBreakdownItem = {
   detail: string;
   count: number;
   percent: number;
+  keys?: Array<string | null>;
 };
 
 export type FinanceFlowPoint = {
@@ -56,6 +60,7 @@ export type FinanceEventSummary = {
   confidence: number;
   classificationSource: string;
   classificationReason: string | null;
+  readOnly?: boolean;
 };
 
 export type ManualPositionSummary = {
@@ -127,6 +132,7 @@ export type FinanceAnalytics = {
     holdingsCount: number;
     holdingsBreakdown: FinanceBreakdownItem[];
   };
+  rangeEvents?: FinanceEventSummary[];
   recentEvents: FinanceEventSummary[];
   reviewQueue: FinanceEventSummary[];
   reviewQueueCount: number;
@@ -154,7 +160,33 @@ const EVENT_INCLUDE = {
   },
 } satisfies Prisma.FinancialEventInclude;
 
-type EventWithContext = Prisma.FinancialEventGetPayload<{ include: typeof EVENT_INCLUDE }>;
+type EventWithContext = Prisma.FinancialEventGetPayload<{ include: typeof EVENT_INCLUDE }> & { readOnly?: boolean };
+const ORPHAN_TRANSACTION_SELECT = {
+  id: true,
+  userId: true,
+  connectionId: true,
+  accountId: true,
+  providerTransactionId: true,
+  providerAccountId: true,
+  date: true,
+  authorizedDate: true,
+  name: true,
+  merchantName: true,
+  amount: true,
+  isoCurrencyCode: true,
+  category: true,
+  pending: true,
+  pendingTransactionId: true,
+  personalFinanceCategoryPrimary: true,
+  personalFinanceCategoryDetailed: true,
+  personalFinanceCategoryConfidence: true,
+  paymentChannel: true,
+  createdAt: true,
+  updatedAt: true,
+  account: { select: { ...EVENT_INCLUDE.account.select, officialName: true } },
+  connection: { select: { id: true, institutionId: true, institutionName: true } },
+} satisfies Prisma.FinancialTransactionSelect;
+type OrphanTransaction = Prisma.FinancialTransactionGetPayload<{ select: typeof ORPHAN_TRANSACTION_SELECT }>;
 type AccountForNetWorth = FinancialAccount;
 type HoldingForNetWorth = InvestmentHolding;
 type ManualPositionForNetWorth = ManualFinancialPosition;
@@ -167,7 +199,7 @@ export async function getFinanceAnalytics(
   const includePending = options.includePending === true;
   const cutoff = getRangeCutoff(rangeDays);
 
-  const [accounts, holdings, manualPositions, rangeEventsRaw, recentEventsRaw, reviewEvents, reviewEventCount] = await Promise.all([
+  const [accounts, holdings, manualPositions, normalizedRangeEvents, normalizedRecentEvents, reviewEvents, reviewEventCount, orphanRangeTransactions, orphanRecentTransactions, rules] = await Promise.all([
     prisma.financialAccount.findMany({ where: { userId }, orderBy: [{ type: "asc" }, { name: "asc" }] }),
     prisma.investmentHolding.findMany({ where: { userId }, orderBy: [{ institutionValue: "desc" }, { securityName: "asc" }] }),
     prisma.manualFinancialPosition.findMany({ where: { userId, active: true }, orderBy: [{ kind: "asc" }, { value: "desc" }] }),
@@ -189,7 +221,26 @@ export async function getFinanceAnalytics(
       take: 80,
     }),
     prisma.financialEvent.count({ where: { userId, needsReview: true } }),
+    prisma.financialTransaction.findMany({
+      where: { userId, date: { gte: cutoff }, financialEvent: null },
+      select: ORPHAN_TRANSACTION_SELECT,
+      orderBy: { date: "asc" },
+    }),
+    prisma.financialTransaction.findMany({
+      where: { userId, financialEvent: null },
+      select: ORPHAN_TRANSACTION_SELECT,
+      orderBy: { date: "desc" },
+      take: 80,
+    }),
+    prisma.financialClassificationRule.findMany({
+      where: { userId, enabled: true },
+      orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+    }),
   ]);
+
+  const rangeEventsRaw = mergeOrphanTransactions(normalizedRangeEvents, orphanRangeTransactions, rules);
+  const recentEventsRaw = mergeOrphanTransactions(normalizedRecentEvents, orphanRecentTransactions, rules)
+    .sort((left, right) => right.date.getTime() - left.date.getTime() || left.id.localeCompare(right.id));
 
   const rangeEvents = filterPendingDuplicates(rangeEventsRaw, includePending);
   const recentEvents = filterPendingDuplicates(recentEventsRaw, includePending).slice(0, 24);
@@ -197,6 +248,7 @@ export async function getFinanceAnalytics(
   const netWorth = calculateNetWorth(accounts, holdings, manualPositions);
   const currency = getPrimaryCurrency(accounts, holdings, manualPositions, rangeEvents) ?? "USD";
   const spendEvents = rangeEvents.filter((event) => event.countsAsSpend);
+  const spendSummaries = spendEvents.map(toEventSummary);
   const incomeEvents = rangeEvents.filter((event) => event.countsAsIncome);
   const transferEvents = rangeEvents.filter((event) => event.countsAsTransfer);
   const investmentContributionEvents = rangeEvents.filter((event) => event.countsAsInvestmentContribution);
@@ -253,15 +305,16 @@ export async function getFinanceAnalytics(
       )),
       savingsTransfers,
     },
-    spendingByCategory: buildEventBreakdown(spendEvents, (event) => titleCase(event.primaryCategory), "events"),
-    spendingByMerchant: buildEventBreakdown(spendEvents, (event) => event.normalizedMerchant ?? event.displayName, "events"),
-    accountSpendBreakdown: buildEventBreakdown(spendEvents, (event) => event.account?.name ?? "Unknown account", "events"),
+    spendingByCategory: buildSpendingBreakdown(spendSummaries, "category"),
+    spendingByMerchant: buildSpendingBreakdown(spendSummaries, "merchant"),
+    accountSpendBreakdown: buildSpendingBreakdown(spendSummaries, "account"),
     accountBreakdown: buildAccountBreakdown(accounts, holdings, manualPositions),
     investmentSummary: {
       totalValue: roundMoney(netWorth.investableAssets + netWorth.retirementAssets),
       holdingsCount: holdings.length,
       holdingsBreakdown: buildHoldingBreakdown(holdings),
     },
+    ...(options.includeEvents ? { rangeEvents: rangeEvents.map(toEventSummary) } : {}),
     recentEvents: recentEvents.map(toEventSummary),
     reviewQueue: reviewEvents.map(toEventSummary),
     reviewQueueCount: reviewEventCount,
@@ -402,22 +455,6 @@ function buildCashFlowSeries(events: EventWithContext[], rangeDays: number): Fin
   }));
 }
 
-function buildEventBreakdown(
-  events: EventWithContext[],
-  getKey: (event: EventWithContext) => string,
-  detailLabel: string,
-): FinanceBreakdownItem[] {
-  const totals = new Map<string, { total: number; count: number }>();
-  events.forEach((event) => {
-    const key = cleanLabel(getKey(event));
-    const current = totals.get(key) ?? { total: 0, count: 0 };
-    current.total += Math.abs(event.cashFlowAmount || event.amount);
-    current.count += 1;
-    totals.set(key, current);
-  });
-  return mapBreakdown(totals, detailLabel, 7);
-}
-
 function buildAccountBreakdown(
   accounts: AccountForNetWorth[],
   holdings: HoldingForNetWorth[],
@@ -493,6 +530,70 @@ function mapBreakdown(totals: Map<string, { total: number; count: number }>, det
   return items;
 }
 
+/** Surface synced transactions immediately without writing classification records from a GET. */
+function mergeOrphanTransactions(
+  events: EventWithContext[],
+  transactions: OrphanTransaction[],
+  rules: FinancialClassificationRule[],
+): EventWithContext[] {
+  const normalizedIds = new Set(events.map((event) => event.transactionId).filter(Boolean));
+  const readOnlyEvents = transactions
+    .filter((transaction) => !normalizedIds.has(transaction.id))
+    .map((transaction): EventWithContext => {
+      const classification = classifyTransaction(transaction, {
+        account: transaction.account,
+        connection: transaction.connection,
+        rules,
+      });
+      return {
+        id: `raw-transaction:${transaction.id}`,
+        userId: transaction.userId,
+        source: "plaid_transaction",
+        sourceId: transaction.providerTransactionId,
+        transactionId: transaction.id,
+        connectionId: transaction.connectionId,
+        accountId: transaction.accountId,
+        relatedEventId: null,
+        transferGroupId: null,
+        eventType: classification.eventType,
+        primaryCategory: classification.primaryCategory,
+        subcategory: classification.subcategory ?? null,
+        normalizedMerchant: classification.normalizedMerchant ?? null,
+        displayName: classification.displayName,
+        amount: classification.amount,
+        cashFlowAmount: classification.cashFlowAmount,
+        date: transaction.date,
+        authorizedDate: transaction.authorizedDate,
+        pending: transaction.pending,
+        countsAsIncome: classification.countsAsIncome,
+        countsAsSpend: classification.countsAsSpend,
+        countsAsSavings: classification.countsAsSavings,
+        countsAsInvestmentContribution: classification.countsAsInvestmentContribution,
+        countsAsTransfer: classification.countsAsTransfer,
+        internalTransfer: classification.internalTransfer,
+        investmentIncome: classification.investmentIncome,
+        affectsNetWorth: classification.affectsNetWorth,
+        needsReview: classification.needsReview,
+        confidence: classification.confidence,
+        classificationSource: classification.classificationSource,
+        classificationReason: classification.classificationReason,
+        userReviewedAt: null,
+        reviewedByRuleId: classification.reviewedByRuleId ?? null,
+        metadata: null,
+        createdAt: transaction.createdAt,
+        updatedAt: transaction.updatedAt,
+        account: transaction.account,
+        transaction: {
+          providerTransactionId: transaction.providerTransactionId,
+          pendingTransactionId: transaction.pendingTransactionId,
+          isoCurrencyCode: transaction.isoCurrencyCode,
+        },
+        readOnly: true,
+      };
+    });
+  return [...events, ...readOnlyEvents];
+}
+
 function filterPendingDuplicates(events: EventWithContext[], includePending: boolean) {
   const postedPendingIds = new Set(
     events
@@ -532,6 +633,7 @@ function toEventSummary(event: EventWithContext): FinanceEventSummary {
     confidence: event.confidence,
     classificationSource: event.classificationSource,
     classificationReason: event.classificationReason,
+    ...(event.readOnly ? { readOnly: true } : {}),
   };
 }
 
@@ -599,10 +701,6 @@ function startOfUtcDay(value: Date) {
 
 function formatBucketLabel(value: Date) {
   return value.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
-}
-
-function cleanLabel(value: string) {
-  return value.trim() || "Uncategorized";
 }
 
 function titleCase(value: string) {

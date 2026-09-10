@@ -83,7 +83,7 @@ const TIMELINE_FILTER_KEY = "jarvis-timeline-filter";
 const OPERATING_MODE_COLLAPSE_KEY = "jarvis-operating-mode-collapsed";
 
 export default function Home() {
-  const { startDemo, browse, active: activeWalkthrough } = useWalkthrough();
+  const { browse, active: activeWalkthrough } = useWalkthrough();
   const {
     state,
     hydrated,
@@ -680,7 +680,7 @@ export default function Home() {
       >
         <header className="hidden items-center justify-between gap-3 lg:flex">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
-          {!activeWalkthrough && <button type="button" onClick={demoMode ? () => startDemo() : browse} className="theme-button-secondary rounded-xl px-4 py-2 text-sm font-semibold">{demoMode ? "Start walkthrough" : "User guide"}</button>}
+          {!activeWalkthrough && <button type="button" onClick={browse} className="theme-button-secondary rounded-xl px-4 py-2 text-sm font-semibold">User guide</button>}
         </header>
       <section className="flex min-h-[calc(100dvh_-_var(--jarvis-mobile-nav-height)_-_2rem)] items-center lg:hidden">
         <div className="theme-surface w-full rounded-[28px] p-4">
@@ -697,7 +697,7 @@ export default function Home() {
               {demoMode ? "Real" : "Demo"}
             </button>
           </div>
-          {!activeWalkthrough && <button type="button" onClick={demoMode ? () => startDemo() : browse} className="theme-button-secondary mt-3 w-full rounded-xl px-3 py-2 text-sm font-semibold">{demoMode ? "Start walkthrough with fresh demo data" : "User guide & walkthroughs"}</button>}
+          {!activeWalkthrough && <button type="button" onClick={browse} className="theme-button-secondary mt-3 w-full rounded-xl px-3 py-2 text-sm font-semibold">User guide & walkthroughs</button>}
           <Link href={commandCenter.nextHref} className="theme-card mt-3 block rounded-2xl p-3 transition active:scale-[0.99] sm:mt-4 sm:p-4">
             <p className="theme-muted text-[10px] uppercase tracking-[0.24em]">Recommended</p>
             <p className="theme-text mt-1 text-sm font-semibold leading-6">{commandCenter.nextAction}</p>
