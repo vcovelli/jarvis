@@ -36,7 +36,7 @@ export function HomelabConsoleClient({ initialSnapshot }: { initialSnapshot: Hom
   const primaryAttention = snapshot.attention[0];
   const recentActions = state.homelabActions.slice(0, 6);
   const inactiveServices = snapshot.services.filter((service) => service.status !== "active");
-  const grafanaUrl = demoMode ? "#" : monitoring?.grafanaUrl ?? "http://192.0.2.3:3001";
+  const grafanaUrl = demoMode ? "#" : monitoring?.grafanaUrl ?? "http://127.0.0.1:3001";
 
   const refreshSnapshot = useCallback(
     async (manual = false) => {

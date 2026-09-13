@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { homedir, userInfo } from "node:os";
 import { cache } from "react";
 
 import { parseDockerContainerStatuses, type DockerContainerState } from "@/lib/homelabStatus";
@@ -82,7 +83,7 @@ type ServiceDefinition = {
 };
 
 const HOMELAB_DOCS_ROOT =
-  process.env.HOMELAB_DOCS_ROOT ?? "/home/developer/homelab-docs";
+  process.env.HOMELAB_DOCS_ROOT ?? path.join(homedir(), "homelab-docs");
 
 const liveDocs = {
   system: "live/system.md",
@@ -174,8 +175,8 @@ const serviceDefinitions: ServiceDefinition[] = [
     purpose: "Remote administration",
     unit: "ssh",
     docs: "services/ssh.md",
-    ports: ["38043"],
-    command: (tailscaleIp) => `ssh -p 22 user@${tailscaleIp}`,
+    ports: [process.env.HOMELAB_SSH_PORT?.trim() || "22"],
+    command: (tailscaleIp) => `ssh -p ${process.env.HOMELAB_SSH_PORT?.trim() || "22"} ${process.env.HOMELAB_SSH_USER?.trim() || userInfo().username}@${tailscaleIp}`,
   },
   {
     id: "docker",
@@ -208,9 +209,9 @@ export async function getFreshHomelabSnapshot(): Promise<HomelabSnapshot> {
   ]);
 
   const system = {
-    hostname: extractBulletValue(systemDoc, "Hostname") ?? "homelab-server",
-    os: extractHostInfo(systemDoc, "Operating System") ?? "Ubuntu 24.04.2 LTS",
-    kernel: extractHostInfo(systemDoc, "Kernel") ?? "Linux 6.8",
+    hostname: extractBulletValue(systemDoc, "Hostname") ?? "Unknown",
+    os: extractHostInfo(systemDoc, "Operating System") ?? "Unknown",
+    kernel: extractHostInfo(systemDoc, "Kernel") ?? "Unknown",
     uptime: firstLine(extractCodeBlockAfterHeading(systemDoc, "Uptime")) ?? "Unknown",
     rootFilesystem:
       firstDataLine(extractCodeBlockAfterHeading(healthDoc, "Root filesystem")) ??
@@ -218,8 +219,8 @@ export async function getFreshHomelabSnapshot(): Promise<HomelabSnapshot> {
     memory: firstDataLine(extractCodeBlockAfterHeading(healthDoc, "Memory")) ?? "Unknown",
   };
   const network = {
-    lanIp: extractBulletValue(networkDoc, "LAN IPv4") ?? "192.0.2.7",
-    tailscaleIp: extractBulletValue(networkDoc, "Tailscale IPv4") ?? "192.0.2.3",
+    lanIp: extractBulletValue(networkDoc, "LAN IPv4") ?? (process.env.HOMELAB_LAN_IP?.trim() || "Unknown"),
+    tailscaleIp: extractBulletValue(networkDoc, "Tailscale IPv4") ?? (process.env.HOMELAB_TAILSCALE_IP?.trim() || "Unknown"),
     gateway: extractBulletValue(networkDoc, "Default gateway") ?? "Unknown",
     primaryInterface: extractBulletValue(networkDoc, "Primary interface") ?? "Unknown",
     tailscaleHealth: extractTailscaleHealth(networkDoc),
@@ -348,7 +349,7 @@ function buildService(
     ports: definition.ports,
     localUrl,
     tailscaleUrl,
-    command: definition.command?.(tailscaleIp),
+    command: tailscaleIp !== "Unknown" ? definition.command?.(tailscaleIp) : undefined,
     docId: definition.docs,
     lastChecked: usesContainerInventory ? containerCheckedAt : null,
   };
@@ -586,6 +587,7 @@ function firstDataLine(value: string | null) {
 }
 
 function formatServiceUrl(host: string, port: string, urlPath: string) {
+  if (!host || host === "Unknown") return undefined;
   const suffix = urlPath.startsWith("/") ? urlPath : `/${urlPath}`;
   if (port === "80") return `http://${host}${suffix}`;
   if (port === "443") return `https://${host}${suffix}`;

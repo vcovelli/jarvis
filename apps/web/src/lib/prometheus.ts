@@ -83,7 +83,7 @@ type PrometheusMatrixData = {
 };
 
 const DEFAULT_PROMETHEUS_BASE_URL = "http://127.0.0.1:9090";
-const DEFAULT_GRAFANA_BASE_URL = "http://192.0.2.3:3001";
+const DEFAULT_GRAFANA_BASE_URL = "http://127.0.0.1:3001";
 const REQUEST_TIMEOUT_MS = 3_500;
 const HISTORY_WINDOW_SECONDS = 60 * 60;
 const HISTORY_STEP_SECONDS = 60;
