@@ -221,14 +221,14 @@ export default function MoodPage() {
                   />
                 )}
               </div>
-              <button type="submit" className="theme-button-primary rounded-2xl px-4 py-3 text-sm font-semibold">
+              <button data-guide="mood-save" type="submit" className="theme-button-primary rounded-2xl px-4 py-3 text-sm font-semibold">
                 Log mood
               </button>
             </div>
           </div>
           <details className="theme-card rounded-2xl p-3">
             <summary data-guide="mood-context" className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.2em] theme-muted">Add context</summary>
-            <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,0.45fr)_minmax(0,1fr)]">
+            <div data-guide="mood-context-fields" className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,0.45fr)_minmax(0,1fr)]">
               <input
                 value={customTag}
                 onChange={(event) => setCustomTag(event.target.value)}

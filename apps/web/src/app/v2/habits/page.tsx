@@ -1,9 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, MouseEvent, ReactNode, TouchEvent, useCallback, useMemo, useRef, useState } from "react";
-
-import { mobileSidebarOpenEvent } from "@/lib/shellEvents";
 
 import {
   DayKey,
@@ -14,6 +11,7 @@ import {
   getDayKey,
   useJarvisState,
 } from "@/lib/jarvisStore";
+import { habitPeriod, habitStreak } from "@/lib/dailySummary";
 
 type ViewMode = "week" | "month";
 type EditorMode = "create" | "edit" | null;
@@ -33,6 +31,7 @@ type HabitDay = {
   dayNumber: string;
   isToday: boolean;
   isSelected: boolean;
+  isFuture: boolean;
 };
 
 const habitStarterSet: Array<HabitDraft> = [
@@ -128,16 +127,17 @@ export default function HabitsPage() {
 
   const selectedDate = dayKeyToDate(selectedDay);
   const dayStats = useMemo(() => buildDayStats(visibleHabits, selectedDay), [selectedDay, visibleHabits]);
-  const selectedHabitStreak = selectedHabit ? calculateHabitStreak(selectedHabit, selectedDay) : 0;
+  const selectedHabitStreak = selectedHabit ? habitStreak(selectedHabit, selectedDay, todayKey) : 0;
   const strongestChain = useMemo(() => {
-    return visibleHabits.reduce((best, habit) => Math.max(best, calculateHabitStreak(habit, selectedDay)), 0);
-  }, [selectedDay, visibleHabits]);
+    return visibleHabits.reduce((best, habit) => Math.max(best, habitStreak(habit, selectedDay, todayKey)), 0);
+  }, [selectedDay, todayKey, visibleHabits]);
   const completedToday = useMemo(() => buildDayStats(visibleHabits, todayKey).yes, [todayKey, visibleHabits]);
 
   const selectDay = useCallback((day: DayKey) => {
+    if (day > todayKey) return;
     setSelectedDay(day);
     pulse(8);
-  }, []);
+  }, [todayKey]);
 
   const shiftDay = useCallback((amount: number) => {
     setSelectedDay((current) => shiftDayKey(current, amount));
@@ -145,11 +145,12 @@ export default function HabitsPage() {
   }, []);
 
   const shiftRange = useCallback((amount: number) => {
-    setSelectedDay((current) =>
-      viewMode === "month" ? shiftMonthKey(current, amount) : shiftDayKey(current, amount * 7),
-    );
+    setSelectedDay((current) => {
+      const next = viewMode === "month" ? shiftMonthKey(current, amount) : shiftDayKey(current, amount * 7);
+      return next > todayKey ? todayKey : next;
+    });
     pulse([8, 24, 8]);
-  }, [viewMode]);
+  }, [todayKey, viewMode]);
 
   const resetSwipe = useCallback(() => {
     swipeRef.current = {
@@ -227,11 +228,6 @@ export default function HabitsPage() {
     if (!suppressSwipeClickRef.current) return;
     event.preventDefault();
     event.stopPropagation();
-  }, []);
-
-  const openMobileMenu = useCallback(() => {
-    window.dispatchEvent(new Event(mobileSidebarOpenEvent));
-    pulse(8);
   }, []);
 
   const openCreate = useCallback(() => {
@@ -315,11 +311,26 @@ export default function HabitsPage() {
   });
 
   return (
-    <div className="theme-immersive-shell fixed inset-0 z-30 h-dvh overflow-hidden lg:relative lg:inset-auto lg:z-auto lg:h-full lg:rounded-[28px]">
-      <div className="grid h-full max-h-full w-full min-w-0 gap-4 px-3 pb-0 pt-[calc(env(safe-area-inset-top,0px)+0.65rem)] sm:px-5 sm:pb-0 sm:pt-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:p-4 xl:grid-cols-[minmax(0,1fr)_21rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+      <header className="mobile-compact-header flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="theme-muted text-xs font-semibold uppercase tracking-[0.2em]">Daily rhythm</p>
+          <h1 className="mt-2 text-3xl font-semibold">Habits</h1>
+          <p className="theme-muted mt-2 max-w-2xl text-sm">Check in quickly, leave skipped days neutral, and use the pattern to adjust the routine.</p>
+        </div>
+        <button
+          type="button"
+          aria-label="Add habit"
+          onClick={openCreate}
+          className="theme-button-primary min-h-11 rounded-xl px-5 py-3 text-sm font-semibold"
+        >
+          Add habit
+        </button>
+      </header>
+      <div className="grid w-full min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_21rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
         <section
           className={
-            "theme-workspace relative flex h-full min-h-0 touch-pan-y flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl transition-[transform] " +
+            "theme-workspace relative min-w-0 touch-pan-y overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(2,6,23,0.36)] backdrop-blur-2xl transition-[transform] " +
             (swipeDragging ? "duration-0" : "duration-200 ease-out")
           }
           style={{ transform: `translate3d(${swipeOffset}px, 0, 0)` }}
@@ -331,15 +342,7 @@ export default function HabitsPage() {
         >
           <SwipeHint direction={swipeOffset < 0 ? 1 : swipeOffset > 0 ? -1 : 0} ready={swipeReady} viewMode={viewMode} />
           <header className="theme-workspace-chrome z-30 shrink-0 border-b px-3 py-3 backdrop-blur-2xl sm:px-4">
-            <div className="grid grid-cols-[2.6rem_minmax(0,1fr)_2.6rem] items-center gap-2">
-              <button
-                type="button"
-                aria-label="Open Jarvis navigation"
-                onClick={openMobileMenu}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-cyan-100 transition hover:border-cyan-200/50 hover:bg-cyan-300/10 active:scale-95"
-              >
-                <MenuIcon />
-              </button>
+            <div className="flex items-center justify-center">
               <div className="min-w-0 text-center">
                 <button
                   type="button"
@@ -351,15 +354,8 @@ export default function HabitsPage() {
                 <div className="mx-auto mt-2 max-w-64">
                   <ProgressRail stats={dayStats} />
                 </div>
+                <p className="theme-muted mt-1 text-xs">{dayStats.logged}/{dayStats.total} checked in · {dayStats.yes} complete</p>
               </div>
-              <button
-                type="button"
-                aria-label="Add habit"
-                onClick={openCreate}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-200/30 bg-cyan-300 text-slate-950 shadow-[0_14px_30px_rgba(34,211,238,0.22)] transition hover:bg-cyan-200 active:scale-95"
-              >
-                <PlusIcon />
-              </button>
             </div>
 
             <div className="mt-3 flex items-center gap-2">
@@ -376,7 +372,8 @@ export default function HabitsPage() {
                 type="button"
                 onClick={() => shiftDay(1)}
                 aria-label="Next day"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:text-white active:scale-95"
+                disabled={selectedDay >= todayKey}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
               >
                 <ChevronRightIcon />
               </button>
@@ -413,7 +410,7 @@ export default function HabitsPage() {
             </div>
           </div>
 
-          <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 lg:py-4">
+          <main className="px-3 py-3 sm:px-4 lg:py-4">
             {!hydrated && <HabitSkeleton />}
 
             {hydrated && visibleHabits.length === 0 && (
@@ -428,6 +425,7 @@ export default function HabitsPage() {
                     habit={habit}
                     days={visibleDays}
                     selectedDay={selectedDay}
+                    todayKey={todayKey}
                     selected={habit.id === selectedHabit?.id}
                     viewMode={viewMode}
                     onSelectHabit={() => {
@@ -442,32 +440,13 @@ export default function HabitsPage() {
             )}
           </main>
 
-          <footer data-no-pull-refresh="true" data-no-swipe="true" className="theme-workspace-chrome shrink-0 border-t px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.55rem)] pt-2 shadow-[0_-18px_45px_rgba(2,6,23,0.36)] backdrop-blur-2xl lg:hidden">
-            <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-              <ToolbarButton label="Home" href="/v2" icon={<HomeIcon />} />
-              <ToolbarButton label="Today" onClick={() => selectDay(todayKey)} icon={<CalendarIcon />} />
-              <ToolbarButton label="Prev" onClick={() => shiftDay(-1)} icon={<ChevronLeftIcon />} />
-              <ToolbarButton label="Next" onClick={() => shiftDay(1)} icon={<ChevronRightIcon />} />
-              <ToolbarButton label="Edit" onClick={openEdit} disabled={!selectedHabit} icon={<EditIcon />} />
-            </div>
-          </footer>
         </section>
 
-        <aside className="hidden min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain pr-1 lg:flex [&>section]:shrink-0">
+        <aside className="hidden flex-col gap-4 lg:flex [&>section]:shrink-0">
           <section className="theme-card rounded-[28px] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-200/70">Habits</p>
-                <h1 className="mt-2 text-2xl font-semibold text-white">Chains</h1>
-              </div>
-              <button
-                type="button"
-                onClick={openCreate}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-300 text-slate-950 shadow-[0_12px_26px_rgba(34,211,238,0.22)] transition active:scale-95"
-                aria-label="Add habit"
-              >
-                <PlusIcon />
-              </button>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-200/70">Habits</p>
+              <h1 className="mt-2 text-2xl font-semibold text-white">Chains</h1>
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2">
               <MetricBox label="Done" value={dayStats.yes.toString()} tone="green" />
@@ -557,6 +536,7 @@ function HabitRow({
   habit,
   days,
   selectedDay,
+  todayKey,
   selected,
   viewMode,
   onSelectHabit,
@@ -566,13 +546,16 @@ function HabitRow({
   habit: HabitEntry;
   days: HabitDay[];
   selectedDay: DayKey;
+  todayKey: DayKey;
   selected: boolean;
   viewMode: ViewMode;
   onSelectHabit: () => void;
   onSelectDay: (day: DayKey) => void;
   onApplyStatus: (status: HabitLogStatus | "erase") => void;
 }) {
-  const streak = calculateHabitStreak(habit, selectedDay);
+  const streak = habitStreak(habit, selectedDay, todayKey);
+  const recent = habitPeriod(habit, selectedDay);
+  const recentEligibleDays = recent.total - recent.skipped;
   const selectedStatus = habit.logs[selectedDay];
   return (
     <article
@@ -591,15 +574,16 @@ function HabitRow({
             {formatHabitTitle(habit.title)}
           </h2>
           <p className="mt-1 truncate text-[11px] text-zinc-500">
-            {habit.category ?? "Unsorted"} · {habit.intent === "quit" ? "quit" : "build"} · {streak >= 3 ? `${streak} chain` : `${streak} streak`}
+            {habit.category ?? "Unsorted"} · {habit.intent === "quit" ? "quit" : "build"} · {streak >= 3 ? `${streak} chain` : `${streak} streak`} · {recent.done}/{recentEligibleDays} last 7 days
           </p>
         </button>
         <span className={getStatusPillClass(selectedStatus)}>{statusLabel(selectedStatus)}</span>
       </div>
 
       <div
-        className="mt-3 grid overflow-hidden rounded-[16px] border border-white/10 bg-black/20"
-        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
+        data-habit-period={viewMode}
+        className="mt-3 grid overflow-x-auto overscroll-x-contain rounded-[16px] border border-white/10 bg-black/20"
+        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(${viewMode === "month" ? "2rem" : "0"}, 1fr))` }}
       >
         {days.map((day) => {
           const status = habit.logs[day.key];
@@ -611,6 +595,7 @@ function HabitRow({
               type="button"
               data-guide="habit-cells"
               aria-label={`${formatHabitTitle(habit.title)} ${day.key} ${statusLabel(status)}`}
+              disabled={day.isFuture}
               onClick={(event) => {
                 event.stopPropagation();
                 onSelectHabit();
@@ -620,6 +605,14 @@ function HabitRow({
               style={status === "skip" ? skipBackgroundStyle : undefined}
             >
               <span className="sr-only">{statusLabel(status)}</span>
+              {viewMode === "month" && (
+                <span
+                  aria-hidden="true"
+                  className={"text-[9px] font-semibold " + (status === "yes" ? "text-slate-950/75" : status === "no" ? "text-white/85" : "text-zinc-400")}
+                >
+                  {day.dayNumber}
+                </span>
+              )}
             </button>
           );
         })}
@@ -638,7 +631,7 @@ function InlineActionBar({
   onApply: (status: HabitLogStatus | "erase") => void;
 }) {
   return (
-    <div data-no-swipe="true" className="theme-workspace-subtle mt-3 grid grid-cols-4 gap-2 rounded-[20px] border p-2 shadow-inner">
+    <div data-no-swipe="true" data-guide="habit-actions" className="theme-workspace-subtle mt-3 grid grid-cols-4 gap-2 rounded-[20px] border p-2 shadow-inner">
       <ActionButton label="Erase" icon={<EraseIcon />} active={false} onClick={() => onApply("erase")} tone="neutral" disabled={!isRecordedStatus(currentStatus)} />
       <ActionButton label="Yes" icon={<CheckIcon />} active={currentStatus === "yes"} onClick={() => onApply("yes")} tone="yes" />
       <ActionButton label="No" icon={<XIcon />} active={currentStatus === "no"} onClick={() => onApply("no")} tone="no" />
@@ -713,6 +706,7 @@ function HabitEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="habit-editor-title"
+        data-guide="habit-editor"
         className="theme-modal max-h-dvh w-full overflow-y-auto overscroll-contain rounded-t-[30px] p-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.15rem)] shadow-[0_-24px_80px_rgba(2,6,23,0.45)] sm:max-h-[calc(100dvh-3rem)] sm:max-w-lg sm:rounded-[30px] sm:pb-5"
       >
         <div className="flex items-center justify-between gap-3">
@@ -731,7 +725,7 @@ function HabitEditor({
         </div>
 
         <div className="mt-5 grid gap-4">
-          <label className="grid gap-2 text-sm font-semibold text-zinc-300">
+          <label data-guide="habit-name" className="grid gap-2 text-sm font-semibold text-zinc-300">
             Name
             <input
               value={draft.title}
@@ -786,7 +780,7 @@ function HabitEditor({
             />
           </label>
 
-          <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-white/10 bg-black/30 p-1">
+          <div data-guide="habit-intent" className="grid grid-cols-2 gap-2 rounded-[20px] border border-white/10 bg-black/30 p-1">
             {(["build", "quit"] as const).map((intent) => (
               <button
                 key={intent}
@@ -804,7 +798,7 @@ function HabitEditor({
         </div>
 
         <div className="mt-6 grid grid-cols-[1fr_auto] gap-3">
-          <button type="submit" className="rounded-[18px] bg-cyan-300 px-5 py-3.5 text-base font-semibold text-slate-950 shadow-[0_16px_34px_rgba(34,211,238,0.18)] transition hover:bg-cyan-200 active:scale-[0.98]">
+          <button data-guide="habit-save" type="submit" className="rounded-[18px] bg-cyan-300 px-5 py-3.5 text-base font-semibold text-slate-950 shadow-[0_16px_34px_rgba(34,211,238,0.18)] transition hover:bg-cyan-200 active:scale-[0.98]">
             {mode === "edit" ? "Save" : "Add"}
           </button>
           {onDelete && (
@@ -821,13 +815,14 @@ function HabitEditor({
 function DayStrip({ days, viewMode, onSelectDay }: { days: HabitDay[]; viewMode: ViewMode; onSelectDay: (day: DayKey) => void }) {
   return (
     <div
-      className={"mt-3 grid gap-1 " + (viewMode === "month" ? "overflow-hidden" : "")}
-      style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
+      className="mt-3 grid gap-1 overflow-x-auto overscroll-x-contain"
+      style={{ gridTemplateColumns: `repeat(${days.length}, minmax(${viewMode === "month" ? "2rem" : "0"}, 1fr))` }}
     >
       {days.map((day) => (
         <button
           key={day.key}
           type="button"
+          disabled={day.isFuture}
           onClick={() => onSelectDay(day.key)}
           className={
             "min-w-0 rounded-[14px] text-center transition active:scale-[0.97] " +
@@ -836,6 +831,8 @@ function DayStrip({ days, viewMode, onSelectDay }: { days: HabitDay[]; viewMode:
               ? "bg-cyan-300 text-slate-950 shadow-[0_10px_24px_rgba(34,211,238,0.18)]"
               : day.isToday
                 ? "bg-cyan-300/10 text-cyan-100"
+                : day.isFuture
+                ? "cursor-not-allowed text-zinc-700"
                 : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200")
           }
         >
@@ -978,40 +975,6 @@ function HabitSkeleton() {
   );
 }
 
-function ToolbarButton({
-  label,
-  icon,
-  href,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  icon: ReactNode;
-  href?: string;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  const className = "flex min-w-0 flex-col items-center gap-1 rounded-[18px] px-2 py-2 text-[11px] font-semibold text-zinc-400 transition hover:bg-white/5 hover:text-zinc-100 active:scale-[0.97] disabled:opacity-40";
-  const content = (
-    <>
-      <span className="flex h-5 w-5 items-center justify-center text-cyan-100">{icon}</span>
-      <span className="truncate">{label}</span>
-    </>
-  );
-  if (href) {
-    return (
-      <Link href={href} className={className} aria-label={label}>
-        {content}
-      </Link>
-    );
-  }
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className={className} aria-label={label}>
-      {content}
-    </button>
-  );
-}
-
 const skipBackgroundStyle = {
   backgroundImage: "repeating-linear-gradient(135deg, rgba(148,163,184,0.08) 0 8px, rgba(148,163,184,0.28) 8px 12px)",
 };
@@ -1082,6 +1045,7 @@ function buildWeekDays(day: DayKey, todayKey: DayKey): HabitDay[] {
       dayNumber: String(date.getDate()),
       isToday: key === todayKey,
       isSelected: key === day,
+      isFuture: key > todayKey,
     };
   });
 }
@@ -1102,6 +1066,7 @@ function buildMonthDays(day: DayKey, todayKey: DayKey): HabitDay[] {
       dayNumber: String(date.getDate()),
       isToday: key === todayKey,
       isSelected: key === day,
+      isFuture: key > todayKey,
     };
   });
 }
@@ -1157,35 +1122,6 @@ function pulse(pattern: number | number[]) {
   haptics.vibrate?.(pattern);
 }
 
-function MenuIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-      <path d="M4 7h16" />
-      <path d="M4 12h16" />
-      <path d="M4 17h16" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m3 11 9-8 9 8" />
-      <path d="M5 10v10h14V10" />
-      <path d="M9 20v-6h6v6" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
 function ChevronLeftIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1198,17 +1134,6 @@ function ChevronRightIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="m9 18 6-6-6-6" />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M8 2v4" />
-      <path d="M16 2v4" />
-      <path d="M3 10h18" />
-      <rect x="3" y="4" width="18" height="18" rx="4" />
     </svg>
   );
 }

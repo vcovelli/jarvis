@@ -110,29 +110,31 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   const [desktopPreference, setDesktopOpen] = useState(() => getStoredDesktopSidebarOpen());
   const walkthrough = useOptionalWalkthrough();
   const guideStep = walkthrough?.active ? findGuide(walkthrough.active.id)?.steps[walkthrough.active.step] : undefined;
-  const guidedTheme = Boolean(guideStep?.shell && matchesGuideRoute(pathname, guideStep.route));
+  const guideOnRoute = Boolean(guideStep && matchesGuideRoute(pathname, guideStep.route));
+  const guidedShell = Boolean(guideStep?.shell && guideOnRoute);
+  const guidedTheme = guideStep?.shell === "theme" && guideOnRoute;
   const mobile = useMobileLayout();
-  const mobileVisible = mobile && (mobileOpen || guidedTheme);
-  const desktopOpen = guidedTheme || (hydrated ? desktopPreference : true);
+  const mobileVisible = mobile && (mobileOpen || guidedShell);
+  const desktopOpen = guidedShell || (hydrated ? desktopPreference : true);
   const [shellExpandedPreference, setShellExpanded] = useState(getStoredShellControlsExpanded);
   const shellExpanded = hydrated && shellExpandedPreference;
-  const guidedThemeStep = guidedTheme ? guideStep!.id : null;
-  const previousGuidedThemeStep = useRef<string | null>(null);
+  const guidedShellStep = guidedShell ? guideStep!.id : null;
+  const previousGuidedShellStep = useRef<string | null>(null);
   const updateShellExpanded = useCallback((next: boolean) => {
     setShellExpanded(next);
     try { window.localStorage.setItem(shellControlsStorageKey, String(next)); } catch { /* Keep controls usable. */ }
   }, []);
 
   useEffect(() => {
-    if (previousGuidedThemeStep.current === guidedThemeStep) return;
+    if (previousGuidedShellStep.current === guidedShellStep) return;
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      previousGuidedThemeStep.current = guidedThemeStep;
-      updateShellExpanded(Boolean(guidedThemeStep));
+      previousGuidedShellStep.current = guidedShellStep;
+      updateShellExpanded(guidedTheme);
     });
     return () => { cancelled = true; };
-  }, [guidedThemeStep, updateShellExpanded]);
+  }, [guidedShellStep, guidedTheme, updateShellExpanded]);
 
   function closeMobileSidebar() {
     setMobileOpen(false);
@@ -264,7 +266,6 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   const assistantHref = buildHref("/assistant");
   const onAssistantPage = activeRoot === "/assistant";
   const mobileAssistantActive = pendingMobileHref ? pendingMobileHref === assistantHref : onAssistantPage;
-  const habitsImmersive = activeRoot === "/habits";
   const mobileAssistantClass = "mobile-nav-item mobile-nav-assistant " + (mobileAssistantActive ? "is-active" : "");
   const mobileAssistantPending = pendingMobileHref === assistantHref;
   const mobileAssistantContent = (
@@ -370,12 +371,11 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
         </div>
       </aside>
 
-      {!habitsImmersive && (
-        <nav
-          data-no-pull-refresh="true"
-          className="jarvis-mobile-nav relative order-last z-40 shrink-0 lg:hidden"
-          aria-label="Primary mobile navigation"
-        >
+      <nav
+        data-no-pull-refresh="true"
+        className="jarvis-mobile-nav relative order-last z-40 shrink-0 lg:hidden"
+        aria-label="Primary mobile navigation"
+      >
           <div className="jarvis-mobile-nav-row mx-auto grid max-w-xl grid-cols-5 gap-1">
             <MobileBarLink
               item={mobileLinks[0]}
@@ -426,8 +426,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
               <span className="mobile-nav-label">More</span>
             </button>
           </div>
-        </nav>
-      )}
+      </nav>
 
       {mobileVisible && (
         <div data-no-pull-refresh="true" className="fixed inset-0 z-50 flex bg-slate-950/50 backdrop-blur-sm mobile-sidebar-overlay lg:hidden">
@@ -437,8 +436,8 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
             aria-modal="true"
             aria-labelledby="mobile-navigation-title"
             tabIndex={-1}
-            data-guide-shell={guidedTheme || undefined}
-            className={"mobile-sidebar theme-modal flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] px-6 py-8 text-sm shadow-[24px_0_80px_rgba(2,6,23,0.45)] " + (guidedTheme ? "is-guided-theme" : "")}
+            data-guide-shell={guidedShell || undefined}
+            className={"mobile-sidebar theme-modal flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] px-6 py-8 text-sm shadow-[24px_0_80px_rgba(2,6,23,0.45)] " + (guidedTheme ? "is-guided-theme" : guidedShell ? "is-guided-navigation" : "")}
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
               paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
@@ -452,7 +451,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
                 onClick={closeMobileSidebar}
                 className="min-h-10 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70"
               >
-                {guidedTheme ? "Close tour" : "Close"}
+                {guidedTheme ? "Close tour" : guidedShell ? "Close menu" : "Close"}
               </button>
             </div>
             <nav hidden={guidedTheme} className={guidedTheme ? "hidden" : "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain"}>
@@ -471,7 +470,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
               syncStatus={syncStatus}
               onRefresh={refreshRemoteState}
             />
-            {guidedTheme && <WalkthroughCoach inMobileSidebar />}
+            {guidedShell && <WalkthroughCoach inMobileSidebar />}
           </div>
           <button type="button" className="h-full flex-1" onClick={closeMobileSidebar}>
             <span className="sr-only">Close menu</span>

@@ -90,16 +90,27 @@ test("all module routes have a guide, including both planner URLs", () => {
   }
 });
 
-test("quick start teaches quick settings and its collapse before daily tracking and Review", () => {
+test("guided first day teaches every core workflow in small targeted steps", () => {
   const guide = userGuides.find((item) => item.id === "essentials")!;
-  assert.deepEqual(guide.steps.slice(0, 3).map((step) => step.shell), ["theme", "theme", "theme-collapse"]);
-  assert.ok(guide.steps.slice(0, 3).every((step) => step.route === "/v2"));
-  assert.equal(guide.steps[2].target, '[data-guide="quick-theme-toggle"]');
-  assert.deepEqual(guide.steps.slice(3).map((step) => step.route), [
-    "/v2/must-win", "/v2/daily", "/v2/habits", "/v2/sleep", "/v2/mood", "/v2/review",
-  ]);
+  assert.equal(guide.title, "Guided first day");
+  assert.equal(guide.steps.length, 31);
+  assert.deepEqual(guide.steps.slice(0, 3).map((step) => step.shell), ["theme", "theme", "navigation"]);
+  assert.match(guide.steps[2].target!, /Collapse sidebar/);
+  assert.match(guide.steps[2].target!, /data-sidebar-close/);
+  assert.deepEqual(Object.fromEntries(["/v2", "/v2/must-win", "/v2/daily", "/v2/habits", "/v2/sleep", "/v2/mood", "/v2/review"].map(
+    (route) => [route, guide.steps.filter((step) => step.route === route).length],
+  )), {
+    "/v2": 4,
+    "/v2/must-win": 1,
+    "/v2/daily": 6,
+    "/v2/habits": 6,
+    "/v2/sleep": 4,
+    "/v2/mood": 4,
+    "/v2/review": 6,
+  });
+  assert.ok(guide.steps.filter((step) => step.event).every((step) => step.success));
   assert.ok(guide.steps.every((step) => step.target && step.anchor?.label));
-  assert.ok(guide.minutes <= 3);
+  assert.equal(guide.minutes, 11);
 });
 
 test("retired page guides cannot be discovered or restored", () => {

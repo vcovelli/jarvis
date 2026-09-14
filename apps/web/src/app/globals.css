@@ -270,11 +270,11 @@ body.scroll-locked .jarvis-page-viewport {
     scrollbar-gutter: stable;
   }
 
-  .jarvis-page-viewport:is([data-workspace="daily"], [data-workspace="todos"], [data-workspace="habits"]) {
+  .jarvis-page-viewport:is([data-workspace="daily"], [data-workspace="todos"]) {
     overflow-y: hidden;
   }
 
-  .jarvis-page-viewport:is([data-workspace="daily"], [data-workspace="todos"], [data-workspace="habits"]) > .jarvis-pull-content {
+  .jarvis-page-viewport:is([data-workspace="daily"], [data-workspace="todos"]) > .jarvis-pull-content {
     flex: 1 1 0%;
     min-height: 0;
   }
@@ -2272,32 +2272,154 @@ body[data-theme="light"] .theme-shell .mobile-todos-input {
   }
 }
 
-/* Guidance owns a row in the workspace, leaving page controls usable above it. */
+/* Compact walkthrough popover. Its position follows the highlighted control. */
 .walkthrough-coach {
-  position: relative;
-  z-index: 31;
-  flex: 0 0 auto;
-  min-width: 0;
-  max-height: min(45dvh, 22rem);
+  position: fixed;
+  z-index: 60;
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  left: 50%;
+  width: min(22rem, calc(100vw - 1.5rem));
+  max-height: min(22rem, calc(100dvh - 1.5rem));
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.75rem max(1rem, env(safe-area-inset-right, 0px)) 0.75rem max(1rem, env(safe-area-inset-left, 0px));
-  border-top: 1px solid var(--border);
-  background: var(--surface-strong);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.14);
+  padding: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 52%, var(--border)) !important;
+  border-radius: 1.1rem;
+  transform: translateX(-50%);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.34), 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent) !important;
+  animation: walkthrough-coach-enter 170ms ease-out;
+  transition: left 140ms ease, top 140ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.walkthrough-coach.is-positioned { transform: none; }
+.walkthrough-coach.is-complete {
+  border-color: color-mix(in srgb, #34d399 64%, var(--border)) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3), 0 0 20px rgba(52, 211, 153, 0.16) !important;
+}
+.walkthrough-coach-progress {
+  height: 0.22rem;
+  overflow: hidden;
+  margin: -0.05rem 0 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+.walkthrough-coach-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 260ms ease;
 }
 .walkthrough-coach-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
-.walkthrough-coach-body { margin-top: 0.6rem; }
-.walkthrough-coach-footer { margin-top: 0.5rem; }
-.walkthrough-coach-footer > p { margin-bottom: 0.5rem; }
-.walkthrough-coach-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.walkthrough-coach button, .walkthrough-dialog button { min-height: 2.75rem; }
-.walkthrough-all-guides { margin-left: auto; }
+.walkthrough-coach-state {
+  color: color-mix(in srgb, var(--accent) 74%, var(--foreground));
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.walkthrough-coach.is-complete .walkthrough-coach-state { color: color-mix(in srgb, #34d399 76%, var(--foreground)); }
+.walkthrough-coach-icon,
+.walkthrough-coach-close {
+  min-height: 2rem !important;
+  border-radius: 0.65rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.walkthrough-coach-icon { padding: 0.3rem 0.55rem; }
+.walkthrough-coach-close {
+  width: 2rem;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.walkthrough-coach-icon:hover,
+.walkthrough-coach-close:hover { background: color-mix(in srgb, var(--foreground) 8%, transparent); color: var(--foreground); }
+.walkthrough-coach-count {
+  margin-top: 0.12rem;
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+.walkthrough-coach-title {
+  margin-top: 0.55rem;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.walkthrough-coach-body { margin-top: 0.4rem; }
+.walkthrough-coach-prompt {
+  display: grid;
+  grid-template-columns: 1.45rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface));
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.walkthrough-coach-prompt > span {
+  display: grid;
+  height: 1.45rem;
+  width: 1.45rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast, #020617);
+  font-weight: 900;
+}
+.walkthrough-coach-feedback {
+  margin-top: 0.4rem;
+  color: color-mix(in srgb, var(--accent) 72%, var(--foreground));
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.walkthrough-coach-feedback.is-complete { color: color-mix(in srgb, #34d399 78%, var(--foreground)); }
+.walkthrough-coach-ready {
+  margin-top: 0.55rem;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 65%, var(--border));
+  padding-left: 0.6rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+.walkthrough-coach-takeaway {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  gap: 0.55rem;
+  border-radius: 0.8rem;
+  padding: 0.65rem;
+  background: color-mix(in srgb, #34d399 11%, var(--surface));
+  color: var(--foreground);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.walkthrough-coach-takeaway > span {
+  display: grid;
+  height: 1.5rem;
+  width: 1.5rem;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, #34d399 78%, var(--surface));
+  color: #052e24;
+  font-weight: 900;
+}
+.walkthrough-coach-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+.walkthrough-coach-footer > button { min-height: 2.25rem; }
 .walkthrough-modal-layer.theme-shell {
   position: fixed;
   inset: 0;
@@ -2321,29 +2443,38 @@ body[data-theme="light"] .theme-shell .mobile-todos-input {
 }
 [data-guide-highlight="true"]:not([data-guide-anchored="true"]) {
   outline: 3px solid var(--accent) !important;
-  outline-offset: 3px;
+  outline-offset: 4px;
+  animation: walkthrough-target-pulse 1.4s ease-in-out infinite;
 }
-body[data-walkthrough-active="true"] .planner-add-button {
-  bottom: calc(var(--jarvis-mobile-nav-height) + var(--walkthrough-coach-height, 0px) + 1rem);
+@keyframes walkthrough-coach-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-@media (min-width: 1024px) {
-  .walkthrough-coach { padding: 0.85rem 1.5rem; }
-  .walkthrough-coach-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-  .walkthrough-coach-actions { flex-shrink: 0; }
+@keyframes walkthrough-target-pulse {
+  0%, 100% { outline-offset: 3px; }
+  50% { outline-offset: 7px; }
+}
+@media (max-width: 1023px) {
+  .walkthrough-coach {
+    width: min(19.5rem, calc(100vw - 1rem));
+    max-height: min(18rem, calc(100dvh - 1rem));
+    padding: 0.7rem;
+  }
+  .walkthrough-coach-explanation { font-size: 0.78rem; line-height: 1.4; }
 }
 @media (max-width: 380px) {
-  .walkthrough-all-guides { display: none; }
-  .walkthrough-coach-actions > button { flex: 1 1 auto; }
+  .walkthrough-coach { width: min(18.5rem, calc(100vw - 0.75rem)); }
 }
-@media (max-height: 500px) {
-  .walkthrough-coach { max-height: 42dvh; }
+@media (max-height: 560px) {
+  .walkthrough-coach { max-height: min(14rem, calc(100dvh - 0.75rem)); }
   .walkthrough-dialog { padding: 1rem; }
 }
+
 
 /* Anchors never intercept taps or cover the persistent explanation/navigation. */
 .walkthrough-spotlight {
   position: fixed;
-  z-index: 32;
+  z-index: 55;
   overflow: hidden;
   pointer-events: none;
 }
@@ -2351,11 +2482,11 @@ body[data-walkthrough-active="true"] .planner-add-button {
   position: absolute;
   border: 2px solid var(--accent);
   border-radius: 0.75rem;
-  box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.16);
+  box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.18), 0 0 22px color-mix(in srgb, var(--accent) 42%, transparent);
 }
 .walkthrough-anchor {
   position: fixed;
-  z-index: 33;
+  z-index: 56;
   pointer-events: none;
   border: 1px solid var(--accent);
   border-radius: 0.75rem;
@@ -2410,14 +2541,8 @@ body[data-walkthrough-active="true"] .planner-add-button {
   background: var(--surface-strong);
   border-radius: 1rem;
 }
-.is-guided-theme .walkthrough-coach {
-  max-height: 48dvh;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-}
-.is-guided-theme .walkthrough-spotlight { z-index: 51; }
-.is-guided-theme .walkthrough-anchor { z-index: 52; }
+.is-guided-theme .walkthrough-spotlight { z-index: 55; }
+.is-guided-theme .walkthrough-anchor { z-index: 56; }
 .is-guided-theme .walkthrough-all-guides { display: none; }
 @media (max-height: 500px) and (max-width: 1023px) {
   .mobile-sidebar.is-guided-theme {
@@ -2427,6 +2552,5 @@ body[data-walkthrough-active="true"] .planner-add-button {
     grid-template-rows: auto minmax(0, 1fr);
   }
   .is-guided-theme > div:first-child { grid-column: 1 / -1; }
-  .is-guided-theme > .quick-theme-controls,
-  .is-guided-theme .walkthrough-coach { height: 100%; max-height: none; }
+  .is-guided-theme > .quick-theme-controls { height: 100%; max-height: none; }
 }

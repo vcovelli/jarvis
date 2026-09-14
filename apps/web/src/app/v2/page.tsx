@@ -12,17 +12,16 @@ import {
   MoodLog,
   MoodTag,
   OperatingMode,
-  DailyReviewReason,
   TodoItem,
   TodoPriority,
   SleepEntry,
-  dayKeyToDate,
   getDayKey,
   useJarvisState,
 } from "@/lib/jarvisStore";
 import { formatTodoTimeWindow } from "@/lib/timeDisplay";
 import { useWalkthrough } from "@/components/onboarding/WalkthroughProvider";
 import { useToast } from "@/components/Toast";
+import { DailyReview } from "@/components/DailyReview";
 
 const journalPromptCopy: Record<JournalPrompt, string> = {
   morning: "Morning scan: plan + intention",
@@ -35,12 +34,6 @@ const operatingModeOptions: Array<{ id: OperatingMode; label: string; emoji: str
   { id: "recovery", label: "Recovery", emoji: "🧘", blurb: "Recharge and protect energy." },
   { id: "maintenance", label: "Maintenance", emoji: "🧭", blurb: "Keep the system stable." },
   { id: "push-day", label: "Push Day", emoji: "🔥", blurb: "Stretch into a hard push." },
-];
-const reviewReasonOptions: Array<{ id: DailyReviewReason; label: string }> = [
-  { id: "overplanned", label: "Overplanned" },
-  { id: "low-energy", label: "Low energy" },
-  { id: "distraction", label: "Distraction" },
-  { id: "external-interruption", label: "External interruption" },
 ];
 type FocusKey = "mood" | "journal" | "todos" | "timeline" | "mustwin";
 type TimelineFilter = "all" | "today";
@@ -102,7 +95,6 @@ export default function Home() {
     setOperatingMode,
     setMustWin,
     toggleMustWin,
-    logDailyReview,
   } = useJarvisState();
   const { showToast } = useToast();
   const search = useSearchParams();
@@ -146,10 +138,6 @@ export default function Home() {
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("all");
   const [mustWinText, setMustWinText] = useState("");
   const [mustWinTime, setMustWinTime] = useState("");
-  const [reviewManuallyOpenedDay, setReviewManuallyOpenedDay] = useState<DayKey | null>(null);
-  const [reviewExpected, setReviewExpected] = useState<boolean | null>(null);
-  const [reviewReason, setReviewReason] = useState<DailyReviewReason | "">("");
-  const [reviewTomorrow, setReviewTomorrow] = useState("");
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [newTagValue, setNewTagValue] = useState("");
   const [collapsedPanels, setCollapsedPanels] = useState<Partial<Record<PanelKey, boolean>>>({});
@@ -237,10 +225,7 @@ export default function Home() {
       load: `${context.taskCount} task${context.taskCount === 1 ? "" : "s"}`,
     };
   }, [suggestedMode]);
-  const activeReviewDay = reviewManuallyOpenedDay ?? todayKey;
-  const activeReviewEntry = state.dailyReview[activeReviewDay];
-  const activeReviewDayLabel = formatDashboardReviewDay(activeReviewDay);
-  const reviewOpen = reviewManuallyOpenedDay !== null;
+
   const moodPanelCollapsed = Boolean(collapsedPanels.mood);
   const timelinePanelCollapsed = Boolean(collapsedPanels.timeline);
   const todosPanelCollapsed = Boolean(collapsedPanels.todos);
@@ -433,9 +418,14 @@ export default function Home() {
     }
 
     let cancelled = false;
+    let inFlight = false;
+    const controller = new AbortController();
     async function loadHomelabSummary() {
+      if (cancelled || inFlight || document.hidden || !navigator.onLine) return;
+      inFlight = true;
       try {
         const response = await fetch("/api/homelab/summary", {
+          signal: controller.signal,
           headers: { Accept: "application/json" },
           cache: "no-store",
         });
@@ -449,14 +439,22 @@ export default function Home() {
         if (cancelled) return;
         console.warn("Homelab summary load failed", error);
         setHomelabSummaryError("Homelab summary unavailable");
+      } finally {
+        inFlight = false;
       }
     }
+    const resume = () => { void loadHomelabSummary(); };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
     void loadHomelabSummary();
     const interval = window.setInterval(() => {
       void loadHomelabSummary();
     }, 45_000);
     return () => {
       cancelled = true;
+      controller.abort();
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", resume);
       window.clearInterval(interval);
     };
   }, [demoMode]);
@@ -523,34 +521,6 @@ export default function Home() {
     setMustWinText("");
     setMustWinTime("");
     showToast("Must Win locked");
-  }
-
-  function openReviewForDay(day: DayKey) {
-    const existingReview = state.dailyReview[day];
-    setReviewManuallyOpenedDay(day);
-    setReviewExpected(existingReview?.expected ?? null);
-    setReviewReason(existingReview?.reason ?? "");
-    setReviewTomorrow(existingReview?.tomorrow ?? "");
-  }
-
-  function handleReviewSubmit(event?: React.FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-    if (reviewExpected === null) return;
-    logDailyReview({
-      day: activeReviewDay,
-      expected: reviewExpected,
-      reason: reviewExpected
-        ? undefined
-        : reviewReason
-          ? (reviewReason as DailyReviewReason)
-          : undefined,
-      tomorrow: reviewTomorrow.trim() || undefined,
-    });
-    setReviewExpected(null);
-    setReviewReason("");
-    setReviewTomorrow("");
-    setReviewManuallyOpenedDay(null);
-    showToast("Review saved");
   }
 
   function togglePanelCollapse(panel: PanelKey) {
@@ -682,7 +652,7 @@ export default function Home() {
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
           {!activeWalkthrough && <button type="button" onClick={browse} className="theme-button-secondary rounded-xl px-4 py-2 text-sm font-semibold">User guide</button>}
         </header>
-      <section className="flex min-h-[calc(100dvh_-_var(--jarvis-mobile-nav-height)_-_2rem)] items-center lg:hidden">
+      <section data-guide="home-remote" className="flex min-h-[calc(100dvh_-_var(--jarvis-mobile-nav-height)_-_2rem)] items-center lg:hidden">
         <div className="theme-surface w-full rounded-[28px] p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -749,7 +719,7 @@ export default function Home() {
       </div>
 
       <section className="mobile-dashboard-detail grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
+        <div data-guide="home-command" className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Daily command center</p>
@@ -1298,151 +1268,8 @@ export default function Home() {
 
       </section>
 
-      <section className="mobile-dashboard-detail glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-medium text-white">End-of-day Review</h2>
-            <p className="mt-1 text-sm text-zinc-300">
-              30-second reflection to close the loop.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => openReviewForDay(todayKey)}
-            className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white"
-          >
-            {todaysReview ? "Edit / backfill" : "Start review"}
-          </button>
-        </div>
-        {todaysReview ? (
-          <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-4 text-sm text-zinc-200">
-            <p className="font-semibold text-white">
-              {todaysReview.expected ? "On track as expected." : "Did not go as planned."}
-            </p>
-            {!todaysReview.expected && todaysReview.reason && (
-              <p className="mt-2 text-xs uppercase tracking-[0.2em] text-zinc-400">
-                Reason: {todaysReview.reason.replace("-", " ")}
-              </p>
-            )}
-            {todaysReview.tomorrow && (
-              <p className="mt-3 text-sm text-zinc-300">
-                Tomorrow will be better if I {todaysReview.tomorrow}
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="mt-4 text-sm text-zinc-400">
-            Start it when you actually want to close the day.
-          </p>
-        )}
-      </section>
+      <DailyReview compact />
 
-      {reviewOpen && (
-        <div className="theme-overlay fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="theme-modal w-full max-w-lg rounded-3xl p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold">30-second review</h3>
-                <p className="mt-1 text-sm text-zinc-300">
-                  Writing for {activeReviewDayLabel}.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setReviewManuallyOpenedDay(null);
-                }}
-                className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70"
-              >
-                Close
-              </button>
-            </div>
-            <form className="mt-6 space-y-5" onSubmit={handleReviewSubmit}>
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-                  Review day
-                  <input
-                    type="date"
-                    value={activeReviewDay}
-                    onChange={(event) => {
-                      if (!event.target.value) return;
-                      openReviewForDay(event.target.value as DayKey);
-                    }}
-                    className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base font-semibold normal-case tracking-normal text-white outline-none focus:border-cyan-300/60"
-                  />
-                </label>
-                {activeReviewEntry && (
-                  <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-100">
-                    Saved
-                  </span>
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">Did this day go as expected?</p>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  {[
-                    { label: "Yes", value: true },
-                    { label: "No", value: false },
-                  ].map((option) => (
-                    <button
-                      key={option.label}
-                      type="button"
-                      onClick={() => {
-                        setReviewExpected(option.value);
-                        if (option.value) setReviewReason("");
-                      }}
-                      className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] ${
-                        reviewExpected === option.value
-                          ? "border-cyan-300/70 bg-cyan-300/20 text-white"
-                          : "border-white/10 text-zinc-300"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {reviewExpected === false && (
-                <div>
-                  <p className="text-sm font-semibold text-white">Main reason</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {reviewReasonOptions.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setReviewReason(option.id)}
-                        className={`rounded-2xl border px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] ${
-                          reviewReason === option.id
-                            ? "border-rose-300/70 bg-rose-300/10 text-white"
-                            : "border-white/10 text-zinc-300"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div>
-                <p className="text-sm font-semibold text-white">Tomorrow will be better if I…</p>
-                <textarea
-                  value={reviewTomorrow}
-                  onChange={(event) => setReviewTomorrow(event.target.value)}
-                  rows={3}
-                  className="mt-3 w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-                  placeholder="Finish the sentence."
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-900"
-              >
-                Save review
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
       {editingMood && (
         <div
           className="theme-overlay fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -1931,14 +1758,6 @@ function formatTimelineTime(timestamp: number) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  });
-}
-
-function formatDashboardReviewDay(day: DayKey) {
-  return dayKeyToDate(day).toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
   });
 }
 

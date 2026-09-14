@@ -1,8 +1,10 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { DailyReview } from "@/components/DailyReview";
+import { useToast } from "@/components/Toast";
 
-import { DailyReviewReason, DayKey, dayKeyToDate, getDayKey, useJarvisState } from "@/lib/jarvisStore";
+import { DayKey, getDayKey, useJarvisState } from "@/lib/jarvisStore";
 
 type WeekDayInsight = {
   day: DayKey;
@@ -28,13 +30,6 @@ type TagInsight = {
   avgMood: number;
   count: number;
 };
-
-const dailyReviewReasons: Array<{ id: DailyReviewReason; label: string }> = [
-  { id: "overplanned", label: "Overplanned" },
-  { id: "low-energy", label: "Low energy" },
-  { id: "distraction", label: "Distraction" },
-  { id: "external-interruption", label: "External interruption" },
-];
 
 type WeekSummary = {
   days: WeekDayInsight[];
@@ -62,18 +57,18 @@ type WeekSummary = {
 };
 
 export default function WeeklyReviewPage() {
-  const { state, hydrated, logDailyReview, saveWeeklyReview } = useJarvisState();
-  const todayKey = getDayKey();
+  const { hydrated } = useJarvisState();
+  return hydrated ? <ReviewContent /> : <p role="status" className="theme-muted">Loading review…</p>;
+}
+
+function ReviewContent() {
+  const { state, hydrated, saveWeeklyReview } = useJarvisState();
+  const { showToast } = useToast();
   const weekKey = useMemo(() => getWeekKey(), []);
   const weeklyReview = state.weeklyReview[weekKey];
   const [stop, setStop] = useState(weeklyReview?.stop ?? "");
   const [doubleDown, setDoubleDown] = useState(weeklyReview?.doubleDown ?? "");
   const [experiment, setExperiment] = useState(weeklyReview?.experiment ?? "");
-  const [selectedReviewDay, setSelectedReviewDay] = useState<DayKey>(todayKey);
-  const selectedDailyReview = state.dailyReview[selectedReviewDay];
-  const [dailyExpected, setDailyExpected] = useState<boolean | null>(selectedDailyReview?.expected ?? null);
-  const [dailyReason, setDailyReason] = useState<DailyReviewReason | "">(selectedDailyReview?.reason ?? "");
-  const [dailyTomorrow, setDailyTomorrow] = useState(selectedDailyReview?.tomorrow ?? "");
   const [mobileInsightsOpen, setMobileInsightsOpen] = useState(false);
 
   const summary = useMemo(() => buildWeekSummary(state), [state]);
@@ -83,27 +78,10 @@ export default function WeeklyReviewPage() {
     day.todosTotal ? day.todosDone / day.todosTotal : null,
   );
   const insightHighlights = useMemo(() => buildInsightHighlights(summary), [summary]);
-  const selectedReviewDayLabel = useMemo(() => formatFullDate(selectedReviewDay), [selectedReviewDay]);
-
-  function loadDailyReviewForDay(day: DayKey) {
-    const nextReview = state.dailyReview[day];
-    setSelectedReviewDay(day);
-    setDailyExpected(nextReview?.expected ?? null);
-    setDailyReason(nextReview?.reason ?? "");
-    setDailyTomorrow(nextReview?.tomorrow ?? "");
-  }
-
   function handleReviewSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (dailyExpected !== null) {
-      logDailyReview({
-        day: selectedReviewDay,
-        expected: dailyExpected,
-        reason: dailyExpected ? undefined : dailyReason || undefined,
-        tomorrow: dailyTomorrow.trim() || undefined,
-      });
-    }
     saveWeeklyReview({ weekKey, stop, doubleDown, experiment });
+    showToast("Weekly review recorded");
   }
 
   if (!hydrated) {
@@ -113,8 +91,13 @@ export default function WeeklyReviewPage() {
   return (
     <div className="flex flex-col gap-4 lg:gap-8">
       <header className="mobile-compact-header">
+        <h1 className="text-3xl font-semibold">Review</h1>
+        <p className="theme-muted mt-2 text-sm">Close the day. Carry the useful parts forward.</p>
+      </header>
+      <DailyReview />
+      <header className="mobile-compact-header mt-4">
         <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Weekly Systems Review</p>
-        <h1 className="mt-2 text-3xl font-semibold text-white">Weekly reset</h1>
+        <h2 className="mt-2 text-2xl font-semibold text-white">Weekly reset</h2>
       </header>
 
       <div className="lg:hidden">
@@ -368,17 +351,12 @@ export default function WeeklyReviewPage() {
       <section className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-medium text-white">Manual reset</h2>
+            <h2 className="text-lg font-medium text-white">Your next week</h2>
             <p className="mt-1 text-sm text-zinc-300">
-              Daily expectation check, then one stop, one double-down, one experiment.
+              One thing to stop, one to keep, and one experiment to try.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {selectedDailyReview && (
-              <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-100">
-                Day saved
-              </span>
-            )}
             {weeklyReview && (
               <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70">
                 Week saved
@@ -386,87 +364,7 @@ export default function WeeklyReviewPage() {
             )}
           </div>
         </div>
-        <form data-guide="review-form" className="mt-6 grid gap-6" onSubmit={handleReviewSubmit}>
-          <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-              Day
-              <input
-                type="date"
-                value={selectedReviewDay}
-                onChange={(event) => {
-                  if (!event.target.value) return;
-                  loadDailyReviewForDay(event.target.value as DayKey);
-                }}
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base font-semibold normal-case tracking-normal text-white outline-none focus:border-cyan-300/60"
-              />
-            </label>
-            <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Writing for</p>
-              <p className="mt-1 text-lg font-semibold text-white">{selectedReviewDayLabel}</p>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-cyan-300/15 bg-cyan-300/[0.055] p-4">
-            <div>
-              <p className="text-sm font-semibold text-white">Did this day go as expected?</p>
-              <div className="mt-3 flex flex-wrap gap-3">
-                {[
-                  { label: "Yes", value: true },
-                  { label: "No", value: false },
-                ].map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    onClick={() => {
-                      setDailyExpected(option.value);
-                      if (option.value) setDailyReason("");
-                    }}
-                    className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] ${
-                      dailyExpected === option.value
-                        ? "border-cyan-300/70 bg-cyan-300/20 text-white"
-                        : "border-white/10 text-zinc-300 hover:border-white/20 hover:text-white"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {dailyExpected === false && (
-              <div className="mt-4">
-                <p className="text-sm font-semibold text-white">Main reason</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  {dailyReviewReasons.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setDailyReason(option.id)}
-                      className={`rounded-2xl border px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] ${
-                        dailyReason === option.id
-                          ? "border-rose-300/70 bg-rose-300/10 text-white"
-                          : "border-white/10 text-zinc-300 hover:border-white/20 hover:text-white"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <label className="mt-4 grid gap-2 text-sm font-semibold text-white">
-              Tomorrow will be better if I...
-              <textarea
-                value={dailyTomorrow}
-                onChange={(event) => setDailyTomorrow(event.target.value)}
-                rows={3}
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-normal text-white placeholder:text-zinc-500"
-                placeholder="Finish the sentence for this day."
-              />
-            </label>
-          </div>
-
+        <form data-guide="weekly-review-form" className="mt-6 grid gap-6" onSubmit={handleReviewSubmit}>
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
@@ -510,21 +408,12 @@ export default function WeeklyReviewPage() {
             type="submit"
             className="w-full rounded-full bg-cyan-300 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-900"
           >
-            Save review
+            Save weekly review
           </button>
         </form>
       </section>
     </div>
   );
-}
-
-function formatFullDate(day: DayKey) {
-  return dayKeyToDate(day).toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function InsightCard({

@@ -2786,6 +2786,7 @@ function TaskPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-panel-title"
+        data-guide="task-editor"
         className="theme-modal mobile-todos-drawer h-full w-full max-w-md overflow-y-auto p-6 shadow-2xl sm:rounded-l-3xl lg:max-w-2xl"
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)",
@@ -2801,6 +2802,7 @@ function TaskPanel({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close task editor"
             className="rounded-full border border-white/20 px-2 py-1 text-sm text-white/70 hover:text-white"
           >
             Close
@@ -2813,7 +2815,7 @@ function TaskPanel({
             onSubmit();
           }}
         >
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+          <section data-guide="task-basics" className="rounded-3xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-2xl text-white">
                 {getTaskIconSymbol(icon, text)}
@@ -2854,9 +2856,9 @@ function TaskPanel({
               </div>
             )}
           </section>
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+          <section data-guide="task-schedule" className="rounded-3xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Schedule</p>
+              <p data-guide="task-schedule-label" className="text-xs uppercase tracking-[0.3em] text-zinc-400">Schedule</p>
               <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
                 {durationMinutes ? `${durationMinutes}m` : "No duration"}
               </span>
@@ -2964,9 +2966,9 @@ function TaskPanel({
               </div>
             )}
           </section>
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+          <section data-guide="task-style" className="rounded-3xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Style</p>
+              <p data-guide="task-style-label" className="text-xs uppercase tracking-[0.3em] text-zinc-400">Style</p>
               <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">Suggested</span>
             </div>
             <div className="mt-4 space-y-4">
@@ -2993,6 +2995,7 @@ function TaskPanel({
           </section>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
+              data-guide="task-save"
               type="submit"
               className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-4 py-3 text-sm font-semibold text-zinc-900"
             >

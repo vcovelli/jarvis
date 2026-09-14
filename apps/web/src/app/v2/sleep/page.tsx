@@ -434,7 +434,7 @@ export default function SleepPage() {
         </div>
 
         <div className="mt-6 grid gap-5 sm:gap-6 lg:grid-cols-2 lg:items-stretch">
-          <div className="order-1 flex flex-col items-center gap-6 rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-5 lg:h-full lg:min-h-[520px]">
+          <div data-guide="sleep-window" className="order-1 flex flex-col items-center gap-6 rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-5 lg:h-full lg:min-h-[520px]">
             <SleepClock startMinutes={startMinutes} endMinutes={endMinutes} onChange={handleClockChange} />
           </div>
 
@@ -527,7 +527,7 @@ export default function SleepPage() {
                   suffix={`/5`}
                 />
               </div>
-              <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+              <div data-guide="sleep-notes" className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
                 <textarea
                   value={dreams}
                   onChange={(event) => setDreams(event.target.value)}
@@ -797,6 +797,7 @@ function SleepClock({ startMinutes, endMinutes, onChange }: SleepClockProps) {
     <div className="flex w-full flex-col items-center gap-6">
       <div
         ref={dialRef}
+        data-guide="sleep-clock"
         className="relative mx-auto aspect-square w-full max-w-[320px] select-none touch-none sm:max-w-[340px]"
         style={{ overscrollBehavior: "contain" }}
         onTouchMove={(event) => {

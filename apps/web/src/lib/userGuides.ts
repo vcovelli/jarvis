@@ -12,8 +12,10 @@ export type GuideStep = {
   /** Optional control group whose interactions count toward this step. */
   interactionTarget?: string;
   /** Opens the actual quick settings controls, including the mobile drawer. */
-  shell?: "theme" | "theme-collapse";
+  shell?: "theme" | "navigation";
   practice?: string;
+  /** Short recap shown after the user completes the real action. */
+  success?: string;
   event?: "click" | "input" | "change";
 };
 
@@ -29,122 +31,308 @@ export type UserGuide = {
 export const userGuides: UserGuide[] = [
   {
     "id": "essentials",
-    "title": "Quick start",
-    "description": "Try your theme, clear some space, and see how small daily entries add up.",
+    "title": "Guided first day",
+    "description": "A guided first day: learn every core control, practice safely, and understand what each signal becomes.",
     "category": "Start here",
-    "minutes": 3,
+    "minutes": 11,
     "steps": [
       {
         "id": "theme-start",
         "title": "First, make it feel like yours",
-        "body": "Quick settings changes the whole app instantly. Try Light, Dark, or High Contrast here. Your choice saves automatically.",
-        "compactBody": "This is Quick settings, inside More. Try Light, Dark, or High Contrast and watch the app change. Your choice saves automatically.",
+        "body": "Quick settings changes the whole app instantly. Mode controls brightness and contrast; it does not change your data. You can return here whenever your environment or eyesight needs something different.",
+        "compactBody": "Quick settings lives inside More. Mode controls brightness and contrast without changing your data.",
         "route": "/v2",
         "target": "[data-guide=\"quick-theme-mode\"]",
         "interactionTarget": "[data-guide=\"quick-theme-mode\"] button",
-        "anchor": {
-          "label": "Choose your brightness. Try as many as you like.",
-          "placement": "top"
-        },
+        "anchor": { "label": "Choose Light, Dark, or High Contrast.", "placement": "top" },
+        "success": "You changed the display mode. This setting follows you through Jarvis, and you can change it again from Quick settings at any time.",
         "event": "click",
         "shell": "theme"
       },
       {
         "id": "theme-palette",
-        "title": "Give it your color",
-        "body": "Choose a color palette. It works with the mode you just picked, so you can make Jarvis comfortable to use every day.",
+        "title": "Give the interface your color",
+        "body": "Palette controls the accent color used for highlights, progress, and active controls. It works together with the brightness mode you just chose.",
         "route": "/v2",
         "target": "[data-guide=\"quick-theme-palette\"]",
         "interactionTarget": "[data-guide=\"quick-theme-palette\"] button",
-        "anchor": {
-          "label": "Tap a color to preview it across Jarvis.",
-          "placement": "top"
-        },
+        "anchor": { "label": "Try one palette and watch the highlights change.", "placement": "top" },
+        "success": "Mode controls brightness; palette controls color. Together they define how Jarvis looks without affecting how anything works.",
         "event": "click",
         "shell": "theme"
       },
       {
         "id": "theme-collapse",
-        "title": "Keep the look. Clear some space.",
-        "body": "Choose Hide on Quick settings to tuck the color controls away. Your look stays saved. Use Show in the sidebar whenever you want to change it again.",
-        "compactBody": "Choose Hide on Quick settings to tuck the colors away. Your look stays saved. Later, open More → Quick settings → Show to change it again.",
+        "title": "Learn the real navigation",
+        "body": "The sidebar is the map for the whole app. On desktop, collapse it when you want more space and use Nav to bring it back. On mobile, More opens this same list of pages.",
+        "compactBody": "More opens the full Jarvis page list. Closing it returns you to the page; the bottom bar keeps your most-used areas nearby.",
         "route": "/v2",
-        "target": "[data-guide=\"quick-theme-toggle\"]",
-        "anchor": {
-          "label": "Hide folds these controls away. Show brings them back.",
-          "placement": "top"
-        },
+        "target": "button[aria-label=\"Collapse sidebar\"], [data-sidebar-close]",
+        "interactionTarget": "button[aria-label=\"Collapse sidebar\"], [data-sidebar-close]",
+        "anchor": { "label": "Collapse the sidebar or close the More menu.", "placement": "bottom" },
+        "success": "You used the actual navigation control. Use Nav on desktop or More on mobile whenever you need the full page list again.",
         "event": "click",
-        "shell": "theme-collapse"
+        "shell": "navigation"
+      },
+      {
+        "id": "home-overview",
+        "title": "Read Home as a command center",
+        "body": "Home is a quick remote, not another form to maintain. Recommended points to the next useful action, while the shortcuts take you directly to the daily tools. The detailed dashboard is there when you want more context.",
+        "compactBody": "Home is a quick remote. Recommended suggests the next useful action, and the shortcuts jump directly to daily tools.",
+        "route": "/v2",
+        "target": "[data-guide=\"home-remote\"], [data-guide=\"home-command\"]",
+        "anchor": { "label": "Home summarizes what may need attention next.", "placement": "bottom" }
       },
       {
         "id": "must-win-start",
-        "title": "Start small: choose one win",
-        "body": "You don’t need to fill every page. Must Win is the one outcome that would make today count. Write a clear finish line; it saves when you leave the form.",
+        "title": "Give today one finish line",
+        "body": "Must Win is the single result that would make the day count. A concrete result such as ‘Send the proposal’ is easier to finish than a broad intention such as ‘Work on sales.’ This field saves when you leave it; use the demo walkthrough when you only want to practice.",
         "route": "/v2/must-win",
         "target": "[data-guide=\"must-win-input\"]",
-        "anchor": {
-          "label": "What is the one thing you want to finish today?"
-        },
+        "anchor": { "label": "Type one concrete result for today." },
+        "success": "That sentence is your day’s finish line. Jarvis can now show it beside the rest of your plan so urgent work does not bury the outcome that matters most.",
         "event": "input"
       },
       {
         "id": "todos-start",
-        "title": "Plan holds everything else",
-        "body": "Use New to add a task or a time block. Leave a task unscheduled in Mind Sweep until you’re ready to plan it. Opening the editor does not save a task.",
-        "compactBody": "Use + to add a task. Keep it in Mind Sweep for later, or give it a time in Schedule. Opening the editor does not save a task.",
+        "title": "Open Plan for everything else",
+        "body": "Plan holds tasks and time blocks around your Must Win. Mind Sweep is for things you have captured but have not scheduled. The plus button opens the full task editor.",
+        "compactBody": "Plan holds everything around your Must Win. The plus button opens the full task editor.",
         "route": "/v2/daily",
         "target": "[data-guide=\"plan-add\"]",
-        "anchor": {
-          "label": "Open the task editor. Save only when you’re ready.",
-          "placement": "top"
-        },
+        "anchor": { "label": "Open the task editor with the plus button.", "placement": "top" },
+        "success": "You opened the editor. Opening it creates nothing yet; the next step shows what is inside and how to leave safely.",
+        "event": "click"
+      },
+      {
+        "id": "todos-basics",
+        "title": "Start with a name you can finish",
+        "body": "The task name is the only essential field. Write it as a visible action such as ‘Email the revised quote’ instead of a broad category such as ‘Sales.’ You can reuse a recent task when the work repeats.",
+        "compactBody": "The name is the only essential field. Use a visible action so you know exactly what finished means.",
+        "route": "/v2/daily",
+        "target": "[data-guide=\"task-basics\"] input",
+        "anchor": { "label": "A clear action belongs in the name field." }
+      },
+      {
+        "id": "todos-schedule",
+        "title": "Schedule only when timing helps",
+        "body": "Date chooses the day. Start, end, and duration turn the task into a time block. Leaving time empty keeps it in Mind Sweep, while priority and repeat rules help when the work truly needs them.",
+        "compactBody": "Date chooses the day. Time creates a scheduled block; leaving it empty keeps the task in Mind Sweep.",
+        "route": "/v2/daily",
+        "target": "[data-guide=\"task-schedule-label\"]",
+        "anchor": { "label": "Schedule is optional; Mind Sweep can hold the task first." }
+      },
+      {
+        "id": "todos-style",
+        "title": "Use style as a scanning aid",
+        "body": "Color and icon help you recognize categories quickly on a busy day. They are visual aids, not required metadata, so keep the defaults when styling would slow you down.",
+        "route": "/v2/daily",
+        "target": "[data-guide=\"task-style-label\"]",
+        "anchor": { "label": "Color and icon are optional visual shortcuts." }
+      },
+      {
+        "id": "todos-save",
+        "title": "Know exactly when a task is created",
+        "body": "Nothing in this editor is created until you choose Add task. That lets you inspect or abandon a draft safely. For this walkthrough, continue to the Close step without saving.",
+        "route": "/v2/daily",
+        "target": "[data-guide=\"task-save\"]",
+        "anchor": { "label": "Add task is the save point." }
+      },
+      {
+        "id": "todos-editor",
+        "title": "See what makes a task actionable",
+        "body": "A task needs a clear name. Date, time, duration, priority, repeat rules, color, and icon are optional tools for planning it. Add task saves it; Close leaves without creating anything.",
+        "compactBody": "Name is the only essential field. Scheduling and styling are optional. Close leaves without saving.",
+        "route": "/v2/daily",
+        "target": "button[aria-label=\"Close task editor\"]",
+        "interactionTarget": "button[aria-label=\"Close task editor\"]",
+        "anchor": { "label": "Close this practice editor without saving." },
+        "success": "You left the editor without creating a task. When you do want to keep one, enter a name and choose Add task.",
         "event": "click"
       },
       {
         "id": "habits-start",
-        "title": "Build one repeatable habit",
-        "body": "Add habit creates a routine and its schedule. Start with something small, then mark each day you do it. The history helps you see your consistency.",
+        "title": "Use Habits for repeated behavior",
+        "body": "Tasks are finished once; habits are behaviors you want to repeat and measure over time. Add habit opens the setup for a small routine.",
         "route": "/v2/habits",
         "target": "button[aria-label=\"Add habit\"]",
-        "anchor": {
-          "label": "Add one small routine you want to repeat."
-        },
+        "anchor": { "label": "Open Add habit to see the setup." },
+        "success": "You opened the habit setup. The next step explains the choices before you decide whether to save anything.",
         "event": "click"
       },
       {
+        "id": "habits-name",
+        "title": "Name a behavior, not an ambition",
+        "body": "A useful habit describes something observable: ‘Read 10 pages’ is easier to track than ‘Become a reader.’ The icon and group help organize the list but do not change the tracking.",
+        "compactBody": "Name one observable behavior. Icon and group only help organize the list.",
+        "route": "/v2/habits",
+        "target": "[data-guide=\"habit-name\"] input",
+        "anchor": { "label": "Use a small behavior you can clearly mark Yes or No." }
+      },
+      {
+        "id": "habits-direction",
+        "title": "Choose Build or Quit",
+        "body": "Build tracks a behavior you want to repeat. Quit tracks a behavior you want to avoid. Both use the same daily Yes, No, and Skip history, but the direction keeps the goal easy to understand.",
+        "compactBody": "Build means repeat it; Quit means avoid it. Both create the same daily check-in history.",
+        "route": "/v2/habits",
+        "target": "[data-guide=\"habit-intent\"]",
+        "anchor": { "label": "Direction explains what success means for this habit." }
+      },
+      {
+        "id": "habits-save",
+        "title": "Saving creates the habit chain",
+        "body": "Add creates the habit and places it in the tracker. You can edit or archive it later. Continue without saving this practice draft; the next step shows how Close behaves.",
+        "route": "/v2/habits",
+        "target": "[data-guide=\"habit-save\"]",
+        "anchor": { "label": "Add is the save point for a new habit." }
+      },
+      {
+        "id": "habits-editor",
+        "title": "Make the behavior easy to repeat",
+        "body": "Give the habit a short name, then choose Build for something you want to do or Quit for something you are avoiding. Groups and icons make a longer list easier to scan.",
+        "compactBody": "Use Build for something to repeat and Quit for something to avoid. A short, specific name is easiest to track.",
+        "route": "/v2/habits",
+        "target": "button[aria-label=\"Close habit editor\"]",
+        "interactionTarget": "button[aria-label=\"Close habit editor\"]",
+        "anchor": { "label": "Close this practice editor without saving." },
+        "success": "You now know how habit setup works. Saving creates the chain; closing lets you inspect it without adding anything.",
+        "event": "click"
+      },
+      {
+        "id": "habits-tracking",
+        "title": "Mark the selected day deliberately",
+        "body": "The selected day controls which check-in you update. Yes records completion, No records a miss, and Skip stays neutral. Future days cannot be marked, and an untouched past day remains unlogged rather than silently becoming No.",
+        "compactBody": "Select the day first. Yes completes it, No records a miss, and Skip stays neutral.",
+        "route": "/v2/habits",
+        "target": "[data-guide=\"habit-actions\"], .jarvis-page-viewport",
+        "anchor": { "label": "Day selection and status buttons build the history." }
+      },
+      {
+        "id": "sleep-window",
+        "title": "Set the night before rating it",
+        "body": "The sleep clock defines bedtime and wake time, including windows that cross midnight. Check the date and duration label so the entry lands on the night you mean to record.",
+        "compactBody": "Set bedtime and wake time, then check the date and duration—especially across midnight.",
+        "route": "/v2/sleep",
+        "target": "[data-guide=\"sleep-clock\"]",
+        "anchor": { "label": "The clock sets the sleep window." }
+      },
+      {
         "id": "sleep-start",
-        "title": "Check in with your sleep",
-        "body": "Set bedtime and wake time, then rate how restful the night felt. Choose Log sleep to save. A few regular entries give you a recovery history to look back on.",
+        "title": "Turn sleep into a useful signal",
+        "body": "Sleep combines the time window with how the night felt. Quality is your personal rating, so consistency matters more than choosing a ‘correct’ number.",
         "route": "/v2/sleep",
         "target": "[data-guide=\"sleep-quality\"] input",
-        "anchor": {
-          "label": "Rate the night, then use Log sleep to save."
-        },
+        "anchor": { "label": "Move the quality slider once." },
+        "success": "The quality rating adds context that hours alone cannot show. Over time, Review can compare this signal with mood and completion.",
         "event": "input"
+      },
+      {
+        "id": "sleep-context",
+        "title": "Add only the sleep context you will use",
+        "body": "Recovery is a second personal rating for how restored you feel. Dreams and notes are optional places for details such as interruptions, exercise, illness, or anything you may want to compare later.",
+        "compactBody": "Recovery rates how restored you feel. Dreams and notes are optional context for later review.",
+        "route": "/v2/sleep",
+        "target": "[data-guide=\"sleep-notes\"]",
+        "anchor": { "label": "Context is optional; the time window and ratings are enough." }
+      },
+      {
+        "id": "sleep-save",
+        "title": "Know when a sleep entry is saved",
+        "body": "The editor is only a draft until you choose Log sleep. Check the date and time window before saving, especially when sleep crosses midnight. You do not need to save during this tour.",
+        "route": "/v2/sleep",
+        "target": "[data-guide=\"sleep-save\"]",
+        "anchor": { "label": "Log sleep is the save point." }
       },
       {
         "id": "mood-start",
-        "title": "Give the day some context",
-        "body": "Move the slider to capture how you feel right now, then choose Log mood to save. Your mood history adds context alongside your sleep and daily progress.",
+        "title": "Add context with a quick mood check-in",
+        "body": "Mood is a snapshot from 1 to 10, not a grade to maximize. A fast honest number is useful; notes and tags are optional when context would help later.",
         "route": "/v2/mood",
         "target": "[data-guide=\"mood-score\"]",
-        "anchor": {
-          "label": "Set your score. Log mood saves the check-in."
-        },
+        "anchor": { "label": "Move the mood slider once." },
+        "success": "You created the core of a mood check-in. A few honest entries give Review context for the rest of your daily data.",
         "event": "input"
       },
       {
-        "id": "review-start",
-        "title": "This is why the small entries matter",
-        "body": "Review brings your sleep, mood, task completion, and Must Wins together. As you log more days, use the summaries to reflect on what’s working and decide what to adjust. Start with one win and one check-in; explore the other tools when you need them.",
-        "compactBody": "Open View insights to see sleep, mood, task completion, and Must Wins together. Regular check-ins make these summaries useful. Start with one win and one check-in; explore the other tools later.",
+        "id": "mood-context-open",
+        "title": "Open context only when it adds meaning",
+        "body": "Tags make repeated influences easy to compare, while the note captures what is unique about this moment. A score by itself is still a complete quick check-in.",
+        "route": "/v2/mood",
+        "target": "[data-guide=\"mood-context\"]",
+        "interactionTarget": "[data-guide=\"mood-context\"]",
+        "anchor": { "label": "Open Add context to reveal the optional fields." },
+        "success": "You opened the optional context fields. Use them when a tag or short note will help your future self understand the number.",
+        "event": "click"
+      },
+      {
+        "id": "mood-context-fields",
+        "title": "Keep context short and reusable",
+        "body": "A custom tag is useful for a repeated factor such as travel, exercise, or illness. The note answers ‘what is shaping this mood?’ in your own words. Neither field is required.",
+        "route": "/v2/mood",
+        "target": "[data-guide=\"mood-context-fields\"]",
+        "anchor": { "label": "Tags repeat; notes explain this particular check-in." }
+      },
+      {
+        "id": "mood-save",
+        "title": "Save only when the check-in is ready",
+        "body": "Log mood is the save point. Add context can attach a note or reusable tags, but the score alone is enough when you want a fast check-in. You do not need to save during this tour.",
+        "route": "/v2/mood",
+        "target": "[data-guide=\"mood-save\"]",
+        "anchor": { "label": "Log mood saves the check-in." }
+      },
+      {
+        "id": "review-day-summary",
+        "title": "Begin with the facts of the day",
+        "body": "The daily summary counts planned tasks, habits, mood, and sleep for the selected date. Missing data stays missing instead of being treated as failure, so the overview remains honest.",
+        "compactBody": "The cards summarize the selected day. Missing entries stay missing instead of counting against you.",
         "route": "/v2/review",
-        "target": "[data-guide=\"review-insights\"], [data-guide=\"review-summary\"]",
-        "anchor": {
-          "label": "Your daily entries build this overview.",
-          "placement": "top"
-        }
+        "target": "[data-guide=\"daily-summary\"]",
+        "anchor": { "label": "These cards answer what was actually logged." }
+      },
+      {
+        "id": "review-day-insights",
+        "title": "Turn the facts into a useful prompt",
+        "body": "Daily insights call out completion, missing signals, and a practical next move. Treat them as prompts for reflection rather than judgments about whether the day was good or bad.",
+        "compactBody": "Insights suggest what deserves attention; they do not grade the day.",
+        "route": "/v2/review",
+        "target": "[data-guide=\"daily-insights\"], [data-guide=\"review-insights\"]",
+        "anchor": { "label": "Insights translate the logged facts into questions." }
+      },
+      {
+        "id": "review-expectation",
+        "title": "Compare the plan with what actually happened",
+        "body": "Start by answering whether the day mostly matched what you expected. If it did not, an optional reason helps name the constraint without turning the review into self-criticism.",
+        "compactBody": "Say whether the day matched expectations. If it did not, the optional reason names the constraint.",
+        "route": "/v2/review",
+        "target": "[data-guide=\"review-expectation\"]",
+        "anchor": { "label": "Begin with an honest Yes, mostly or Not quite." }
+      },
+      {
+        "id": "review-tomorrow",
+        "title": "Carry one small lesson into tomorrow",
+        "body": "The tomorrow note should be a useful adjustment such as protecting a focus block or starting earlier. Keep it smaller than a task list so it can guide tomorrow instead of overwhelming it.",
+        "compactBody": "Carry forward one small adjustment, not another full task list.",
+        "route": "/v2/review",
+        "target": "[data-guide=\"review-tomorrow\"]",
+        "anchor": { "label": "Write the smallest change that could help tomorrow." }
+      },
+      {
+        "id": "review-save",
+        "title": "Save the reflection without changing the logs",
+        "body": "Save daily review stores your answer and tomorrow note. It does not rewrite tasks, habits, mood, or sleep; those logs remain their own source of truth.",
+        "compactBody": "Save daily review stores the reflection. Your existing daily logs stay unchanged.",
+        "route": "/v2/review",
+        "target": "[data-guide=\"review-save\"]",
+        "anchor": { "label": "This button saves only the reflection." }
+      },
+      {
+        "id": "review-start",
+        "title": "Look for patterns only after repetition",
+        "body": "Weekly summaries compare sleep, mood, task completion, Must Wins, and review history. A relationship can suggest a question, but it does not prove that one factor caused another. More consistent check-ins make the view more useful.",
+        "compactBody": "Weekly patterns become useful after repeated check-ins. Use relationships as questions, not proof of cause.",
+        "route": "/v2/review",
+        "target": "[data-guide=\"review-summary\"], [data-guide=\"review-insights\"]",
+        "anchor": { "label": "Repeated daily entries build the longer-term view.", "placement": "top" }
       }
     ]
   },
@@ -330,7 +518,17 @@ export const userGuides: UserGuide[] = [
         "body": "The plus button opens the same editor as New. Choose a name, day, start time, and duration. Leaving the time clear keeps the task unscheduled.",
         "route": "/v2/daily",
         "target": "[data-guide=\"plan-add\"]",
-        "practice": "Open the editor. Close it when you are done looking; saving is optional.",
+        "practice": "Open the editor to see the choices.",
+        "event": "click"
+      },
+      {
+        "id": "editor-close",
+        "title": "You stay in control of what gets saved",
+        "body": "The editor lets you name the task, schedule it, set priority, and choose its style. Close it now without saving; use Add task when you want to keep a real entry.",
+        "route": "/v2/daily",
+        "target": "button[aria-label=\"Close task editor\"]",
+        "interactionTarget": "button[aria-label=\"Close task editor\"]",
+        "practice": "Choose Close. Nothing will be saved.",
         "event": "click"
       },
       {
@@ -411,18 +609,31 @@ export const userGuides: UserGuide[] = [
       {
         "id": "chain",
         "title": "Make the habit small enough to repeat",
-        "body": "A chain is a habit tracked over time. Add one clear behavior, choose its schedule, and start with something you can do consistently.",
+        "body": "A chain is a habit tracked over time. Add one clear behavior and start with something you can do consistently.",
         "route": "/v2/habits",
         "target": "button[aria-label=\"Add habit\"]",
-        "practice": "Open Add habit, then close the editor after looking.",
+        "practice": "Open Add habit to see the simple setup.",
+        "event": "click"
+      },
+      {
+        "id": "editor-close",
+        "title": "Name the behavior, then choose its direction",
+        "body": "Give the habit a short name, icon, and group. Build tracks something you want to repeat; Quit tracks something you are avoiding. Close this practice editor without saving.",
+        "route": "/v2/habits",
+        "target": "button[aria-label=\"Close habit editor\"]",
+        "interactionTarget": "button[aria-label=\"Close habit editor\"]",
+        "practice": "Choose Close. Nothing will be saved.",
         "event": "click"
       },
       {
         "id": "mark",
         "title": "Check the day before marking it",
-        "body": "Select the day you mean to update. Habit cells cycle through their available states; use the status label to check your result. The detail view shows the selected habit’s history.",
+        "body": "Select the day you mean to update, then choose Yes, No, or Skip. Skip stays neutral; an empty day stays open instead of counting as missed.",
         "route": "/v2/habits",
-        "target": "[data-guide=\"habit-cells\"]"
+        "target": "[data-guide=\"habit-actions\"] button",
+        "interactionTarget": "[data-guide=\"habit-actions\"] button",
+        "practice": "Use one status button to see the check-in update.",
+        "event": "click"
       }
     ]
   },
@@ -743,6 +954,45 @@ export const userGuides: UserGuide[] = [
     ]
   }
 ];
+
+const guideSuccessMessages: Record<string, string> = {
+  "full-tour:plan-intro": "You captured a task in the place meant for loose work. Scheduling can wait until the timing is useful.",
+  "full-tour:must-win-intro": "You turned a broad intention into one visible finish line for the day.",
+  "full-tour:mood-intro": "You used mood as an honest signal. The number is context for reflection, not a performance score.",
+  "full-tour:habits-intro": "You found the habit setup. A small observable behavior is the strongest place to begin.",
+  "full-tour:assistant-intro": "You gave Jarvis a concrete request. Specific language makes proposed actions easier to review.",
+  "full-tour:documentation-intro": "You searched by a system or task. This is the fastest route from a question to the relevant procedure.",
+  "plan:capture": "The task is captured before it needs a time. Mind Sweep keeps loose work from disappearing.",
+  "plan:add": "You opened the full editor, where a task can stay loose or become a scheduled block.",
+  "plan:editor-close": "You closed the editor without saving. Add task is the deliberate point where a draft becomes part of the plan.",
+  "must-win:define": "You gave the day one testable outcome. That finish line can now guide the rest of the plan.",
+  "mood:score": "You recorded the core signal. Notes and tags are optional context, and Log mood is still the save point.",
+  "mood:context": "You revealed the optional context fields. Use them when they will explain the number later.",
+  "habits:chain": "You opened habit setup. Start with a behavior small enough to mark honestly every day.",
+  "habits:editor-close": "You inspected the setup without saving. Add creates the chain only when the behavior is ready.",
+  "habits:mark": "You updated the selected day. Yes, No, and Skip carry different meaning in the habit history.",
+  "journal:write": "You drafted useful context for your future self. Nothing is kept until you choose the form’s save action.",
+  "review:reset": "You turned reflection into one small experiment. A specific adjustment is easier to carry into next week.",
+  "review:patterns": "You opened the longer-term view. Use patterns to form questions, then compare them with your own experience.",
+  "assistant:ask": "Jarvis recognized the request. Review any proposed change before confirming it, especially dates and wording.",
+  "finance:spending": "You moved from the headline snapshot to spending detail. Check range and pending status before comparing totals.",
+  "finance:accounts": "You found connection controls. Demo mode lets you learn this area without linking a financial account.",
+  "real-estate:filters": "You opened the assumptions that shape the lead list. A useful scan begins with deliberate criteria.",
+  "real-estate:analysis": "You opened the deal model. Financing and cash-flow results are only as useful as the assumptions underneath them.",
+  "objectives:create": "You found the creation flow. A strong objective pairs an outcome with the next action that can move it.",
+  "homelab:services": "You moved from overall health to the service list. Check status and freshness before acting on a reading.",
+  "documentation:search": "You narrowed the documentation by topic. Open the closest result and verify the procedure before changing a system.",
+  "account:appearance": "You found the account-wide appearance controls. Choose the combination that stays clear and comfortable.",
+  "account:security": "You found the sensitive account controls. Read the whole form before changing a password or account state."
+};
+
+export function guideStepSuccess(guideId: string, step: GuideStep): string {
+  return step.success
+    ?? guideSuccessMessages[guideId + ":" + step.id]
+    ?? (step.event === "input"
+      ? "Jarvis recognized your input. Take a moment to notice what the field controls before continuing."
+      : "You used the highlighted control. Take a moment to notice what changed before continuing.");
+}
 
 export function findGuide(id: string): UserGuide | undefined {
   return userGuides.find((guide) => guide.id === id);

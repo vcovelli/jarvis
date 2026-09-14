@@ -1,47 +1,57 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { GuideStep } from "@/lib/userGuides";
 import { intersectGuideRects, positionGuide, type GuidePosition, type GuideRect } from "@/lib/walkthroughPosition";
 
 type SpotlightLayout = { bounds: GuideRect; position: GuidePosition };
+export type WalkthroughPracticePhase = "started" | "complete";
+export type WalkthroughTargetRect = GuideRect;
 
-/** Optional anchored layer shared by quick start and feature-specific guides. */
-export function WalkthroughSpotlight({ step, onPractice, onTargetFound }: {
-  step: GuideStep; onPractice: (value: boolean) => void; onTargetFound: (value: boolean) => void;
+/** Highlights the live control and reports real interaction back to the coach. */
+export function WalkthroughSpotlight({ step, onPractice, onTargetFound, onTargetRect }: {
+  step: GuideStep;
+  onPractice: (phase: WalkthroughPracticePhase) => void;
+  onTargetFound: (value: boolean) => void;
+  onTargetRect: (rect: WalkthroughTargetRect | null) => void;
 }) {
-  const hintId = useId();
-  const hintRef = useRef<HTMLDivElement>(null);
   const [layout, setLayout] = useState<SpotlightLayout | null>(null);
 
   useEffect(() => {
-    if (!step.target) return;
+    if (!step.target) {
+      onTargetFound(false);
+      onTargetRect(null);
+      return;
+    }
     let target: HTMLElement | null = null;
-    let frame = 0, didScroll = false;
+    let frame = 0;
+    let inputTimer = 0;
+    let didScroll = false;
     const selector = step.target;
     const page = document.querySelector<HTMLElement>(".jarvis-page-viewport");
-    const dock = document.querySelector<HTMLElement>(".walkthrough-coach");
     const resize = new ResizeObserver(schedule);
     if (page) resize.observe(page);
-    if (dock) resize.observe(dock);
 
     function releaseTarget() {
       if (!target) return;
       target.removeAttribute("data-guide-highlight");
       target.removeAttribute("data-guide-anchored");
-      const describedBy = target.getAttribute("aria-describedby")?.split(/\s+/).filter((id) => id !== hintId).join(" ");
-      if (describedBy) target.setAttribute("aria-describedby", describedBy);
-      else target.removeAttribute("aria-describedby");
       resize.unobserve(target);
       target = null;
     }
+
     function refresh() {
       frame = 0;
       const candidate = locateGuideTarget(selector);
-      const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], dialog[open]')).filter(isVisible);
-      const modalOpen = dialogs.some((dialog) => !(step.shell && dialog.matches("[data-guide-shell]") && candidate && dialog.contains(candidate)));
+      const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], dialog[open]'))
+        .filter((dialog) => !dialog.matches(".walkthrough-coach") && isVisible(dialog));
+      const modalOpen = dialogs.some((dialog) => {
+        if (step.shell && dialog.matches("[data-guide-shell]") && candidate && dialog.contains(candidate)) return false;
+        return !candidate || (dialog !== candidate && !dialog.contains(candidate));
+      });
       const found = modalOpen ? null : candidate;
+
       if (found !== target) {
         releaseTarget();
         target = found;
@@ -56,23 +66,25 @@ export function WalkthroughSpotlight({ step, onPractice, onTargetFound }: {
           }
         }
       }
-      if (!target || !step.anchor || !page) { setLayout(null); return; }
+
+      if (!target || !page) {
+        onTargetRect(null);
+        setLayout(null);
+        return;
+      }
+
+      const targetRect = target.getBoundingClientRect();
+      onTargetRect({ left: targetRect.left, top: targetRect.top, width: targetRect.width, height: targetRect.height });
       const visual = window.visualViewport;
       const surface = step.shell ? target.closest<HTMLElement>("[data-guide-shell], .jarvis-desktop-sidebar") : page;
       let bounds: GuideRect | null = surface ? intersectGuideRects(surface.getBoundingClientRect(), {
-        left: visual?.offsetLeft ?? 0, top: visual?.offsetTop ?? 0,
-        width: visual?.width ?? innerWidth, height: visual?.height ?? innerHeight,
+        left: visual?.offsetLeft ?? 0,
+        top: visual?.offsetTop ?? 0,
+        width: visual?.width ?? innerWidth,
+        height: visual?.height ?? innerHeight,
       }) : null;
-      // The mobile coach is inside the drawer. Keep its tips above that row.
-      if (bounds && dock && surface?.contains(dock)) {
-        const dockRect = dock.getBoundingClientRect();
-        bounds = dockRect.left > bounds.left + bounds.width / 3
-          ? { ...bounds, width: dockRect.left - bounds.left }
-          : { ...bounds, height: Math.max(0, Math.min(bounds.top + bounds.height, dockRect.top) - bounds.top) };
-      }
-      // Clip the highlight to nested scrollers, but give the tooltip the whole
-      // surface to fit in. A tightly fitted control group still gets a pointer.
-      let visibleTarget: GuideRect | null = target.getBoundingClientRect();
+
+      let visibleTarget: GuideRect | null = targetRect;
       for (let parent = target.parentElement; visibleTarget && parent && parent !== surface; parent = parent.parentElement) {
         if (/(auto|scroll|hidden|clip)/.test(getComputedStyle(parent).overflow)) visibleTarget = intersectGuideRects(visibleTarget, parent.getBoundingClientRect());
       }
@@ -82,66 +94,66 @@ export function WalkthroughSpotlight({ step, onPractice, onTargetFound }: {
         const top = Math.max(bounds.top, navRect.bottom);
         bounds = { ...bounds, top, height: Math.max(0, bounds.top + bounds.height - top) };
       }
-      const size = { width: Math.min(248, (bounds?.width ?? 0) - 16), height: hintRef.current?.offsetHeight ?? 56 };
-      const position = bounds && visibleTarget ? positionGuide(visibleTarget, bounds, size, step.anchor.placement) : null;
+      const position = bounds && visibleTarget ? positionGuide(visibleTarget, bounds, { width: 1, height: 1 }, step.anchor?.placement) : null;
       const next = bounds && position ? { bounds, position } : null;
       setLayout((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
-      const ids = new Set(target.getAttribute("aria-describedby")?.split(/\s+/).filter(Boolean));
-      if (position?.tooltip) ids.add(hintId); else ids.delete(hintId);
-      if (ids.size) target.setAttribute("aria-describedby", Array.from(ids).join(" "));
-      else target.removeAttribute("aria-describedby");
     }
-    function schedule() { if (!frame) frame = window.requestAnimationFrame(refresh); }
+
+    function schedule() {
+      if (!frame) frame = window.requestAnimationFrame(refresh);
+    }
+
     function action(event: Event) {
       if (!target || !(event.target instanceof Element) || !isVisible(target)) return;
-      const inControl = step.interactionTarget ? event.target.closest(step.interactionTarget) : target?.contains(event.target);
+      const inControl = step.interactionTarget ? event.target.closest(step.interactionTarget) : target.contains(event.target);
       if (!inControl) return;
-      if (event.type === "input" && (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) && !event.target.value.trim()) return;
-      onPractice(true);
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) {
+        if (event.target.type !== "checkbox" && event.target.type !== "radio" && !event.target.value.trim()) {
+          window.clearTimeout(inputTimer);
+          return;
+        }
+      }
+      if (step.event === "input" && event.type === "input") {
+        onPractice("started");
+        window.clearTimeout(inputTimer);
+        inputTimer = window.setTimeout(() => onPractice("complete"), 700);
+        return;
+      }
+      window.clearTimeout(inputTimer);
+      onPractice("complete");
     }
+
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "aria-hidden", "aria-expanded", "style"] });
     window.addEventListener("resize", schedule);
     document.addEventListener("scroll", schedule, true);
     window.visualViewport?.addEventListener("resize", schedule);
     window.visualViewport?.addEventListener("scroll", schedule);
-    if (step.event) document.addEventListener(step.event, action, true);
+    const actionEvents = step.event === "input" ? ["input", "change"] : step.event ? [step.event] : [];
+    actionEvents.forEach((eventName) => document.addEventListener(eventName, action, true));
     schedule();
+
     return () => {
       observer.disconnect();
       resize.disconnect();
+      window.clearTimeout(inputTimer);
       window.removeEventListener("resize", schedule);
       document.removeEventListener("scroll", schedule, true);
       window.visualViewport?.removeEventListener("resize", schedule);
       window.visualViewport?.removeEventListener("scroll", schedule);
-      if (step.event) document.removeEventListener(step.event, action, true);
+      actionEvents.forEach((eventName) => document.removeEventListener(eventName, action, true));
       if (frame) window.cancelAnimationFrame(frame);
       releaseTarget();
     };
-  }, [step, hintId, onPractice, onTargetFound]);
+  }, [step, onPractice, onTargetFound, onTargetRect]);
 
-  const tooltipVisible = Boolean(layout?.position.tooltip);
-  // Re-measure wrapped text after the first paint and when bounds change.
-  useEffect(() => {
-    if (!hintRef.current) return;
-    const observer = new ResizeObserver(() => window.dispatchEvent(new Event("resize")));
-    observer.observe(hintRef.current);
-    return () => observer.disconnect();
-  }, [tooltipVisible]);
-
-  if (!layout || !step.anchor) return null;
-  const { bounds, position: { highlight, tooltip } } = layout;
-  const verticalArrow = tooltip?.placement === "top" || tooltip?.placement === "bottom";
+  if (!layout) return null;
+  const { bounds, position: { highlight } } = layout;
   return createPortal(
-    <>
-      <div className="walkthrough-spotlight" aria-hidden="true" style={{ left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }}>
-        <div className="walkthrough-spotlight-ring" style={{ left: highlight.left - bounds.left, top: highlight.top - bounds.top, width: highlight.width, height: highlight.height }} />
-      </div>
-      {tooltip && <div ref={hintRef} id={hintId} role="tooltip" className="walkthrough-anchor" data-placement={tooltip.placement} style={{ left: tooltip.left, top: tooltip.top, width: tooltip.width }}>
-        {step.anchor.label}
-        <span className="walkthrough-anchor-arrow" aria-hidden="true" style={verticalArrow ? { left: tooltip.arrow } : { top: tooltip.arrow }} />
-      </div>}
-    </>, (step.shell ? document.querySelector("[data-guide-shell]") : null) ?? document.body,
+    <div className="walkthrough-spotlight" aria-hidden="true" style={{ left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }}>
+      <div className="walkthrough-spotlight-ring" style={{ left: highlight.left - bounds.left, top: highlight.top - bounds.top, width: highlight.width, height: highlight.height }} />
+    </div>,
+    (step.shell ? document.querySelector("[data-guide-shell]") : null) ?? document.body,
   );
 }
 

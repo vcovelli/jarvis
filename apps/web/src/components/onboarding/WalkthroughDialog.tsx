@@ -62,17 +62,17 @@ export function WalkthroughDialog({ mode, finishedGuide, onClose }: {
         </h2>
         <p id="walkthrough-description" className="theme-muted mt-3 text-sm leading-6">
           {welcome
-            ? "Try a look you love, tuck the theme controls away, then learn a small daily routine. We’ll point to each control as you go. Try it or choose Next; there’s no need to fill everything in."
+            ? "Learn the idea, try the highlighted control, then pause on a short recap before you choose the next step. The guide stays with you through the daily routine."
             : quickStart ? "Start with one win and one check-in today. As your entries build up, Review brings your sleep, mood, and progress together so you can decide what to adjust." : "Your progress is saved. Come back for another guide whenever you need it."}
         </p>
         <div className="theme-card mt-4 rounded-2xl p-4">
-          <p className="theme-text text-sm font-semibold">{welcome ? "A few quick tips · about 3 minutes" : quickStart ? "Let the rest wait" : "Learn at your own pace"}</p>
-          <p className="theme-muted mt-2 text-sm leading-6">{welcome ? "Make it yours → Clear some space → Track your day → See your progress" : quickStart ? "Finance, projects, and the other tools are there when you need them. User guide has a short walkthrough for each one." : "Short guides are available in User guide whenever you choose to explore another feature."}</p>
+          <p className="theme-text text-sm font-semibold">{welcome ? "A guided first day · about 11 minutes" : quickStart ? "Let the rest wait" : "Learn at your own pace"}</p>
+          <p className="theme-muted mt-2 text-sm leading-6">{welcome ? "Make it yours → Learn the navigation → Track your day → See your progress" : quickStart ? "Finance, projects, and the other tools are there when you need them. User guide has a short walkthrough for each one." : "Short guides are available in User guide whenever you choose to explore another feature."}</p>
         </div>
         <div className="mt-5 grid gap-2">
           {welcome ? (
             <>
-              <button type="button" onClick={() => start("essentials")} className="theme-button-primary rounded-xl px-4 py-3 text-sm font-semibold">Show me around</button>
+              <button type="button" onClick={() => start("essentials")} className="theme-button-primary rounded-xl px-4 py-3 text-sm font-semibold">Start guided first day</button>
               <button type="button" onClick={() => startDemo()} className="theme-button-secondary rounded-xl px-4 py-3 text-sm font-semibold">Try with demo data</button>
               <p className="theme-muted text-xs leading-5">Demo uses sample daily records and finance data. Account settings still apply to your real account.</p>
             </>
@@ -85,7 +85,7 @@ export function WalkthroughDialog({ mode, finishedGuide, onClose }: {
           <button type="button" onClick={browse} className="theme-button-secondary rounded-xl px-4 py-3 text-sm font-semibold">Browse the user guide</button>
         </div>
         {welcome && <button type="button" onClick={skip} className="theme-button-secondary mt-3 w-full rounded-xl px-4 py-3 text-sm">Explore on my own</button>}
-        <p className="theme-muted mt-3 text-xs leading-5">{storageAvailable ? "This welcome appears once. Next saves your place, and closing the tour keeps it closed. Resume or replay whenever you choose from User guide." : "Browser storage is unavailable. Your guide progress will last for this visit."}</p>
+        <p className="theme-muted mt-3 text-xs leading-5">{storageAvailable ? "This welcome appears once. Each completed action saves your place. Exit keeps the tour closed; resume or replay from User guide." : "Browser storage is unavailable. Your guide progress will last for this visit."}</p>
       </section>
     </div>
   );
