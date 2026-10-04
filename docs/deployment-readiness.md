@@ -2,6 +2,11 @@
 
 Status date: 2026-09-07
 
+Source inventory correction: 2026-10-04. The verification and production-repair
+evidence below describes the original September pass. Later code adds admin pages;
+that correction does not re-certify deployment readiness. See [source release
+records](releases.md) for subsequent verification.
+
 ## Current recommendation
 
 Jarvis now has the application-level security and operations foundation required for a controlled personal, homelab, or invitation-only deployment. Keep registration closed or invitation/access-code gated until the production mail relay, proxy behavior, backups, scheduler, Plaid webhook, monitoring, and browser smoke tests have been verified in the target environment.
@@ -70,7 +75,11 @@ Remaining environment-specific work before broader controlled production use:
 - Scheduled sync is exposed as a protected job endpoint and helper, but the repository does not install cron/systemd/platform scheduling.
 - Email delivery is a provider-neutral HTTP relay, not a bundled mail vendor; bounce, suppression, and delivery dashboards live with the operator/provider.
 - Entitlements do not represent billing and are not enforced as paid feature gates. Do not accept subscriptions on this basis.
-- There is no admin UI for invitations, account suspension, entitlement changes, audit browsing, or support operations.
+- Admin pages now provide an overview, users, entitlement/rollout controls, and recent
+  activity. Owner-only mutation policies and last-owner protection have unit tests.
+  Invitation administration, account suspension, and a complete support workflow
+  are not established by those screens; validate the current scope before offering
+  public SaaS operations.
 - Export is one-way JSON; no import/restore-to-account workflow or formal retention policy exists.
 - Audit rows are mutable database records, not an append-only compliance system; retention/archival policy remains operational work.
 - Account deletion makes best-effort provider revocation. A provider outage can leave an item requiring follow-up even though local records are removed.

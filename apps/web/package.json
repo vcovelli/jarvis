@@ -1,9 +1,10 @@
 {
   "name": "web",
-  "version": "0.1.0",
+  "version": "17.8.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "version:check": "node scripts/check-version.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3000",

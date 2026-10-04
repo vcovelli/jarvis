@@ -55,6 +55,7 @@ jarvis/
 
 ## Documentation
 
+- [Source versions and release workflow](docs/releases.md)
 - [Documentation hub](docs/README.md)
 - [User guide](docs/usage.md)
 - [UI and theming](docs/ui-and-theming.md)
