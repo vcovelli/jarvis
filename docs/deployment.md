@@ -210,3 +210,11 @@ Prisma migrations are forward operations. Prefer a new corrective migration over
 10. Check Home/Plan/Finances, bottom navigation, and representative theme combinations on desktop and a narrow phone viewport.
 11. Confirm CSP/security headers are present and Plaid Link/PWA behavior still works.
 12. Confirm audit/log monitoring receives expected events without credentials or token values.
+
+## Operations Center activation
+
+Operations requires the additive `20261019060000_operations_v1` migration and an
+approved one-shot worker invocation from the existing scheduler. It starts paused;
+no services or timers are installed by the source change. Do not build over the
+running checkout or invoke the existing deployment script without production approval.
+See [Operations activation and rollback](./operations.md#approval-gated-production-activation).

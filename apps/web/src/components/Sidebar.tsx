@@ -31,6 +31,7 @@ type NavLink = {
 const startLinks: NavLink[] = [
   { href: "/", label: "Home", description: "Overview" },
   { href: "/daily?mode=backlog", label: "Plan", description: "Schedule", activeFor: ["/daily", "/todos"] },
+  { href: "/operations", label: "Operations", description: "Decisions" },
   { href: "/assistant", label: "Assistant", description: "Ask" },
 ];
 
@@ -281,7 +282,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   const moreActive = mobileOpen || !primaryMobileActive;
 
   const navItems = (items: NavLink[], dense = false, onNavigate?: () => void) =>
-    items.map((item) => {
+    items.filter((item) => item.href !== "/operations" || (canAdmin && basePath === "/v2")).map((item) => {
       const active = isActive(item);
       const linkClass =
         "group rounded-[20px] border px-4 py-3 transition-all duration-200 " +

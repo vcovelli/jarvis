@@ -9,13 +9,17 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3000",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test src/lib/dailySummary.test.ts src/lib/finance/classification.test.ts src/lib/finance/spending.test.ts src/lib/realEstate/calculations.test.ts src/lib/registration.test.ts src/lib/rateLimit.test.ts src/lib/tokenSecurity.test.ts src/lib/securityBoundaries.test.ts src/lib/homelabStatus.test.ts src/lib/mobileUx.test.ts src/lib/walkthroughProgress.test.ts src/lib/walkthroughPosition.test.ts src/lib/productSurface.test.ts src/lib/admin/admin.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/dailySummary.test.ts src/lib/finance/classification.test.ts src/lib/finance/spending.test.ts src/lib/realEstate/calculations.test.ts src/lib/registration.test.ts src/lib/rateLimit.test.ts src/lib/tokenSecurity.test.ts src/lib/securityBoundaries.test.ts src/lib/homelabStatus.test.ts src/lib/mobileUx.test.ts src/lib/walkthroughProgress.test.ts src/lib/walkthroughPosition.test.ts src/lib/productSurface.test.ts src/lib/admin/admin.test.ts src/lib/operations/policy.test.ts src/lib/operations/reasoning.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "config:validate": "node scripts/validate-env.mjs",
     "owner:bootstrap": "node scripts/bootstrap-owner.mjs",
     "invite:create": "node scripts/create-invite.mjs",
-    "verify": "npm run lint && npm test && npm run build"
+    "verify": "npm run lint && npm test && npm run build",
+    "operations:worker": "node --experimental-strip-types scripts/operations-worker.mjs",
+    "test:operations": "node --experimental-strip-types --test src/lib/operations/policy.test.ts src/lib/operations/reasoning.test.ts",
+    "test:operations:integration": "node --experimental-strip-types --test --test-concurrency=1 src/lib/operations/integration.test.ts",
+    "test:operations:http": "node --experimental-strip-types scripts/test-operations-http.mjs"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

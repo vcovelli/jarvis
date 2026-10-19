@@ -231,3 +231,11 @@ Current known launch gaps are recorded in [deployment readiness](./deployment-re
 - Assistant → `src/lib/assistant/`, `src/lib/openclaw/`, and assistant routes
 - Real estate → `src/lib/realEstate/` and the listing route
 - Homelab → `src/lib/homelabDocs.ts`, `src/lib/prometheus.ts`, and homelab/monitoring routes
+
+## Autonomous operations
+
+The authenticated ADMIN/OWNER Operations Center at `/v2/operations` adds durable
+PostgreSQL schedules, bounded read-only collectors, policy-checked exact approvals,
+conservative spending reservations, in-app notifications, and immutable decision evidence.
+The existing user, financial data, authentication, and audit systems are reused.
+See [Operations Center V1](./operations.md) for execution semantics and limitations.

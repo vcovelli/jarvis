@@ -192,3 +192,12 @@ The installed app checks for a changed Jarvis server runtime after launch, resum
 - **Real Estate stays in demo mode:** configure `RENTCAST_API_KEY`, select live mode, and run a scan.
 - **Homelab docs are empty:** point `HOMELAB_DOCS_ROOT` to a readable Markdown tree.
 - **A containerized media service is shown inactive:** refresh `live/containers.md` and confirm its Docker name matches `HOMELAB_JELLYFIN_CONTAINER` or `HOMELAB_NAVIDROME_CONTAINER`.
+
+## Operations Center
+
+ADMIN/OWNER users can open **Operations** from Start or the mobile More menu. Review
+freshness and alerts, inspect decision evidence, approve one exact read-only recheck,
+reject/snooze recommendations, and record observed outcomes. Preferences and budgets
+are editable; they never authorize consequential actions. Emergency pause cancels the
+user's operations queue. Initialization and enabling do not install the required worker.
+See [Operations Center V1](./operations.md) for the full workflow and current integration limits.

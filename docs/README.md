@@ -14,6 +14,8 @@ This directory is the source of truth for how Jarvis is used, built, themed, and
 
 Additional implementation references:
 
+- [Operations Center V1](./operations.md) — durable read-only agents, exact approvals, budgets, notifications, verification, and activation.
+
 - [Jarvis Control](./admin.md) — owner bootstrap, authorization, rollout levels, feature gates, service status, and manual migration/deployment.
 
 - [Web app README](../apps/web/README.md) — commands, project layout, environment configuration, and contributor workflow.

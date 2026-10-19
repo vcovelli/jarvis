@@ -38,6 +38,16 @@ model User {
   sessionVersion                    Int                                @default(0)
   createdAt                         DateTime                           @default(now())
   updatedAt                         DateTime                           @updatedAt
+  operationsCostReservations OperationsCostReservation[]
+  operationsProfile OperationsProfile?
+  operationsSchedules OperationsSchedule[]
+  operationsRuns OperationsRun[]
+  operationsObservations OperationsObservation[]
+  operationsDecisions OperationsDecision[]
+  operationsApprovals OperationsApproval[]
+  operationsExecutions OperationsExecution[]
+  operationsNotifications OperationsNotification[]
+  operationsOutcomes OperationsOutcome[]
   accounts                          Account[]
   sessions                          Session[]
   userState                         UserState?
@@ -527,4 +537,150 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Operations uses the existing database, identity, and AuditLog. No credentials here.
+model OperationsProfile {
+  userId           String   @id
+  enabled          Boolean  @default(false)
+  paused           Boolean  @default(true)
+  preferences      Json
+  perJobUsd        Float    @default(0.01)
+  dailyUsd         Float    @default(0.25)
+  monthlyUsd       Float    @default(5)
+  assumedWatts     Float    @default(100)
+  electricityRate  Float    @default(0.15)
+  workerSeenAt     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+model OperationsSchedule {
+  id        String @id @default(cuid())
+  userId    String
+  domain    String
+  nextRunAt DateTime
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, domain])
+  @@index([nextRunAt])
+}
+model OperationsRun {
+  id          String @id @default(cuid())
+  userId      String
+  domain      String
+  dedupeKey   String @unique
+  status      String @default("queued")
+  attempts    Int @default(0)
+  availableAt DateTime @default(now())
+  leaseUntil  DateTime?
+  leaseToken  String?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  durationMs  Int?
+  errorCode   String?
+  reservedUsd Float @default(0)
+  apiCostUsd  Float @default(0)
+  energyEstimateUsd Float @default(0)
+  assumedWatts Float @default(0)
+  electricityRate Float @default(0)
+  provider    String @default("deterministic")
+  model       String?
+  inputTokens Int?
+  outputTokens Int?
+  localInferenceMs Int?
+  estimatedBusinessValueUsd Float?
+  verifiedRevenueUsd Float?
+  approvalId String? @unique
+  createdAt   DateTime @default(now())
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, status, availableAt])
+  @@index([userId, createdAt])
+}
+model OperationsObservation {
+  id          String @id @default(cuid())
+  userId      String
+  runId       String @unique
+  domain      String
+  severity    String
+  fingerprint String
+  changed     Boolean
+  data        Json
+  createdAt   DateTime @default(now())
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, domain, createdAt])
+}
+model OperationsDecision {
+  id          String @id @default(cuid())
+  userId      String
+  observationId String
+  domain      String
+  title       String
+  severity    String
+  status      String @default("pending")
+  brief       Json
+  action      Json
+  actionHash  String
+  expiresAt   DateTime
+  snoozedUntil DateTime?
+  decidedAt   DateTime?
+  createdAt   DateTime @default(now())
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, status, createdAt])
+}
+model OperationsApproval {
+  id         String @id @default(cuid())
+  userId     String
+  decisionId String @unique
+  action     Json
+  actionHash String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+model OperationsExecution {
+  id         String @id @default(cuid())
+  userId     String
+  approvalId String @unique
+  runId      String @unique
+  result     Json
+  verifiedAt DateTime @default(now())
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+model OperationsNotification {
+  id         String @id @default(cuid())
+  userId     String
+  dedupeKey  String @unique
+  severity   String
+  source     String
+  title      String
+  decisionId String?
+  availableAt DateTime
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, availableAt])
+}
+model OperationsOutcome {
+  id          String @id @default(cuid())
+  userId      String
+  decisionId  String
+  observedResult String
+  variance    String
+  quality     String
+  createdAt   DateTime @default(now())
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, decisionId])
+}
+model OperationsCostReservation {
+  id          String @id @default(cuid())
+  userId      String
+  runId       String
+  attempt     Int
+  reservedUsd Float
+  apiCostUsd  Float @default(0)
+  energyEstimateUsd Float @default(0)
+  createdAt   DateTime @default(now())
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([runId, attempt])
+  @@index([userId, createdAt])
 }
