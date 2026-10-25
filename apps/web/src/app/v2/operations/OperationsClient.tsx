@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { snapshot } from "@/lib/operations/engine";
 import type { Collection } from "@/lib/operations/collectors";
 import type { Preferences } from "@/lib/operations/policy";
+import SystemStatusPanel from "./SystemStatusPanel";
 
 type Wire<T> = T extends Date
   ? string
@@ -111,7 +112,7 @@ export default function OperationsClient() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="theme-muted text-xs uppercase tracking-widest">
-            Jarvis / Autonomous operations
+            Jarvis / Operations
           </p>
           <h1 className="text-2xl font-semibold">Operations Center</h1>
         </div>
@@ -144,6 +145,7 @@ export default function OperationsClient() {
           )}
         </div>
       </header>
+      <SystemStatusPanel />
       {error && (
         <p
           role="alert"
