@@ -1,0 +1,38 @@
+.workspace { color: var(--foreground); min-width: 0; }
+.header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.header h1 { font-size: 26px; font-weight: 600; letter-spacing: -.04em; }
+.eyebrow { font-size: 10px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.viewSelect { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+.viewSelect select { min-height: 44px; border: 1px solid var(--border); background: var(--surface); color: var(--foreground); padding: 0 34px 0 12px; border-radius: 12px; font-size: 13px; }
+.nav { display: flex; gap: 4px; overflow-x: auto; padding: 4px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.nav button { flex-shrink: 0; min-height: 44px; padding: 8px 14px; border-radius: 10px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.nav button[aria-current="page"] { color: var(--foreground); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.banner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; border: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); border-radius: 16px; padding: 16px 20px; font-size: 13px; }
+.banner p { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.banner button { min-height: 44px; color: var(--foreground); text-decoration: underline; text-underline-offset: 4px; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 0; }
+.filters label { flex: 1; min-width: 120px; font-size: 12px; color: var(--muted); }
+.filters input, .filters select { display: block; width: 100%; min-height: 44px; margin-top: 5px; border: 1px solid var(--border); background: var(--surface); color: var(--foreground); border-radius: 10px; padding: 8px 12px; }
+.doctor { border: 1px solid var(--border); border-radius: 16px; padding: 18px; background: var(--surface); }
+.doctor h2 { font-size: 16px; font-weight: 600; }
+.doctorRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 14px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.doctorRow:last-child { border: 0; }
+.doctorRow p { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 4px; }
+.doctorRow strong { white-space: nowrap; font-weight: 500; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; }
+.agentButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--foreground); cursor: pointer; }
+.badge { font-size: 11px; border-radius: 999px; padding: 2px 6px; background: var(--accent); color: var(--background); }
+.prompt { position: fixed; right: 20px; bottom: 20px; z-index: 45; display: flex; align-items: center; gap: 12px; width: min(420px, calc(100vw - 24px)); padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--foreground); box-shadow: 0 12px 45px #0003; }
+.prompt > div { min-width: 0; flex: 1; font-size: 12px; }
+.prompt p { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: var(--muted); margin-top: 4px; }
+.prompt button, .dialogHeader button { min-height: 44px; min-width: 44px; border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: 12px; cursor: pointer; }
+.dialog { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(820px, 100%); max-width: 100%; height: 100dvh; max-height: 100dvh; border: 0; border-left: 1px solid var(--border); padding: 0; background: var(--background); color: var(--foreground); }
+.dialog::backdrop { background: #02061799; backdrop-filter: blur(5px); }
+.dialogBody { height: 100%; display: flex; flex-direction: column; overflow: auto; overscroll-behavior: contain; }
+.dialogHeader { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; padding: max(18px, env(safe-area-inset-top)) 20px 16px; border-bottom: 1px solid var(--border); background: var(--background); }
+.dialogHeader h2 { font-size: 21px; font-weight: 600; letter-spacing: -.03em; }
+.workspace details > summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
+.workspace button:focus-visible, .workspace select:focus-visible, .agentButton:focus-visible, .dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 1023px) { .prompt { bottom: calc(var(--jarvis-mobile-nav-height, 64px) + 12px); right: 12px; } }
+@media (max-width: 600px) { .nav { display: none; } .doctorRow { gap: 8px; } .dialogHeader { padding-inline: 16px; } }
+@media (prefers-reduced-motion: no-preference) { .dialog[open] { animation: arrive .18s ease-out; } @keyframes arrive { from { transform: translateX(24px); opacity: .5; } to { transform: translateX(0); opacity: 1; } } }

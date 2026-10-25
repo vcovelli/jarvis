@@ -1,3 +1,4 @@
+import { OperationsProvider } from "@/components/operations/OperationsProvider";
 import type { Metadata } from "next";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
@@ -28,6 +29,7 @@ export default async function V2Layout({
   const canAdmin = await userHasEntitlement(session.user.id, "ADMIN");
   return (
     <JarvisStateProvider>
+      <OperationsProvider canAdmin={canAdmin}>
       <FirstRunWalkthrough>
         <MobileSyncStatus />
         <div className="app-shell theme-shell flex h-dvh min-h-dvh overflow-hidden flex-col lg:flex-row">
@@ -40,6 +42,7 @@ export default async function V2Layout({
           </div>
         </div>
       </FirstRunWalkthrough>
+      </OperationsProvider>
     </JarvisStateProvider>
   );
 }

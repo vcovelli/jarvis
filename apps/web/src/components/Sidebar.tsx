@@ -1,4 +1,5 @@
 "use client";
+import { AgentWorkspaceButton } from "@/components/operations/OperationsProvider";
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -332,13 +333,14 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
         {desktopOpen ? <>
           {search("desktop-page-search")}
           <nav aria-label="Main navigation" className={styles.navigation}>{groups()}</nav>
-          <div className={styles.footer}><ShellControls expanded={shellExpanded} onExpandedChange={updateShellExpanded}
+          <div className={styles.footer}><AgentWorkspaceButton /><ShellControls expanded={shellExpanded} onExpandedChange={updateShellExpanded}
             sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme}
             syncStatus={syncStatus} onRefresh={refreshRemoteState} /></div>
         </> : <>
           <nav aria-label="Quick navigation" className={styles.rail}>{navItems([...startLinks, resourceLinks[0]], false, undefined, true)}
             <button type="button" className={`${styles.iconButton} ${styles.allPages}`} aria-label="Show all pages" title="Show all pages" onClick={() => updateDesktopOpen(true)}><MoreNavIcon className="h-5 w-5" /></button>
           </nav>
+          <AgentWorkspaceButton compact />
           <Link href={buildHref("/settings")} aria-label="Settings" title="Settings" className={`${styles.link} ${styles.railLink} ${styles.railFooter}`}><NavigationIcon label="Settings" /></Link>
         </>}
       </aside>
@@ -429,6 +431,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
             </div>
             {!guidedTheme && search("mobile-page-search")}
             <nav aria-label="All pages navigation" hidden={guidedTheme} className={guidedTheme ? "hidden" : styles.navigation}>{groups(true)}</nav>
+            <AgentWorkspaceButton beforeOpen={closeMobileSidebar} />
             <ShellControls
               expanded={shellExpanded}
               onExpandedChange={updateShellExpanded}

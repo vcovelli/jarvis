@@ -41,6 +41,7 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(base + "/v2/operations");
   await page.getByText("Power steady. Battery ready.", { exact: true }).waitFor();
+  await page.getByLabel("System view", { exact: true }).selectOption("all");
   const section = page.locator('section[aria-labelledby="server-status-title"]');
   const gpuSection = page.getByRole("region", { name: "NVIDIA GPU status" });
   await gpuSection.getByText(live.gpu.devices[0].name, { exact: true }).waitFor();

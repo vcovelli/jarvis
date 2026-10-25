@@ -1,19 +1,14 @@
 "use client";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import type { snapshot } from "@/lib/operations/engine";
+import { useEffect, useState, type FormEvent } from "react";
 import type { Collection } from "@/lib/operations/collectors";
 import type { Preferences } from "@/lib/operations/policy";
 import SystemStatusPanel from "./SystemStatusPanel";
 
-type Wire<T> = T extends Date
-  ? string
-  : T extends (infer U)[]
-    ? Wire<U>[]
-    : T extends object
-      ? { [K in keyof T]: Wire<T[K]> }
-      : T;
-type Snapshot = Wire<Awaited<ReturnType<typeof snapshot>>>;
+import { useOperations, type OperationsSnapshot as Snapshot, type AgentView } from "@/components/operations/OperationsProvider";
+import styles from "@/components/operations/Workspace.module.css";
+
 type Decision = Snapshot["decisions"][number];
+const cadenceLabels: Record<string, string> = { infrastructure: "Every 30 minutes", security: "Every 30 minutes", finance: "Daily + finance sync", business: "Daily", executive: "Daily", strategy: "Weekly" };
 const domains = [
   "infrastructure",
   "finance",
@@ -23,12 +18,14 @@ const domains = [
   "strategy",
 ];
 const tabs = [
+  "System",
   "Overview",
   "Decisions",
   "Activity",
   "History",
   "Preferences",
 ] as const;
+const labels = { System: "System", Overview: "Briefing", Decisions: "Approvals", Activity: "Agents", History: "History", Preferences: "Settings" };
 const button =
   "theme-button-secondary min-h-11 rounded-xl px-4 py-2 text-sm disabled:opacity-40";
 const card = "theme-card rounded-2xl p-4";
@@ -45,39 +42,28 @@ function Data({ value }: { value: unknown }) {
   );
 }
 
-export default function OperationsClient() {
-  const [data, setData] = useState<Snapshot | null>(null);
-  const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
+export default function OperationsClient({ embedded = false, initialTab }: { embedded?: boolean; initialTab?: AgentView }) {
+  const { data, refresh, error: loadError, stale, allowed, now } = useOperations();
+  const [tab, setTab] = useState<(typeof tabs)[number]>(initialTab ?? "System");
   const [selected, setSelected] = useState<string | null>(null);
+  const [domain, setDomain] = useState("all");
+  const [status, setStatus] = useState("pending");
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const refresh = useCallback(async () => {
-    const r = await fetch("/api/operations", { cache: "no-store" });
-    const body = await r.json();
-    if (!r.ok) throw new Error(body.error || "Could not load Operations.");
-    setData(body);
-  }, []);
   useEffect(() => {
-    let mounted = true;
-    const load = () =>
-      refresh().catch((e) => {
-        if (mounted) setError(e.message);
-      });
-    void load();
-    const interval = setInterval(() => {
-      if (!document.hidden) void load();
-    }, 15000);
-    const id = new URLSearchParams(window.location.search).get("decision");
-    if (id) {
-      setSelected(id);
-      setTab("Decisions");
-    }
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [refresh]);
+    if (embedded) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("decision");
+    const requested = params.get("view");
+    if (requested && tabs.some(t => t.toLowerCase() === requested.toLowerCase())) setTab(tabs.find(t => t.toLowerCase() === requested.toLowerCase())!);
+    if (id) { setSelected(id); setTab("Decisions"); }
+  }, [embedded]);
+  function navigate(next: (typeof tabs)[number]) {
+    setTab(next); setSelected(null);
+    if (!embedded) window.history.replaceState(null, "", `/v2/operations?view=${next.toLowerCase()}`);
+  }
   async function mutate(body: unknown, decisionId?: string) {
     setBusy(true);
     setError("");
@@ -95,9 +81,9 @@ export default function OperationsClient() {
       );
       const result = await r.json();
       if (!r.ok) throw new Error(result.error || "Operation failed.");
-      await refresh();
+      await refresh(true);
       setNotice(
-        "Saved. Queued analyses run when the scheduler next checks in.",
+        "Saved. Any queued work still requires an active observation loop and worker.",
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Operation failed.");
@@ -107,45 +93,29 @@ export default function OperationsClient() {
   }
   const p = data?.profile;
   const decision = data?.decisions.find((d) => d.id === selected);
+  const visibleTabs = embedded ? tabs.filter(t => t !== "System") : tabs;
+  const decisionList = data?.decisions.filter(d => {
+    const expired = Date.parse(d.expiresAt) <= now && ["pending", "snoozed"].includes(d.status);
+    const needsReview = !expired && (d.status === "pending" || (d.status === "snoozed" && !!d.snoozedUntil && Date.parse(d.snoozedUntil) <= now));
+    return (domain === "all" || d.domain === domain) && (status === "all" || (status === "pending" ? needsReview : status === "expired" ? expired : !expired && d.status === status)) && `${d.title} ${d.domain}`.toLowerCase().includes(query.toLowerCase());
+  }) ?? [];
+  if (!allowed) return <p role="alert" className="p-4">Administrator access is required for the agent workspace.</p>;
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-5 pb-28 sm:px-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="theme-muted text-xs uppercase tracking-widest">
-            Jarvis / Operations
-          </p>
-          <h1 className="text-2xl font-semibold">Operations Center</h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            className={button}
-            disabled={busy}
-            onClick={() => void refresh().catch((e) => setError(e.message))}
-          >
-            Refresh
-          </button>
-          {p && (
-            <button
-              className={button}
-              disabled={busy}
-              onClick={() =>
-                void mutate({
-                  operation: "settings",
-                  settings:
-                    p.paused || !p.enabled
-                      ? { enabled: true, paused: false }
-                      : { paused: true },
-                })
-              }
-            >
-              {p.paused || !p.enabled
-                ? "Enable observation loop"
-                : "Emergency pause"}
-            </button>
-          )}
+    <div className={`${styles.workspace} mx-auto w-full max-w-6xl space-y-4 px-4 py-5 pb-12 sm:px-6`}>
+      <header className={styles.header}>
+        {!embedded && <div><p className={styles.eyebrow}>Covelli server</p><h1>Operations</h1></div>}
+        <div className={styles.toolbar}>
+          <label className={styles.viewSelect}>View<select aria-label="Operations view" value={tab} onChange={e => navigate(e.target.value as typeof tab)}>{visibleTabs.map(t => <option key={t} value={t}>{labels[t]}{t === "Decisions" && data?.pendingCount ? ` (${data.pendingCount})` : ""}</option>)}</select></label>
+          <button className={button} disabled={busy} onClick={() => void refresh()}>Refresh</button>
+          {p && <button className={button} disabled={busy || (stale && (p.paused || !p.enabled))} onClick={() => void mutate({ operation: "settings", settings: p.paused || !p.enabled ? { enabled: true, paused: false } : { paused: true } })}>{p.paused || !p.enabled ? "Enable observation loop" : "Emergency pause"}</button>}
         </div>
       </header>
-      <SystemStatusPanel />
+      <nav aria-label="Operations sections" className={styles.nav}>{visibleTabs.map(t => <button key={t} aria-current={tab === t ? "page" : undefined} onClick={() => navigate(t)}>{labels[t]}{t === "Decisions" && data?.pendingCount ? ` · ${data.pendingCount}` : ""}</button>)}</nav>
+      {loadError && <p role="alert" className="theme-card rounded-xl p-3 text-sm">{loadError} Previously loaded records may be out of date.</p>}
+      {tab === "System" && <>
+        <SystemStatusPanel />
+        <section className={styles.banner}><div><strong>{data?.pendingCount ? `${data.pendingCount} recommendations need your review` : "Observation → recommendation → your decision"}</strong><p>Review agent evidence, authorize a specific recheck, then follow the result.</p></div><button onClick={() => navigate("Decisions")}>Open approvals →</button></section>
+      </>}
       {error && (
         <p
           role="alert"
@@ -159,15 +129,13 @@ export default function OperationsClient() {
           {notice}
         </p>
       )}
-      {!data ? (
+      {tab !== "System" && (!data ? (
         <p role="status">Loading Operations…</p>
       ) : !p ? (
         <section className={card}>
           <h2 className="font-semibold">Start with read-only observation</h2>
           <p className="theme-muted my-3">
-            Initialize your private schedules and preferences. Execution starts
-            paused. A worker must be installed through the approved deployment
-            workflow.
+            Create your private agent workspace with budgets, quiet hours, and an approval inbox. Observation starts paused. The Agents view shows whether a worker is connected.
           </p>
           <button
             className={button}
@@ -192,25 +160,6 @@ export default function OperationsClient() {
                 : "Worker not seen in the last 5 minutes"}
             </span>
           </div>
-          <nav
-            aria-label="Operations sections"
-            className="flex gap-2 overflow-x-auto pb-1"
-          >
-            {tabs.map((t) => (
-              <button
-                key={t}
-                className={`${button} shrink-0 ${tab === t ? "theme-chip is-active" : ""}`}
-                aria-current={tab === t ? "page" : undefined}
-                onClick={() => {
-                  setTab(t);
-                  setSelected(null);
-                }}
-              >
-                {t}
-                {t === "Decisions" ? ` (${data.pendingCount})` : ""}
-              </button>
-            ))}
-          </nav>
           {tab === "Overview" && (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -290,7 +239,7 @@ export default function OperationsClient() {
                           <summary className="cursor-pointer">
                             Evidence and limits
                           </summary>
-                          <Data value={c} />
+                          <Briefing collection={c} />
                         </details>
                       )}
                     </section>
@@ -354,12 +303,7 @@ export default function OperationsClient() {
               <section className={card}>
                 <h2 className="font-semibold">Daily executive summary</h2>
                 {data.observations.find((o) => o.domain === "executive") ? (
-                  <Data
-                    value={
-                      data.observations.find((o) => o.domain === "executive")
-                        ?.data
-                    }
-                  />
+                  <Briefing collection={data.observations.find(o => o.domain === "executive")!.data as unknown as Collection} />
                 ) : (
                   <p className="theme-muted mt-2 text-sm">
                     Awaiting the first daily summary.
@@ -381,12 +325,15 @@ export default function OperationsClient() {
               </section>
             </>
           )}
+          {tab === "Decisions" && <details className={card}><summary>Notification inbox · {data.notifications.filter(n => !n.readAt).length} unread</summary><p className="theme-muted mb-3 text-xs">Latest 30 delivered alerts. Quiet hours delay delivery; unread alerts stay here.</p><div className="space-y-2">{data.notifications.map(n => <article key={n.id} className="rounded-xl border border-white/10 p-3"><p className="theme-muted text-xs">{n.source} · {n.severity} · {time(n.createdAt)}{n.readAt ? " · Read" : " · Unread"}</p><h3 className="my-2 text-sm font-medium">{n.title}</h3><div className="flex flex-wrap gap-2">{n.decisionId && <button className={button} onClick={() => setSelected(n.decisionId)}>Review decision</button>}{!n.readAt && <button className={button} disabled={busy || stale} onClick={() => void mutate({ operation: "read", notificationId: n.id })}>Mark read</button>}</div></article>)}{!data.notifications.length && <p className="theme-muted text-sm">No delivered notifications yet.</p>}</div></details>}
           {tab === "Decisions" &&
             (decision ? (
               <DecisionDetail
+                key={decision.id}
                 decision={decision}
-                busy={busy}
-                now={Date.parse(data.generatedAt)}
+                busy={busy || stale}
+                paused={p.paused || !p.enabled}
+                now={now}
                 mutate={mutate}
                 onBack={() => setSelected(null)}
                 outcomes={data.outcomes.filter(
@@ -400,7 +347,13 @@ export default function OperationsClient() {
                     This decision is not in the latest 100 records.
                   </p>
                 )}
-                {data.decisions.map((d) => (
+                <div className={styles.filters}>
+                  <label>Search<input type="search" placeholder="Find a recommendation…" value={query} onChange={e => setQuery(e.target.value)} /></label>
+                  <label>Agent<select value={domain} onChange={e => setDomain(e.target.value)}><option value="all">All agents</option>{domains.map(d => <option key={d} value={d}>{d}</option>)}</select></label>
+                  <label>Status<select value={status} onChange={e => setStatus(e.target.value)}>{[["pending", "Needs review"], ["all", "All decisions"], ["approved", "Approved"], ["rejected", "Denied"], ["snoozed", "Snoozed"], ["expired", "Expired"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                </div>
+                <p className="theme-muted text-xs">Latest 100 decisions. Approval authorizes only the action shown, once, before its expiry.</p>
+                {decisionList.map((d) => (
                   <button
                     key={d.id}
                     className={`${card} w-full text-left`}
@@ -423,17 +376,18 @@ export default function OperationsClient() {
                     </span>
                   </button>
                 ))}
-                {!data.decisions.length && (
+                {!decisionList.length && (
                   <p className={card}>
-                    No decisions yet. Meaningful signals create briefs here.
+                    No matching decisions. New recommendations appear here when an agent finds a meaningful signal.
                   </p>
                 )}
               </section>
             ))}
           {tab === "Activity" && (
             <>
+              <AgentDoctor data={data} stale={stale} now={now} />
               <section className={card}>
-                <h2 className="font-semibold">Economic controller</h2>
+                <h2 className="font-semibold">Usage & budget</h2>
                 <p className="theme-muted mt-2 text-sm">{data.modelStatus}</p>
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                   <div>
@@ -475,7 +429,7 @@ export default function OperationsClient() {
                     >
                       <p className="font-medium capitalize">{s.domain}</p>
                       <p className="theme-muted my-2 text-xs">
-                        Next due {time(s.nextRunAt)}
+                        {cadenceLabels[s.domain]} · Next due {time(s.nextRunAt)}
                       </p>
                       <button
                         className={button}
@@ -546,15 +500,15 @@ export default function OperationsClient() {
           )}
           {tab === "Preferences" && (
             <PreferencesForm
-              key={p.updatedAt}
+              key={p.userId}
               profile={p}
-              busy={busy}
+              busy={busy || stale}
               save={(settings) => mutate({ operation: "settings", settings })}
             />
           )}
         </>
-      )}
-    </main>
+      ))}
+    </div>
   );
 }
 function Summary({ title, value }: { title: string; value: string }) {
@@ -569,6 +523,7 @@ function DecisionDetail({
   decision: d,
   busy,
   now,
+  paused,
   mutate,
   onBack,
   outcomes,
@@ -576,12 +531,14 @@ function DecisionDetail({
   decision: Decision;
   busy: boolean;
   now: number;
+  paused: boolean;
   mutate: (b: unknown, id?: string) => Promise<void>;
   onBack: () => void;
   outcomes: Snapshot["outcomes"];
 }) {
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState<{ hash: string; expiresAt: string } | null>(null);
   const b = d.brief as Record<string, unknown>;
+  const advisory = b.advisoryReasoning as Collection["reasoning"] | null;
   const eligible =
     ["pending", "snoozed"].includes(d.status) && Date.parse(d.expiresAt) > now;
   function outcome(e: FormEvent<HTMLFormElement>) {
@@ -610,6 +567,7 @@ function DecisionDetail({
         <p className="mt-2 text-sm">{String(b.whyItMatters)}</p>
       </div>
       <p className="text-sm">{String(b.recommendation)}</p>
+      {advisory?.summary && <section className="rounded-xl border border-cyan-400/20 p-4"><h3 className="text-sm font-semibold">AI perspective</h3><p className="mt-2 text-sm">{advisory.summary}</p>{advisory.uncertainty?.length > 0 && <details className="mt-2 text-sm"><summary>Uncertainty</summary><ul className="theme-muted space-y-2">{advisory.uncertainty.map((item, index) => <li key={index}>{item}</li>)}</ul></details>}<p className="theme-muted mt-2 text-xs">{advisory.provider} · {advisory.model} · advisory only</p></section>}
       <div className="grid gap-4 sm:grid-cols-2">
         {[
           ["Confidence", b.confidence],
@@ -645,18 +603,20 @@ function DecisionDetail({
       </details>
       <section className="rounded-xl border border-cyan-400/30 p-3">
         <h3 className="font-medium">Exact proposed action</h3>
-        <Data value={d.action} />
+        <p className="mt-2 text-sm">Collect a fresh {d.domain} observation and attach the result to this recommendation.</p>
+        <details><summary className="text-xs">Action parameters</summary><Data value={d.action} /></details>
         <p className="mt-2 text-xs">
           Expires {time(d.expiresAt)}. No financial, network, security,
           messaging, or deployment action is authorized.
         </p>
       </section>
+      {eligible && paused && <p className="theme-muted text-sm">Observation is paused. Resume the loop before approving a recheck. You can still deny or snooze this recommendation.</p>}
       {eligible && (
         <div className="flex flex-wrap gap-2">
           <button
             className={button}
-            disabled={busy}
-            onClick={() => setConfirm(true)}
+            disabled={busy || paused}
+            onClick={() => setConfirm({ hash: d.actionHash, expiresAt: d.expiresAt })}
           >
             Review approval
           </button>
@@ -665,7 +625,7 @@ function DecisionDetail({
             disabled={busy}
             onClick={() => void mutate({ operation: "reject" }, d.id)}
           >
-            Reject
+            Deny
           </button>
           <button
             className={button}
@@ -683,7 +643,7 @@ function DecisionDetail({
           </button>
         </div>
       )}
-      {confirm && eligible && (
+      {confirm && confirm.hash === d.actionHash && confirm.expiresAt === d.expiresAt && eligible && (
         <div className="rounded-xl border border-amber-400/40 p-4">
           <p className="text-sm">
             Approve one read-only recheck of this exact action before{" "}
@@ -692,18 +652,18 @@ function DecisionDetail({
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               className={button}
-              disabled={busy}
+              disabled={busy || paused}
               onClick={() => {
-                setConfirm(false);
+                setConfirm(null);
                 void mutate(
-                  { operation: "approve", actionHash: d.actionHash },
+                  { operation: "approve", actionHash: confirm.hash },
                   d.id,
                 );
               }}
             >
               Approve this recheck
             </button>
-            <button className={button} onClick={() => setConfirm(false)}>
+            <button className={button} onClick={() => setConfirm(null)}>
               Cancel
             </button>
           </div>
@@ -799,105 +759,54 @@ function PreferencesForm({
       settings[k] = Number(f.get(k));
     void save(settings);
   }
-  return (
-    <form onSubmit={submit} className={`${card} space-y-4`}>
-      <h2 className="font-semibold">Preferences & operating limits</h2>
-      <p className="theme-muted text-sm">
-        Preferences guide recommendations. They never grant permission to spend,
-        trade, message, or change infrastructure.
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {[
-          ["financialGoals", "Financial goals"],
-          ["investmentHorizon", "Investment horizon"],
-          ["riskTolerance", "Risk tolerance"],
-          ["businessPriorities", "Business priorities"],
-          ["reliability", "Reliability preference"],
-          ["timezone", "Notification timezone"],
-        ].map(([key, label]) => (
-          <label key={key} className="text-sm">
-            {label}
-            <input
-              name={key}
-              defaultValue={String(p[key as keyof Preferences])}
-              maxLength={1000}
-              required
-              className={input}
-            />
-          </label>
-        ))}
-        {[
-          ["liquidityUsd", "Liquidity floor (USD)", p.liquidityUsd, 1e9],
-          [
-            "monthlySpendingUsd",
-            "Monthly spending preference (USD)",
-            p.monthlySpendingUsd,
-            1e9,
-          ],
-          ["quietStart", "Quiet hours start (0–23)", p.quietStart, 23],
-          ["quietEnd", "Quiet hours end (0–23)", p.quietEnd, 23],
-          ["perJobUsd", "Per-job operating cap (USD)", profile.perJobUsd, 10],
-          ["dailyUsd", "Daily operating cap (USD, UTC)", profile.dailyUsd, 100],
-          [
-            "monthlyUsd",
-            "Monthly operating cap (USD, UTC)",
-            profile.monthlyUsd,
-            1000,
-          ],
-          [
-            "assumedWatts",
-            "Assumed whole-host power (W)",
-            profile.assumedWatts,
-            2000,
-          ],
-          [
-            "electricityRate",
-            "Electricity assumption (USD/kWh)",
-            profile.electricityRate,
-            10,
-          ],
-        ].map(([key, label, value, max]) => (
-          <label key={String(key)} className="text-sm">
-            {label}
-            <input
-              type="number"
-              name={String(key)}
-              defaultValue={Number(value)}
-              min={0}
-              max={Number(max)}
-              step={String(key).startsWith("quiet") ? "1" : "any"}
-              required
-              className={input}
-            />
-          </label>
-        ))}
-      </div>
-      <label className="block text-sm">
-        Temporary priorities (expire within 90 days)
-        <textarea
-          name="temporary"
-          defaultValue={p.temporary}
-          maxLength={1000}
-          className={input}
-        />
-      </label>
-      <label className="block text-sm">
-        Temporary preference expiration (UTC)
-        <input
-          type="datetime-local"
-          name="temporaryExpiresAt"
-          defaultValue={p.temporaryExpiresAt?.slice(0, 16) ?? ""}
-          className={input}
-        />
-      </label>
-      <p className="theme-muted text-xs">
-        Expired temporary preferences are excluded automatically. Approval
-        requirements remain action specific. Setting equal quiet hours disables
-        quiet hours. All notifications stay in Jarvis.
-      </p>
-      <button className={button} disabled={busy}>
-        Save preferences
-      </button>
-    </form>
-  );
+  const textField = (key: keyof Preferences, label: string) => <label className="block text-sm" key={key}>{label}<input name={key} defaultValue={String(p[key])} maxLength={1000} required className={input} /></label>;
+  const numberField = (key: string, label: string, value: number, max: number, step = "any") => <label className="block text-sm" key={key}>{label}<input name={key} type="number" defaultValue={value} min={0} max={max} step={step} required className={input} /></label>;
+  return <form onSubmit={submit} className={`${card} space-y-4`}>
+    <div><h2 className="font-semibold">Workflow settings</h2><p className="theme-muted mt-1 text-sm">Customize priorities, interruptions, and operating limits.</p></div>
+    <details open className="border-t border-white/10"><summary className="font-medium">Notifications & quiet hours</summary><div className="grid gap-4 sm:grid-cols-2">
+      {textField("timezone", "Notification timezone")}
+      <div className="text-sm"><p>Delivery channel</p><p className="theme-muted mt-3">Jarvis inbox · notifications appear while Jarvis is open</p></div>
+      {numberField("quietStart", "Quiet hours start (0–23)", p.quietStart, 23, "1")}
+      {numberField("quietEnd", "Quiet hours end (0–23)", p.quietEnd, 23, "1")}
+    </div><p className="theme-muted mt-3 text-xs">Equal start and end disables quiet hours. Email, SMS and background phone push are not connected. Changes apply to new notifications.</p></details>
+    <details className="border-t border-white/10"><summary className="font-medium">Budgets & energy assumptions</summary><div className="grid gap-4 sm:grid-cols-2">
+      {numberField("perJobUsd", "Per-job cap (USD)", profile.perJobUsd, 10)}
+      {numberField("dailyUsd", "Daily cap (USD, UTC)", profile.dailyUsd, 100)}
+      {numberField("monthlyUsd", "Monthly cap (USD, UTC)", profile.monthlyUsd, 1000)}
+      {numberField("assumedWatts", "Assumed whole-host power (W)", profile.assumedWatts, 2000)}
+      {numberField("electricityRate", "Electricity assumption (USD/kWh)", profile.electricityRate, 10)}
+    </div><p className="theme-muted mt-3 text-xs">Per-job ≤ daily ≤ monthly. These caps cover the observation loop, including optional reasoning. Interactive chat usage is separate. Energy is estimated from these assumptions; live UPS/GPU readings are in Operations.</p></details>
+    <details className="border-t border-white/10"><summary className="font-medium">Goals & recommendation preferences</summary><div className="grid gap-4 sm:grid-cols-2">
+      {textField("financialGoals", "Financial goals")}{textField("investmentHorizon", "Investment horizon")}{textField("riskTolerance", "Risk tolerance")}{textField("businessPriorities", "Business priorities")}{textField("reliability", "Reliability preference")}
+      {numberField("liquidityUsd", "Liquidity floor (USD)", p.liquidityUsd, 1e9)}
+      {numberField("monthlySpendingUsd", "Monthly spending preference (USD)", p.monthlySpendingUsd, 1e9)}
+    </div></details>
+    <details className="border-t border-white/10"><summary className="font-medium">Temporary priorities</summary><label className="block text-sm">Priorities<textarea name="temporary" defaultValue={p.temporary} maxLength={1000} className={input} /></label><label className="mt-3 block text-sm">Expires (UTC, within 90 days)<input type="datetime-local" name="temporaryExpiresAt" defaultValue={p.temporaryExpiresAt?.slice(0, 16) ?? ""} className={input} /></label></details>
+    <details className="border-t border-white/10"><summary className="font-medium">Action permissions</summary><p className="theme-muted text-sm">Each approval authorizes one exact, expiring read-only recheck. Changes to infrastructure, money, messaging, and deployments have no executor connected here. Preferences cannot grant those permissions. Interactive Assistant uses its separate gateway policy.</p></details>
+    <button className={button} disabled={busy}>Save preferences</button>
+  </form>;
+}
+
+function Briefing({ collection }: { collection: Collection }) {
+  return <div className="mt-3 space-y-3 text-sm">
+    {collection.reasoning?.summary && <p>{collection.reasoning.summary}</p>}
+    {collection.signals.map(signal => <div key={signal.code}><p className="font-medium">{signal.title}</p><p className="theme-muted mt-1">{signal.detail}</p></div>)}
+    {!collection.signals.length && !collection.reasoning?.summary && <p className="theme-muted">No new signals in this observation.</p>}
+    <details><summary>Sources & limitations</summary><ul className="theme-muted space-y-2">{collection.limitations.map(limit => <li key={limit}>{limit}</li>)}</ul><p className="theme-muted mt-2">{collection.source} · {time(collection.sourceUpdatedAt)}</p></details>
+  </div>;
+}
+function AgentDoctor({ data, stale, now }: { data: Snapshot; stale: boolean; now: number }) {
+  const p = data.profile;
+  const workerFresh = !stale && !!p?.workerSeenAt && now - Date.parse(p.workerSeenAt) < 300000;
+  const checks = [
+    ["Observation loop", p?.enabled && !p.paused ? "Enabled" : "Paused", "Scheduled observations and approved rechecks use this loop. Emergency pause cancels queued and running work."],
+    ["Worker heartbeat", workerFresh ? "Recent" : "Not confirmed", p?.workerSeenAt ? `Last check-in ${time(p.workerSeenAt)}. A recent heartbeat is required to process queued work.` : "No worker has checked in. Enabling the loop alone does not install or start a worker."],
+    ["Approval policy", "Exact action only", "Review → approve or deny → verified result. Only read-only observation rechecks are connected to this queue. Interactive chat has a separate gateway policy."],
+    ["Notifications", "In-app inbox", "Alerts appear across Jarvis while it is open. Quiet hours apply. Email, SMS, and background phone push are not connected."],
+    ["Budget", p ? `$${p.dailyUsd}/day` : "Not set", "Per-job, daily and monthly caps apply to the observation loop. Interactive Assistant provider usage is separate."],
+  ];
+  return <section className={styles.doctor}><h2>Workflow doctor</h2><p className="theme-muted mt-1 text-xs">Connection and policy checks · refresh to check again</p>
+    {checks.map(([title, state, description]) => <div key={title} className={styles.doctorRow}><div><span>{title}</span><p>{description}</p></div><strong>{state}</strong></div>)}
+    {data.reasoning?.map(item => <div key={item.domain} className={styles.doctorRow}><div><span className="capitalize">{item.domain} reasoning</span><p>{item.detail}</p></div><strong>{item.state}</strong></div>)}
+  </section>;
 }

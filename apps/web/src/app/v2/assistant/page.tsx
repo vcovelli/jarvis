@@ -1,4 +1,5 @@
 "use client";
+import { trapDialogFocus } from "@/lib/dialogFocus";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
@@ -14,6 +15,8 @@ import {
   getDayKey,
   useJarvisState,
 } from "@/lib/jarvisStore";
+import { useOperations } from "@/components/operations/OperationsProvider";
+import assistantStyles from "./Assistant.module.css";
 import { useToast } from "@/components/Toast";
 import { assistantVoiceToggleEvent } from "@/lib/assistantVoiceEvents";
 import {
@@ -365,6 +368,12 @@ export default function AssistantPage() {
     deleteMoodTag,
   } = useJarvisState();
   const { showToast } = useToast();
+  const agents = useOperations();
+  const [sendOnEnter, setSendOnEnter] = useState(true);
+  const [appearanceLoaded, setAppearanceLoaded] = useState(false);
+  const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
+  useEffect(() => { try { setSendOnEnter(localStorage.getItem("jarvis-chat-enter-send") !== "false"); } catch {} setAppearanceLoaded(true); }, []);
+  useEffect(() => { if (appearanceLoaded) { try { localStorage.setItem("jarvis-chat-enter-send", String(sendOnEnter)); } catch {} } }, [appearanceLoaded, sendOnEnter]);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversations, setConversations] = useState<AssistantConversationListItem[]>([]);
@@ -378,6 +387,11 @@ export default function AssistantPage() {
   const [topicOrder, setTopicOrder] = useState<AssistantTopicOrder>({});
   const [topicSettingsLoaded, setTopicSettingsLoaded] = useState(false);
   const [conversationPanelOpen, setConversationPanelOpen] = useState(false);
+  const conversationsDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (conversationPanelOpen) conversationsDialog.current?.showModal();
+    else conversationsDialog.current?.close();
+  }, [conversationPanelOpen]);
   const [newChatMenuOpen, setNewChatMenuOpen] = useState(false);
   const [conversationLoading, setConversationLoading] = useState(false);
   const [memories, setMemories] = useState<AssistantMemoryItem[]>([]);
@@ -992,6 +1006,8 @@ export default function AssistantPage() {
     async (rawInput: string, options?: { preferIntent?: boolean }) => {
       const trimmed = rawInput.trim();
       if (!trimmed) return;
+      setProjectHomeOpen(false);
+      setNewChatMenuOpen(false);
       setInput("");
       appendMessage("user", trimmed);
 
@@ -1037,12 +1053,9 @@ export default function AssistantPage() {
   );
 
   const handleSubmit = useCallback(() => {
-    if (projectHomeOpen && !activeConversation) {
-      setNewChatMenuOpen(true);
-      return;
-    }
+    if (intentStatus === "thinking") return;
     void submitCommand(input);
-  }, [activeConversation, input, projectHomeOpen, submitCommand]);
+  }, [input, intentStatus, submitCommand]);
 
   const clearVoiceTimers = useCallback(() => {
     if (voiceStopTimerRef.current !== null) {
@@ -1420,15 +1433,6 @@ export default function AssistantPage() {
     status: intentStatus === "thinking" ? "Thinking" : voiceStatus === "listening" ? "Listening" : "Ready",
   }), [intentStatus, voiceStatus]);
   const headerContextLabel = projectHomeOpen ? "Project overview" : `${activeProject.label} / ${activeTopic.label}`;
-  const headerAttentionLabel = draft
-    ? "Action pending"
-    : pending
-      ? "Needs detail"
-      : intentStatus === "thinking"
-        ? "Agent running"
-        : voiceStatus === "listening"
-          ? "Voice active"
-          : "Agents idle";
 
   const runAction = useCallback(
     (action: PendingAction) => {
@@ -1634,45 +1638,11 @@ export default function AssistantPage() {
 
   return (
     <div
-      className={`-mx-3 grid h-full min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden sm:mx-0 xl:grid-cols-[240px_minmax(0,1fr)] xl:gap-3 ${
-        draft
-          ? "xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_minmax(360px,0.8fr)]"
-          : contextPanelOpen
-            ? "xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_300px]"
-            : "xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)]"
-      }`}
+      className={`${assistantStyles.workspace} -mx-3 grid h-full min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden sm:mx-0 ${draft ? "2xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]" : contextPanelOpen ? "2xl:grid-cols-[minmax(0,1fr)_300px]" : ""}`}
     >
-      <AssistantConversationRail
-        key={activeProject.id}
-        projects={configuredProjects}
-        conversations={conversations}
-        activeConversationId={projectHomeOpen ? undefined : activeConversation?.id}
-        activeProjectId={activeProject.id}
-        activeDomain={activeDomain}
-        projectHomeOpen={projectHomeOpen}
-        loading={conversationLoading}
-        className="hidden h-full xl:flex"
-        onProjectSelect={selectAssistantProject}
-        onTopicMove={moveAssistantTopic}
-        onSelect={(id) => void loadConversation(id)}
-        onNew={(domain) => void startNewConversation(domain)}
-        onConversationArchive={(id) => void archiveConversation(id)}
-      />
 
-      <div
-        className={`fixed inset-x-0 bottom-[var(--jarvis-mobile-nav-height)] top-0 z-50 flex bg-black/70 px-2 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md transition-[opacity,backdrop-filter] duration-200 sm:p-2 xl:hidden ${
-          conversationPanelOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        data-no-pull-refresh="true"
-        aria-hidden={!conversationPanelOpen}
-      >
-        <button
-          type="button"
-          aria-label="Close conversations"
-          className="absolute inset-0 h-full w-full cursor-default"
-          onClick={() => setConversationPanelOpen(false)}
-        />
-        <div role="dialog" aria-modal="true" aria-label="Conversations" className={`relative h-full min-h-0 w-full max-w-none transition-transform duration-300 ease-out sm:max-w-[420px] ${conversationPanelOpen ? "translate-x-0" : "-translate-x-[110%]"}`}>
+      <dialog onKeyDown={trapDialogFocus} ref={conversationsDialog} className={assistantStyles.conversationDrawer} aria-label="Conversations" onCancel={() => setConversationPanelOpen(false)} onClose={() => setConversationPanelOpen(false)}>
+        <div className="h-full min-h-0">
           <AssistantConversationRail
             key={activeProject.id}
             projects={configuredProjects}
@@ -1691,7 +1661,7 @@ export default function AssistantPage() {
             onClose={() => setConversationPanelOpen(false)}
           />
         </div>
-      </div>
+      </dialog>
 
       <section
         className={`theme-workspace relative isolate flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-none border-y shadow-none backdrop-blur-xl sm:rounded-[22px] sm:border sm:shadow-[0_18px_70px_rgba(0,0,0,0.28)] ${
@@ -1711,9 +1681,7 @@ export default function AssistantPage() {
                 <span className="hidden text-zinc-700 sm:inline">/</span>
                 <span className="hidden min-w-0 truncate sm:inline">{headerContextLabel}</span>
                 <span className="hidden text-zinc-700 sm:inline">/</span>
-                <span className="hidden shrink-0 text-cyan-100/70 sm:inline">{headerAttentionLabel}</span>
-                <span className="hidden text-zinc-700 md:inline">/</span>
-                <span className="hidden shrink-0 text-amber-200/70 md:inline">Approval gate on</span>
+                <span className="hidden shrink-0 text-amber-200/70 md:inline">Interactive chat</span>
               </div>
 
               {detailsEditorOpen && !projectHomeOpen ? (
@@ -1752,7 +1720,7 @@ export default function AssistantPage() {
               ) : (
                 <>
                   <div className="mt-1 flex min-w-0 items-center gap-2 sm:mt-2">
-                    <h1 className="assistant-header-title min-w-0 truncate text-[1.45rem] font-semibold leading-tight text-white sm:text-3xl">{activeChatTitle}</h1>
+                    <h1 className="assistant-header-title min-w-0 truncate text-lg font-semibold leading-tight text-white sm:text-xl">{activeChatTitle}</h1>
                     {!projectHomeOpen && (
                       <button
                         type="button"
@@ -1763,32 +1731,33 @@ export default function AssistantPage() {
                       </button>
                     )}
                   </div>
-                  <p className="assistant-header-summary mt-0.5 max-w-3xl truncate text-xs leading-5 text-zinc-500 sm:text-sm sm:text-zinc-400">{activeChatDescription}</p>
+
                 </>
               )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-1.5 pb-0.5 sm:gap-2 sm:justify-end">
+            <div className={assistantStyles.actions}>
               <button
                 type="button"
                 data-guide="assistant-conversations"
                 onClick={() => setConversationPanelOpen(true)}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-cyan-200/35 hover:text-white sm:px-4 sm:text-sm xl:hidden"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-cyan-200/35 hover:text-white sm:px-4 sm:text-sm"
               >
                 Chats
               </button>
               <button
                 type="button"
                 onClick={() => setContextPanelOpen((current) => !current)}
-                className={`rounded-full border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm ${contextPanelOpen ? "border-cyan-200/40 bg-cyan-300/10 text-cyan-50" : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white"}`}
+                className={`${assistantStyles.memoryButton} rounded-full border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm ${contextPanelOpen ? "border-cyan-200/40 bg-cyan-300/10 text-cyan-50" : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white"}`}
               >
-                Context
+                Memory
               </button>
               <div className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => requestNewConversation()}
                   className="rounded-full bg-cyan-300 px-3 py-2 text-sm font-semibold text-zinc-950 shadow-[0_10px_30px_rgba(34,211,238,0.18)] transition hover:bg-cyan-200 sm:px-4"
+                  aria-label="New conversation"
                   aria-expanded={newChatMenuOpen}
                 >
                   <span className="sm:hidden">+</span>
@@ -1804,18 +1773,18 @@ export default function AssistantPage() {
                   />
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => appendMessage("assistant", buildHelpText())}
-                className="hidden h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-sm font-semibold text-white/55 transition hover:border-white/20 hover:text-white sm:grid"
-                aria-label="Assistant help"
-              >
-                ?
-              </button>
+              <button type="button" aria-label="Chat settings" aria-expanded={chatSettingsOpen} onClick={() => setChatSettingsOpen(value => !value)} className={assistantStyles.tool}>Settings</button>
+              {agents.allowed && <button type="button" onClick={() => agents.open("Decisions")} className={assistantStyles.tool}>Agents{!agents.stale && agents.data?.pendingCount ? ` · ${agents.data.pendingCount}` : ""}</button>}
+
             </div>
           </div>
         </div>
 
+        {chatSettingsOpen && <section className={assistantStyles.settings} aria-label="Chat settings">
+          <label><input type="checkbox" checked={sendOnEnter} onChange={e => setSendOnEnter(e.target.checked)} /> Enter sends a message <small>Saved on this device</small></label>
+          <div><button onClick={() => { setContextPanelOpen(true); setChatSettingsOpen(false); }}>Manage memory</button><button onClick={() => { appendMessage("assistant", buildHelpText()); setChatSettingsOpen(false); }}>Chat help</button>{agents.allowed && <><button onClick={() => agents.open("Preferences")}>Workflow settings</button><button onClick={() => agents.open("Activity")}>Workflow doctor</button></>}</div>
+          <p>Agent approvals and budgets apply to the observation loop. Interactive chat uses its configured gateway permissions.</p>
+        </section>}
         <div className="flex min-h-0 flex-1 flex-col px-0 pb-1 sm:px-4 sm:pb-4 lg:px-5">
           {(voiceStatus !== "idle" || voiceError || voiceTranscript) && (
             <VoiceActionPanel
@@ -1923,7 +1892,7 @@ export default function AssistantPage() {
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
+                  if (sendOnEnter && event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();
                     handleSubmit();
                   }
@@ -1935,27 +1904,20 @@ export default function AssistantPage() {
               <div className="assistant-composer-actions flex items-center justify-between gap-2 border-t border-white/5 px-1 pt-2">
                 <div className="assistant-composer-hints hide-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto text-xs text-zinc-500">
                   <span className="min-w-0 max-w-[12rem] truncate rounded-full border border-white/10 px-3 py-1 text-zinc-300 sm:max-w-none">{composerContextLabel}</span>
-                  <span className="hidden shrink-0 sm:inline">Enter sends</span>
+                  <span className="hidden shrink-0 sm:inline">{sendOnEnter ? "Enter sends" : "Enter adds a line"}</span>
                   <span className="hidden shrink-0 sm:inline">Shift+Enter newline</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
                     onClick={() => (voiceStatus === "listening" ? stopVoiceCapture() : void startVoiceCapture())}
-                    className={`hidden rounded-2xl border px-4 py-2 text-sm font-semibold transition sm:inline-flex ${voiceStatus === "listening" ? "border-cyan-200/50 bg-cyan-300/10 text-cyan-50" : "border-white/10 text-white/70 hover:border-white/20 hover:text-white"}`}
+                    className={`inline-flex rounded-2xl border px-4 py-2 text-sm font-semibold transition ${voiceStatus === "listening" ? "border-cyan-200/50 bg-cyan-300/10 text-cyan-50" : "border-white/10 text-white/70 hover:border-white/20 hover:text-white"}`}
                   >
                     {voiceStatus === "listening" ? "Stop" : "Voice"}
                   </button>
                   <button
-                    type="button"
-                    onClick={() => requestNewConversation()}
-                    className="hidden rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/70 transition hover:border-white/20 hover:text-white sm:inline-flex"
-                  >
-                    New Chat
-                  </button>
-                  <button
                     type="submit"
-                    disabled={!input.trim()}
+                    disabled={!input.trim() || intentStatus === "thinking"}
                     className="rounded-2xl bg-gradient-to-r from-emerald-300 to-cyan-300 px-4 py-2 text-sm font-semibold text-zinc-950 shadow-[0_12px_30px_rgba(45,212,191,0.18)] transition hover:from-emerald-200 hover:to-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5"
                   >
                     Send
@@ -2846,12 +2808,12 @@ function AssistantProjectHome({
   const recentConversations = conversations.slice(0, 12);
 
   return (
-    <div className="min-h-full px-0 py-3 sm:px-2 sm:py-5">
+    <div className={`${assistantStyles.home} min-h-full px-0 py-3 sm:px-2 sm:py-5`}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-6">
         <div className="flex items-start justify-between gap-3 sm:items-end">
           <div className="min-w-0">
             <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${project.accent}`}>{project.label}</span>
-            <h2 className="mt-2 text-xl font-semibold text-white sm:mt-3 sm:text-3xl">{displayTitle}</h2>
+            <h2 className="mt-2 text-xl font-semibold text-white sm:mt-3 sm:text-3xl">What would you like to work on?</h2>
             <p className="mt-1 max-w-2xl text-sm leading-5 text-zinc-400 sm:leading-6">{displayDetail}</p>
           </div>
           <button
@@ -2864,6 +2826,8 @@ function AssistantProjectHome({
           </button>
         </div>
 
+        <div className={assistantStyles.starters}>{[`Help me plan my next step`, `Review my priorities`, `Turn an idea into a task`].map(prompt => <button key={prompt} onClick={() => onPrompt(prompt)}>{prompt}<span aria-hidden="true">↗</span></button>)}</div>
+        <details className={assistantStyles.projectDetails}><summary>Topics & recent conversations <span>{conversations.length} chats</span></summary>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {project.topics.map((topic) => {
             const active = selectedTopic?.key === topic.key;
@@ -2942,6 +2906,7 @@ function AssistantProjectHome({
             )}
           </div>
         </section>
+        </details>
       </div>
     </div>
   );

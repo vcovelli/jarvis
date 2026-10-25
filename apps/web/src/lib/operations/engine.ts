@@ -1239,6 +1239,14 @@ export async function snapshot(db: PrismaClient, userId: string) {
     pendingCount,
     activeCount,
     generatedAt: now.toISOString(),
+    reasoning: domains.map(domain => {
+      try {
+        const plan = modelPlan(domain);
+        return { domain, state: plan ? "Configured" : "Rules only", detail: plan ? `${plan.provider} / ${plan.model}. Configuration valid; live model connectivity is not tested here.` : "Deterministic observations and recommendations. Optional model reasoning is disabled." };
+      } catch {
+        return { domain, state: "Needs setup", detail: "Reasoning configuration is incomplete. Review the server provider, model, and cost settings." };
+      }
+    }),
     modelStatus:
       "Deterministic collection always runs first. Optional server-configured OpenAI or local reasoning has no tools and requires reserved budget. OpenClaw remains available in the existing interactive Assistant; autonomous gateway execution is disabled.",
   };
