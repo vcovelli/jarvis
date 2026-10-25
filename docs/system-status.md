@@ -51,6 +51,26 @@ UPS telemetry, and simulates browser responses for battery operation, stale
 data, service failure and revoked access. It checks 1440, 390 and 320 px layouts.
 It does not send control commands to the UPS or write to production data.
 
+## NVIDIA GPU telemetry (17.10.0)
+
+The panel also reads NVIDIA GPU utilization, used/free/total VRAM, board power,
+power limit, temperature, fan speed, driver and performance state using fixed
+`/usr/bin/nvidia-smi` CSV queries. Each GPU has its own card and compute-process
+list with PID, executable basename and VRAM usage. Full executable paths and
+device UUIDs are not returned to the browser. Graphics-only processes are not
+included by the compute-process query.
+
+GPU watts are NVIDIA-reported measurements, distinct from the UPS estimate.
+They are already included in UPS load and must not be added to it. Unsupported
+metrics remain unavailable; a failed process query is not an empty process list.
+Driver failures show unavailable telemetry, and stale snapshots cannot show an
+Idle/Active badge as current. This uses the same admin-only endpoint, bounded
+timeouts, server cache, 15-second refresh and access-revocation handling.
+
+Validation includes 94 unit/regression tests and authenticated browser checks
+with live NVIDIA readings, simulated active processes, failed GPU collection,
+stale readings and revoked access at desktop and 390/320 px phone widths.
+
 No schema migration, dependency addition, privileged service change or model
 request is needed for this feature. Build in an isolated checkout. Preserve
 the current production build and source before swapping the verified build

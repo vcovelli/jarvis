@@ -80,6 +80,25 @@
 .notice, .alerts { padding: 12px 26px; font-size: 12px; line-height: 1.6; border-bottom: 1px solid var(--border); background: color-mix(in srgb, #f59e0b 8%, transparent); }
 .alerts p + p { margin-top: 5px; }
 .panel button:focus-visible, .details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.gpu { border-bottom: 1px solid var(--border); background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent); }
+.gpuHeading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 22px 26px 16px; }
+.gpuHeading h3 { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+.gpuSource { font-size: 10px; color: var(--muted); }
+.gpuDeviceHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 26px 18px; }
+.gpuDeviceHead > div { min-width: 0; }
+.gpuDeviceHead strong { display: block; font-weight: 550; font-size: 14px; overflow-wrap: anywhere; }
+.gpuDeviceHead div > span { display: block; font-size: 10px; color: var(--muted); margin-top: 5px; }
+.gpuBadge { flex-shrink: 0; border: 1px solid var(--border); padding: 5px 10px; border-radius: 999px; font-size: 10px; }
+.gpuBadge[data-active="true"] { border-color: var(--accent); color: var(--accent); }
+.gpuProcesses { padding: 14px 26px 0; font-size: 11px; }
+.gpuProcesses summary { cursor: pointer; padding: 6px 0; }
+.gpuProcesses li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.gpuProcesses li > span { min-width: 0; overflow-wrap: anywhere; }
+.gpuProcesses li small { color: var(--muted); margin-left: 10px; font-size: 10px; }
+.gpuProcesses li strong { white-space: nowrap; font-weight: 500; }
+.gpuNote { padding: 12px 26px 20px; font-size: 10px; line-height: 1.6; color: var(--muted); }
+.gpuDevice + .gpuDevice { margin-top: 22px; }
+@media (max-width: 600px) { .gpuHeading { padding: 20px 18px 16px; } .gpuDeviceHead { padding: 0 18px 18px; } .gpuProcesses { padding-inline: 18px; } .gpuNote { padding-inline: 18px; } }
 .powerStory, .reserve > div:last-child { min-width: 0; }
 .flow > div { min-width: 0; flex: 1; }
 .flowLine { flex: 0 1 45px; min-width: 10px; margin-inline: 6px; }

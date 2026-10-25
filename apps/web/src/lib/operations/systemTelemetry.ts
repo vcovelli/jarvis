@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { hostname } from "node:os";
 import { getMonitoringSummary } from "../prometheus";
 import { parseBackup, parsePower } from "./power";
+import { GPU_QUERY, GPU_PROCESS_QUERY, parseGpu } from "./gpu";
 
 const run = promisify(execFile);
 // Fixed read-only commands, no shell, caller-supplied arguments, sudo, or credentials.
@@ -21,7 +22,7 @@ const serviceNames = [
 ] as const;
 
 async function collect() {
-  const [monitoring, rawUps, services, backups] = await Promise.all([
+  const [monitoring, rawUps, services, backups, gpu] = await Promise.all([
     getMonitoringSummary(),
     read("/usr/bin/upsc", ["ups@127.0.0.1"]),
     Promise.all(serviceNames.map(async ([name, unit]) => {
@@ -31,8 +32,12 @@ async function collect() {
     Promise.all(([ ["Server → Synology", "covelli-backup.service"], ["Vaultwarden → Synology", "vaultwarden-backup.service"] ] as const).map(async ([name, unit]) =>
       parseBackup(name, await read("/usr/bin/systemctl", ["show", unit, "--property=ActiveState,Result,ExecMainStatus,ExecMainExitTimestamp"]))
     )),
+    Promise.all([
+      read("/usr/bin/nvidia-smi", [`--query-gpu=${GPU_QUERY}`, "--format=csv,noheader,nounits"]),
+      read("/usr/bin/nvidia-smi", [`--query-compute-apps=${GPU_PROCESS_QUERY}`, "--format=csv,noheader,nounits"]),
+    ]).then(([devices, processes]) => parseGpu(devices, processes)),
   ]);
-  return { generatedAt: new Date().toISOString(), host: hostname(), power: parsePower(rawUps), monitoring, services, backups };
+  return { generatedAt: new Date().toISOString(), host: hostname(), power: parsePower(rawUps), monitoring, services, backups, gpu };
 }
 export type SystemTelemetry = Awaited<ReturnType<typeof collect>>;
 let cached: SystemTelemetry | null = null;

@@ -27,6 +27,10 @@ try {
   assert.equal(live.power.wattsSource, "estimated");
   assert.equal(live.power.watts, Math.round(live.power.loadPercent * live.power.nominalWatts / 100));
   assert.ok(!JSON.stringify(live).includes("serial"));
+  assert.equal(live.gpu.available, true);
+  assert.ok(live.gpu.devices.length > 0);
+  assert.equal(typeof live.gpu.devices[0].powerWatts, "number");
+  assert.ok(!JSON.stringify(live.gpu).includes("GPU-"));
   const { chromium } = await import(process.env.OPERATIONS_PLAYWRIGHT_PATH);
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, timezoneId: "America/New_York" });
@@ -38,9 +42,12 @@ try {
   await page.goto(base + "/v2/operations");
   await page.getByText("Power steady. Battery ready.", { exact: true }).waitFor();
   const section = page.locator('section[aria-labelledby="server-status-title"]');
+  const gpuSection = page.getByRole("region", { name: "NVIDIA GPU status" });
+  await gpuSection.getByText(live.gpu.devices[0].name, { exact: true }).waitFor();
   await mkdir("/tmp/jarvis-power-test/screenshots", { recursive: true });
   await page.getByRole("button", { name: "CPU", exact: true }).click();
   await section.screenshot({ path: "/tmp/jarvis-power-test/screenshots/desktop.png" });
+  await gpuSection.screenshot({ path: "/tmp/jarvis-power-test/screenshots/gpu-desktop.png", animations: "disabled" });
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     if (await section.evaluate(el => el.scrollWidth > el.clientWidth)) {
@@ -52,17 +59,28 @@ try {
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await section.screenshot({ path: "/tmp/jarvis-power-test/screenshots/mobile.png" });
+  await gpuSection.screenshot({ path: "/tmp/jarvis-power-test/screenshots/gpu-mobile.png", animations: "disabled" });
   await page.getByText("UPS details & what these readings mean", { exact: false }).click();
   await page.getByText("Power covers everything connected to the UPS", { exact: false }).waitFor();
   // Exercise outage and failure visuals without sending commands to the real UPS.
   let scenario = structuredClone(live);
   await page.route("**/api/operations/system", route => route.fulfill({ json: scenario }));
+  scenario.gpu.devices[0] = { ...scenario.gpu.devices[0], utilizationPercent: 72, processCount: 1, processes: [{ pid: 1234, name: "local-model-worker", memoryMiB: 4096 }] };
+  await page.getByRole("button", { name: "Refresh server status" }).click();
+  await gpuSection.getByText("local-model-worker", { exact: false }).waitFor();
+  await gpuSection.getByText("Active", { exact: true }).waitFor();
+  scenario.gpu = { available: false, devices: [] };
+  await page.getByRole("button", { name: "Refresh server status" }).click();
+  await gpuSection.getByText("GPU telemetry unavailable.", { exact: false }).waitFor();
+  assert.equal(await gpuSection.getByText("Idle", { exact: true }).count(), 0);
+  scenario.gpu = structuredClone(live.gpu);
   scenario.power = { ...live.power, state: "battery", label: "Running on battery", flags: ["OB"], alerts: ["Utility power lost. Equipment is running on battery."] };
   await page.getByRole("button", { name: "Refresh server status" }).click();
   await page.getByText("Your battery is carrying the load.", { exact: true }).waitFor();
   scenario.generatedAt = new Date(Date.now() - 120000).toISOString();
   await page.getByRole("button", { name: "Refresh server status" }).click();
   await page.getByText("Readings are stale", { exact: true }).waitFor();
+  await gpuSection.getByText("Unconfirmed", { exact: true }).waitFor();
   await page.unroute("**/api/operations/system");
   await page.route("**/api/operations/system", route => route.fulfill({ status: 503, json: { error: "Unavailable" } }));
   await page.getByRole("button", { name: "Refresh server status" }).click();
@@ -72,10 +90,11 @@ try {
   await page.route("**/api/operations/system", route => route.fulfill({ status: 403, json: { error: "Forbidden" } }));
   await page.getByRole("button", { name: "Refresh server status" }).click();
   await page.getByText("Sign in with an administrator account", { exact: false }).waitFor();
-  assert.equal(await section.getByText("81", { exact: true }).count(), 0);
+  assert.equal(await section.getByRole("meter", { name: "UPS load", exact: true }).getAttribute("aria-valuenow"), null);
+  assert.equal(await gpuSection.getByRole("meter").count(), 0);
   assert.deepEqual(errors, []);
   await writeFile("/tmp/jarvis-power-test/verification.json", JSON.stringify({ auth: "401/403/200 verified", liveUps: true, estimateCorrect: true, widths: [1440, 390, 320], outage: "passed", stale: "passed", unavailable: "passed", revokedAccess: "passed", browserErrors: errors }, null, 2));
-  console.log("PASS: authorization, live UPS data, estimates, desktop/mobile, outage, stale data, failed refresh, and revoked access.");
+  console.log("PASS: authorization, live UPS/GPU data, GPU processes/unavailable/stale states, desktop/mobile, outage, failed refresh, and revoked access.");
 } finally {
   await browser?.close();
   await db.user.deleteMany({ where: { id: { startsWith: "power-test-" } } });

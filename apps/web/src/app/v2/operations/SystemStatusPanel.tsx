@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SystemTelemetry } from "@/lib/operations/systemTelemetry";
 import styles from "./SystemStatusPanel.module.css";
+import GpuStatus from "./GpuStatus";
 
 type Point = { ts: number; value: number };
 const num = (n: number | null | undefined, digits = 0) => n == null ? "—" : n.toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -123,6 +124,7 @@ export default function SystemStatusPanel() {
       <article className={styles.metric}><p>Memory in use</p><strong>{num(m?.memoryUsagePercent, 1)}<small>%</small></strong><Meter value={m?.memoryUsagePercent} label="Memory in use" danger={(m?.memoryUsagePercent ?? 0) >= 90} /><footer>Available memory excluded</footer></article>
       <article className={styles.metric}><p>System disk</p><strong>{num(m?.rootDiskUsagePercent, 1)}<small>%</small></strong><Meter value={m?.rootDiskUsagePercent} label="System disk usage" danger={(m?.rootDiskUsagePercent ?? 0) >= 80} /><footer>USB storage: {num(m?.hddUsagePercent, 1)}% used</footer></article>
     </div>
+    <GpuStatus telemetry={data?.gpu} stale={stale || Boolean(error)} />
     <div className={styles.lower}>
       <section className={styles.trends} aria-label="Telemetry trends"><div className={styles.sectionHead}><h3>At a glance, over time</h3><div className={styles.tabs} aria-label="Choose trend">{([ ["power", "Power"], ["cpu", "CPU"], ["temperature", "Temperature"] ] as const).map(([key, label]) => <button key={key} aria-pressed={trend === key} onClick={() => setTrend(key)}>{label}</button>)}</div></div><Chart points={points} label={trend === "power" ? `UPS output · ${power?.wattsSource ?? "unavailable"}` : trend === "cpu" ? "CPU utilization" : "CPU temperature"} unit={trend === "power" ? "W" : trend === "cpu" ? "%" : "°C"} /><p className={styles.chartFoot}>{trend === "power" ? "Readings since opening this panel · up to 15 minutes" : "Last hour · host monitoring"}</p></section>
       <section className={styles.checks} aria-label="Service and backup checks"><h3>Protection & continuity</h3><div className={styles.checkRow}><span>Server uptime</span><strong>{duration(m?.uptimeSeconds)}</strong></div>{data?.services.map(service => <div className={styles.checkRow} key={service.name}><span>{service.name}</span><strong data-ok={service.state === "active"}>{service.state === "active" ? "Running" : service.state === "unknown" ? "Unknown" : "Check service"}</strong></div>)}{data?.backups.map(backup => <div className={styles.checkRow} key={backup.name}><span>{backup.name}<small>{backup.completedAt ? new Date(backup.completedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "No completion time reported"}</small></span><strong data-ok={backup.state === "success"}>{({ success: "Job passed", failed: "Failed", running: "Running", stale: "Overdue", unknown: "Unverified" })[backup.state]}</strong></div>)}</section>
