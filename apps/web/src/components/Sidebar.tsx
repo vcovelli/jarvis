@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Children, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { signOut, useSession } from "next-auth/react";
 
@@ -20,6 +20,7 @@ import { useOptionalWalkthrough } from "./onboarding/WalkthroughProvider";
 import { findGuide, matchesGuideRoute } from "@/lib/userGuides";
 import { useMobileLayout } from "@/lib/useMobileLayout";
 import { mobileSidebarOpenEvent } from "@/lib/shellEvents";
+import styles from "./Sidebar.module.css";
 
 type NavLink = {
   href: string;
@@ -31,7 +32,7 @@ type NavLink = {
 const startLinks: NavLink[] = [
   { href: "/", label: "Home", description: "Overview" },
   { href: "/daily?mode=backlog", label: "Plan", description: "Schedule", activeFor: ["/daily", "/todos"] },
-  { href: "/operations", label: "Operations", description: "Decisions" },
+  { href: "/operations", label: "Operations", description: "System, power, GPU, decisions" },
   { href: "/assistant", label: "Assistant", description: "Ask" },
 ];
 
@@ -107,6 +108,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   const { syncStatus, refreshRemoteState } = useJarvisState();
   const [theme, setTheme] = useState<ThemePreference>(() => getStoredTheme());
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [navQuery, setNavQuery] = useState("");
   const hydrated = useHydrated();
   const [desktopPreference, setDesktopOpen] = useState(() => getStoredDesktopSidebarOpen());
   const walkthrough = useOptionalWalkthrough();
@@ -139,6 +141,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
 
   function closeMobileSidebar() {
     setMobileOpen(false);
+    setNavQuery("");
     if (guidedTheme) walkthrough?.skip();
   }
   const [mobileNavigation, setMobileNavigation] = useState<{ href: string; fromRoute: string } | null>(null);
@@ -228,6 +231,12 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   const currentRoute = `${pathname ?? ""}?${currentSearch}`;
   const pendingMobileHref = mobileNavigation?.fromRoute === currentRoute ? mobileNavigation.href : null;
 
+  useEffect(() => {
+    if (!pendingMobileHref) return;
+    const timeout = window.setTimeout(() => setMobileNavigation(null), 10000);
+    return () => window.clearTimeout(timeout);
+  }, [pendingMobileHref]);
+
   function buildHref(href: string) {
     const [path, query] = href.split("?");
     const resolvedPath = path === "/" ? normalizedBase || "/" : normalizedBase + path;
@@ -272,7 +281,7 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   const mobileAssistantContent = (
     <>
       <span className="mobile-nav-icon mobile-nav-assistant-icon">
-        <AssistantNavIcon className="h-6 w-6" />
+        <AssistantNavIcon className="h-5 w-5" />
       </span>
       <span className="mobile-nav-label">{mobileAssistantPending ? "Opening…" : "Assistant"}</span>
     </>
@@ -281,95 +290,57 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
   const primaryMobileActive = mobileLinks.some((item) => isMobileActive(item)) || mobileAssistantActive;
   const moreActive = mobileOpen || !primaryMobileActive;
 
-  const navItems = (items: NavLink[], dense = false, onNavigate?: () => void) =>
-    items.filter((item) => item.href !== "/operations" || (canAdmin && basePath === "/v2")).map((item) => {
-      const active = isActive(item);
-      const linkClass =
-        "group rounded-[20px] border px-4 py-3 transition-all duration-200 " +
-        (active
-          ? "border-cyan-400/50 bg-cyan-400/12 text-white shadow-[0_10px_30px_rgba(34,211,238,0.16)]"
-          : "border-white/10 bg-white/0 text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-white") +
-        (dense ? " text-sm" : "");
-      return (
-        <Link
-          key={item.href + "-" + item.label}
-          href={buildHref(item.href)}
-          onClick={() => onNavigate?.()}
-          className={linkClass}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className={"font-semibold " + (dense ? "text-sm" : "text-[15px]")}>{item.label}</p>
-              {!dense && <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-zinc-400">{item.description}</p>}
-            </div>
-            <span className={"inline-flex h-8 w-8 items-center justify-center rounded-full border text-[12px] font-semibold " + (active ? "border-cyan-300/40 bg-cyan-300/10 text-cyan-100" : "border-white/10 bg-white/5 text-zinc-400 group-hover:border-white/20 group-hover:text-white") }>
-              {item.label.charAt(0)}
-            </span>
-          </div>
-        </Link>
-      );
-    });
+  const allowed = (item: NavLink) => item.href !== "/operations" || (canAdmin && basePath === "/v2");
+  const matches = (item: NavLink) => `${item.label} ${item.description}`.toLowerCase().includes(navQuery.trim().toLowerCase());
+  const noMatches = ![...startLinks, ...dailyRhythmLinks, ...growthLinks, ...resourceLinks, ...accountLinks].some(item => allowed(item) && matches(item));
+  const navItems = (items: NavLink[], dense = false, onNavigate?: () => void, rail = false) =>
+    items.filter(item => allowed(item) && (rail || matches(item))).map(item => (
+      <Link key={item.href} href={buildHref(item.href)}
+        onClick={() => { setNavQuery(""); onNavigate?.(); }}
+        aria-current={isActive(item) ? "page" : undefined}
+        aria-label={rail ? item.label : undefined}
+        title={rail ? item.label : undefined}
+        className={`${styles.link} ${dense ? styles.touchLink : ""} ${rail ? styles.railLink : ""}`}>
+        <NavigationIcon label={item.label} />
+        <span className={rail ? "sr-only" : styles.linkLabel}>{item.label}</span>
+      </Link>
+    ));
+  const search = (id: string) => <div className={styles.search}>
+    <label className="sr-only" htmlFor={id}>Find a page</label>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10" cy="10" r="6" /><path d="m15 15 5 5" /></svg>
+    <input id={id} type="search" placeholder="Find a page…" value={navQuery} onChange={event => setNavQuery(event.target.value)} autoComplete="off" />
+  </div>;
+  const groups = (mobileMenu = false) => <>
+    <NavGroup title="Workspace">{navItems(startLinks, mobileMenu, mobileMenu ? closeMobileSidebar : undefined)}</NavGroup>
+    <NavGroup title="Personal">{navItems([...dailyRhythmLinks, ...growthLinks], mobileMenu, mobileMenu ? closeMobileSidebar : undefined)}</NavGroup>
+    <NavGroup title="Resources">{navItems(resourceLinks, mobileMenu, mobileMenu ? closeMobileSidebar : undefined)}</NavGroup>
+    <NavGroup title="Account">{navItems(accountLinks, mobileMenu, mobileMenu ? closeMobileSidebar : undefined)}</NavGroup>
+    {noMatches && <p className={styles.empty} role="status">No matching pages.</p>}
+  </>;
 
   return (
     <>
-      {!desktopOpen && (
-        <button
-          type="button"
-          className="theme-button-secondary fixed left-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 hidden items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold shadow-lg backdrop-blur-2xl transition focus:outline-none lg:flex"
-          aria-label="Expand sidebar"
-          title="Expand sidebar"
-          onClick={() => updateDesktopOpen(true)}
-        >
-          <SidebarExpandIcon className="h-4 w-4" />
-          <span>Nav</span>
-        </button>
-      )}
-
-      <aside
-        data-expanded={desktopOpen}
-        className={
-          "jarvis-desktop-sidebar hidden w-60 shrink-0 px-3 py-6 text-sm text-zinc-400 lg:sticky lg:top-0 lg:h-dvh xl:w-72 xl:px-4 " +
-          (desktopOpen ? "lg:flex" : "lg:hidden")
-        }
-      >
-        <div className="theme-surface flex min-h-0 w-full flex-col gap-4 rounded-[32px] p-3 xl:gap-5 xl:p-4">
-          <div className="theme-card rounded-[24px] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.45em] text-cyan-200/80">Jarvis OS</p>
-                <h1 className="mt-2 text-2xl font-semibold text-white">Console</h1>
-              </div>
-              <button
-                type="button"
-                onClick={() => updateDesktopOpen(false)}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/60 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50"
-                aria-label="Collapse sidebar"
-                title="Collapse sidebar"
-              >
-                <SidebarCollapseIcon className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Smooth daily planning, reflection, and review from anywhere.</p>
-          </div>
-
-          <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pr-1">
-            <NavGroup title="Start">{navItems(startLinks)}</NavGroup>
-            <NavGroup title="Daily rhythm">{navItems(dailyRhythmLinks)}</NavGroup>
-            <NavGroup title="Growth">{navItems(growthLinks)}</NavGroup>
-            <NavGroup title="Resources">{navItems(resourceLinks)}</NavGroup>
-            <NavGroup title="Account">{navItems(accountLinks)}</NavGroup>
+      <aside data-expanded={desktopOpen} aria-label="Sidebar" className={`jarvis-desktop-sidebar ${styles.desktop}`}>
+        <header className={styles.brandRow}>
+          {desktopOpen && <Link href={buildHref("/")} aria-label="Jarvis home" className={styles.brand}><span aria-hidden="true">J</span>Jarvis</Link>}
+          <button type="button" onClick={() => { setNavQuery(""); updateDesktopOpen(!desktopOpen); }}
+            className={styles.iconButton} aria-label={desktopOpen ? "Collapse sidebar" : "Expand sidebar"}
+            aria-expanded={desktopOpen} title={desktopOpen ? "Collapse sidebar" : "Expand sidebar"}>
+            {desktopOpen ? <SidebarCollapseIcon className="h-5 w-5" /> : <SidebarExpandIcon className="h-5 w-5" />}
+          </button>
+        </header>
+        {desktopOpen ? <>
+          {search("desktop-page-search")}
+          <nav aria-label="Main navigation" className={styles.navigation}>{groups()}</nav>
+          <div className={styles.footer}><ShellControls expanded={shellExpanded} onExpandedChange={updateShellExpanded}
+            sessionEmail={session?.user?.email} theme={theme} setTheme={setTheme}
+            syncStatus={syncStatus} onRefresh={refreshRemoteState} /></div>
+        </> : <>
+          <nav aria-label="Quick navigation" className={styles.rail}>{navItems([...startLinks, resourceLinks[0]], false, undefined, true)}
+            <button type="button" className={`${styles.iconButton} ${styles.allPages}`} aria-label="Show all pages" title="Show all pages" onClick={() => updateDesktopOpen(true)}><MoreNavIcon className="h-5 w-5" /></button>
           </nav>
-
-          <ShellControls
-            expanded={shellExpanded}
-            onExpandedChange={updateShellExpanded}
-            sessionEmail={session?.user?.email}
-            theme={theme}
-            setTheme={setTheme}
-            syncStatus={syncStatus}
-            onRefresh={refreshRemoteState}
-          />
-        </div>
+          <Link href={buildHref("/settings")} aria-label="Settings" title="Settings" className={`${styles.link} ${styles.railLink} ${styles.railFooter}`}><NavigationIcon label="Settings" /></Link>
+        </>}
       </aside>
 
       <nav
@@ -398,10 +369,9 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
               aria-current={onAssistantPage ? "page" : undefined}
               aria-busy={mobileAssistantPending || undefined}
               data-navigation-state={mobileAssistantPending ? "pending" : mobileAssistantActive ? "active" : "idle"}
-              onPointerDown={(event) => {
-                if (event.button === 0) beginMobileNavigation(assistantHref);
+              onClick={(event) => {
+                if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) beginMobileNavigation(assistantHref);
               }}
-              onClick={() => beginMobileNavigation(assistantHref)}
               className={mobileAssistantClass}
             >
               {mobileAssistantContent}
@@ -421,7 +391,8 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
               }}
               className={"mobile-nav-item " + (moreActive ? "is-active" : "")}
               aria-label="Open more navigation"
-              aria-expanded={mobileOpen}
+              aria-expanded={mobileVisible}
+              aria-controls="mobile-navigation-drawer"
             >
               <span className="mobile-nav-icon"><MoreNavIcon className="h-4 w-4" /></span>
               <span className="mobile-nav-label">More</span>
@@ -430,38 +401,34 @@ export function Sidebar({ basePath = "/", canAdmin = false }: SidebarProps) {
       </nav>
 
       {mobileVisible && (
-        <div data-no-pull-refresh="true" className="fixed inset-0 z-50 flex bg-slate-950/50 backdrop-blur-sm mobile-sidebar-overlay lg:hidden">
+        <div data-no-pull-refresh="true" className={`fixed inset-0 z-50 flex mobile-sidebar-overlay lg:hidden ${styles.overlay}`}>
           <div
             ref={mobileDrawerRef}
+            id="mobile-navigation-drawer"
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-navigation-title"
             tabIndex={-1}
             data-guide-shell={guidedShell || undefined}
-            className={"mobile-sidebar theme-modal flex h-full w-80 max-w-[86vw] flex-col gap-6 rounded-r-[32px] px-6 py-8 text-sm shadow-[24px_0_80px_rgba(2,6,23,0.45)] " + (guidedTheme ? "is-guided-theme" : guidedShell ? "is-guided-navigation" : "")}
+            className={"mobile-sidebar theme-modal " + styles.drawer + " " + (guidedTheme ? "is-guided-theme" : guidedShell ? "is-guided-navigation" : "")}
             style={{
-              paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
-              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
+              paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.75rem)",
+              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)",
             }}
           >
-            <div className="flex items-center justify-between">
-              <p id="mobile-navigation-title" className="text-xs uppercase tracking-[0.5em] text-cyan-200/80">Jarvis OS</p>
+            <div className={styles.drawerHeader}>
+              <p id="mobile-navigation-title">All pages</p>
               <button
                 type="button"
                 data-sidebar-close
                 onClick={closeMobileSidebar}
-                className="min-h-10 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70"
+                className={styles.closeButton}
               >
                 {guidedTheme ? "Close tour" : guidedShell ? "Close menu" : "Close"}
               </button>
             </div>
-            <nav hidden={guidedTheme} className={guidedTheme ? "hidden" : "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain"}>
-              <NavGroup title="Start">{navItems(startLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Daily rhythm">{navItems(dailyRhythmLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Growth">{navItems(growthLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Resources">{navItems(resourceLinks, true, () => setMobileOpen(false))}</NavGroup>
-              <NavGroup title="Account">{navItems(accountLinks, true, () => setMobileOpen(false))}</NavGroup>
-            </nav>
+            {!guidedTheme && search("mobile-page-search")}
+            <nav aria-label="All pages navigation" hidden={guidedTheme} className={guidedTheme ? "hidden" : styles.navigation}>{groups(true)}</nav>
             <ShellControls
               expanded={shellExpanded}
               onExpandedChange={updateShellExpanded}
@@ -501,16 +468,40 @@ function MobileBarLink({
       aria-current={active && !pending ? "page" : undefined}
       aria-busy={pending || undefined}
       data-navigation-state={pending ? "pending" : active ? "active" : "idle"}
-      onPointerDown={(event) => {
-        if (event.button === 0) onNavigate(href);
+      onClick={(event) => {
+        if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) onNavigate(href);
       }}
-      onClick={() => onNavigate(href)}
       className={"mobile-nav-item " + (active ? "is-active" : "")}
     >
-      <span className="mobile-nav-icon"><MobileNavIcon label={item.label} className="h-4 w-4" /></span>
+      <span className="mobile-nav-icon"><MobileNavIcon label={item.label} className="h-5 w-5" /></span>
       <span className="mobile-nav-label">{pending ? "Opening…" : item.label}</span>
     </Link>
   );
+}
+
+function NavigationIcon({ label }: { label: string }) {
+  if (label === "Home") return <HomeNavIcon className={styles.navIcon} />;
+  if (label === "Plan") return <PlanNavIcon className={styles.navIcon} />;
+  if (label === "Finances") return <FinanceNavIcon className={styles.navIcon} />;
+  if (label === "Assistant") return <AssistantNavIcon className={styles.navIcon} />;
+  const paths: Record<string, string> = {
+    Operations: "M3 12h4l3-7 4 14 3-7h4",
+    "Must Win": "m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z",
+    Habits: "M4 7h11a5 5 0 0 1 0 10H9M4 7l3-3M4 7l3 3M20 17l-3 3M20 17l-3-3",
+    Mood: "M8 9h.01M16 9h.01M7 14c2 4 8 4 10 0M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18",
+    Journal: "M5 3h14v18H5ZM8 7h8M8 11h8M8 15h5",
+    Sleep: "M20 14a8 8 0 0 1-10-10 9 9 0 1 0 10 10Z",
+    Objectives: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10M12 11v2",
+    Review: "M4 20h16M7 16v-5M12 16V5M17 16v-8",
+    "Real Estate": "M4 21V4h10v17M14 10h6v11M7 8h3M7 12h3M7 16h3",
+    Homelab: "M4 3h16v7H4ZM4 14h16v7H4ZM7 6h.01M7 17h.01M12 6h5M12 17h5",
+    Docs: "M5 3h10l4 4v14H5ZM14 3v5h5M8 12h8M8 16h6",
+    "User guide": "M3 4h7l2 2 2-2h7v15h-7l-2 2-2-2H3ZM12 6v15",
+    Settings: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6",
+    Account: "M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M4 21v-2a8 6 0 0 1 16 0v2",
+    Admin: "m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6ZM8 12l3 3 5-6",
+  };
+  return <svg className={styles.navIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[label] ?? paths.Docs} /></svg>;
 }
 
 function MobileNavIcon({ label, className }: { label: string; className?: string }) {
@@ -650,12 +641,8 @@ function RefreshIcon({ className }: { className?: string }) {
 }
 
 function NavGroup({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2 px-1 text-[11px] uppercase tracking-[0.35em] text-zinc-500">{title}</p>
-      <div className="flex flex-col gap-2">{children}</div>
-    </div>
-  );
+  if (Children.count(children) === 0) return null;
+  return <div className={styles.group}><p>{title}</p><div>{children}</div></div>;
 }
 
 function StateSaveStatus({ syncStatus }: { syncStatus: StateSyncStatus }) {

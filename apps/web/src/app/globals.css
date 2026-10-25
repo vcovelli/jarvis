@@ -53,7 +53,7 @@
   --scrollbar-thumb-hover: rgba(103, 232, 249, 0.58);
   --scrollbar-thumb-accent: rgba(129, 140, 248, 0.32);
   --scrollbar-corner: rgba(6, 8, 22, 0.94);
-  --jarvis-mobile-nav-height: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
+  --jarvis-mobile-nav-height: calc(env(safe-area-inset-bottom, 0px) + 4rem);
 }
 
 
@@ -279,9 +279,6 @@ body.scroll-locked .jarvis-page-viewport {
     min-height: 0;
   }
 
-  .app-shell:has(.jarvis-desktop-sidebar[data-expanded="false"]) > .jarvis-page-viewport {
-    padding-top: 4.5rem;
-  }
 }
 
 @media (min-width: 1280px) {
@@ -1957,7 +1954,7 @@ body[data-theme="light"] .theme-shell .mobile-todos-input {
 .mobile-nav-item {
   display: flex;
   min-width: 0;
-  height: 3.5rem;
+  height: 3rem;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -2004,23 +2001,22 @@ body[data-theme="light"] .theme-shell .mobile-todos-input {
 }
 
 .mobile-nav-item:is(.is-active, [data-navigation-state="pending"]) {
-  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  color: var(--accent-contrast);
-  box-shadow: 0 12px 30px color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--foreground);
+  box-shadow: none;
 }
 
 .mobile-nav-icon {
   display: grid;
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 1.5rem;
+  height: 1.5rem;
   flex-shrink: 0;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  border: 0;
+  background: transparent;
   color: var(--muted);
-  transition: background-color 120ms ease, border-color 120ms ease, color 80ms linear, box-shadow 120ms ease;
+  transition: color 120ms ease;
 }
 
 .mobile-nav-icon svg {
@@ -2031,11 +2027,8 @@ body[data-theme="light"] .theme-shell .mobile-todos-input {
 }
 
 .mobile-nav-item:is(.is-active, [data-navigation-state="pending"]) > .mobile-nav-icon {
-  border-color: color-mix(in srgb, var(--accent-contrast) 22%, transparent);
-  background: color-mix(in srgb, var(--accent-contrast) 14%, transparent);
-  color: var(--accent-contrast) !important;
+  color: var(--accent) !important;
 }
-
 .mobile-nav-label {
   display: block;
   width: 100%;
@@ -2043,28 +2036,19 @@ body[data-theme="light"] .theme-shell .mobile-todos-input {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
-  transition: color 80ms linear;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.25;
+  transition: color 120ms ease;
 }
-
 .mobile-nav-item:is(.is-active, [data-navigation-state="pending"]) > .mobile-nav-label {
-  color: var(--accent-contrast) !important;
+  color: var(--foreground) !important;
 }
-
-.mobile-nav-assistant-icon {
-  width: 2rem;
-  height: 2rem;
-  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  color: var(--accent-contrast);
-  box-shadow: 0 14px 32px color-mix(in srgb, var(--accent) 28%, transparent);
-}
-
-.mobile-nav-assistant:not(.is-active):not([data-navigation-state="pending"]) > .mobile-nav-assistant-icon {
-  color: var(--accent-contrast) !important;
-}
-
-.mobile-nav-assistant:is(.is-active, [data-navigation-state="pending"]) .mobile-nav-assistant-icon {
-  box-shadow: 0 16px 40px color-mix(in srgb, var(--accent) 40%, transparent);
+.mobile-nav-assistant-icon { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav-item, .mobile-nav-icon, .mobile-nav-label { transition: none; }
+  .mobile-nav-item:active { transform: none; }
 }
 
 .app-shell > main button:not([aria-label^="Go to "]) {
