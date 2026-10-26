@@ -1,5 +1,25 @@
 # Source versions and release records
 
+## 17.13.0 — tablet layouts and agent supervision, 2026-10-25
+
+Home and Plan use compact layouts in short desktop windows and on tablets. Plan
+consolidates date controls and places the week picker behind a disclosure. The
+agent roster connects current jobs, approvals, usage, permissions, and dedicated
+Assistant discussions. Conversation links remain stable through reloads and chat
+switching. Background execution and provider permissions are unchanged.
+
+Validation: 97 unit tests, 17 isolated operations integration tests, lint,
+TypeScript, an isolated production build, and Chromium responsive/workflow checks
+passed. The reasoning integration fixture now overrides per-agent configuration
+explicitly. No schema or dependency changes are required. The previous compatible
+source release is `v17.12.0` (`87a4c89`). See
+[verification details](tablet-agent-supervision.md).
+
+Deployment uses the existing `jarvis` PM2 process on port 3000. A separate build is
+prepared before the brief stop/switch/start, preserving the previous `.next`
+directory for rollback. Exact build identity and post-deploy checks are recorded
+in the protected deployment artifact directory and exposed by `/api/version`.
+
 ## 17.8.0 — versioning adoption, 2026-10-04
 
 The existing `V17.8` label is represented as package version `17.8.0`. The original

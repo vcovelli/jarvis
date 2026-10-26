@@ -3,12 +3,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Collection } from "@/lib/operations/collectors";
 import type { Preferences } from "@/lib/operations/policy";
 import SystemStatusPanel from "./SystemStatusPanel";
+import { AgentRoster } from "@/components/operations/AgentRoster";
+import { AgentStatus } from "@/components/operations/AgentStatus";
 
 import { useOperations, type OperationsSnapshot as Snapshot, type AgentView } from "@/components/operations/OperationsProvider";
 import styles from "@/components/operations/Workspace.module.css";
 
 type Decision = Snapshot["decisions"][number];
-const cadenceLabels: Record<string, string> = { infrastructure: "Every 30 minutes", security: "Every 30 minutes", finance: "Daily + finance sync", business: "Daily", executive: "Daily", strategy: "Weekly" };
 const domains = [
   "infrastructure",
   "finance",
@@ -385,19 +386,24 @@ export default function OperationsClient({ embedded = false, initialTab }: { emb
             ))}
           {tab === "Activity" && (
             <>
-              <AgentDoctor data={data} stale={stale} now={now} />
+              <AgentStatus action={false} />
+              <AgentRoster data={data} stale={stale} now={now} busy={busy}
+                queue={domain => void mutate({ operation: "run", domain })}
+                review={domain => { setDomain(domain); setStatus("pending"); setQuery(""); navigate("Decisions"); }} />
+              <details className={card}><summary>Worker health, permissions & safeguards</summary><AgentDoctor data={data} stale={stale} now={now} /></details>
               <section className={card}>
                 <h2 className="font-semibold">Usage & budget</h2>
                 <p className="theme-muted mt-2 text-sm">{data.modelStatus}</p>
+                <p className="theme-muted mt-2 text-xs">Per-job reservation cap: ${p.perJobUsd}. Chat and external gateway usage are billed separately.</p>
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <dt>Day reserved / cap</dt>
+                    <dt>Day reserved / cap (UTC)</dt>
                     <dd>
                       {money(data.costs.day.reservedUsd)} / ${p.dailyUsd}
                     </dd>
                   </div>
                   <div>
-                    <dt>Month reserved / cap</dt>
+                    <dt>Month reserved / cap (UTC)</dt>
                     <dd>
                       {money(data.costs.month.reservedUsd)} / ${p.monthlyUsd}
                     </dd>
@@ -420,32 +426,7 @@ export default function OperationsClient({ embedded = false, initialTab }: { emb
                 </p>
               </section>
               <section className={card}>
-                <h2 className="font-semibold">Agents & schedules</h2>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {data.schedules.map((s) => (
-                    <div
-                      key={s.id}
-                      className="rounded-xl border border-white/10 p-3"
-                    >
-                      <p className="font-medium capitalize">{s.domain}</p>
-                      <p className="theme-muted my-2 text-xs">
-                        {cadenceLabels[s.domain]} · Next due {time(s.nextRunAt)}
-                      </p>
-                      <button
-                        className={button}
-                        disabled={busy || p.paused || !p.enabled}
-                        onClick={() =>
-                          void mutate({ operation: "run", domain: s.domain })
-                        }
-                      >
-                        Queue analysis
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              <section className={card}>
-                <h2 className="font-semibold">Recent jobs</h2>
+                <h2 className="font-semibold">Recent jobs</h2><p className="theme-muted text-xs">Latest 40 jobs. Active jobs are always shown in the roster above.</p>
                 {data.runs.map((r) => (
                   <details
                     key={r.id}
@@ -803,6 +784,7 @@ function AgentDoctor({ data, stale, now }: { data: Snapshot; stale: boolean; now
     ["Worker heartbeat", workerFresh ? "Recent" : "Not confirmed", p?.workerSeenAt ? `Last check-in ${time(p.workerSeenAt)}. A recent heartbeat is required to process queued work.` : "No worker has checked in. Enabling the loop alone does not install or start a worker."],
     ["Approval policy", "Exact action only", "Review → approve or deny → verified result. Only read-only observation rechecks are connected to this queue. Interactive chat has a separate gateway policy."],
     ["Notifications", "In-app inbox", "Alerts appear across Jarvis while it is open. Quiet hours apply. Email, SMS, and background phone push are not connected."],
+    ["Run limits", "Bounded work", "One running job per user; at most three attempts per job, a 20-second execution deadline and a 45-second worker lease. Standing by does not run continuous model inference."],
     ["Budget", p ? `$${p.dailyUsd}/day` : "Not set", "Per-job, daily and monthly caps apply to the observation loop. Interactive Assistant provider usage is separate."],
   ];
   return <section className={styles.doctor}><h2>Workflow doctor</h2><p className="theme-muted mt-1 text-xs">Connection and policy checks · refresh to check again</p>

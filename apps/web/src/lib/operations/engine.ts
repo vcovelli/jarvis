@@ -32,6 +32,7 @@ import {
 } from "./policy.ts";
 import { modelPlan, reason, type ReasoningResult } from "./reasoning.ts";
 import { entitlementAllows } from "../entitlementPolicy.ts";
+import { agentChatDomain } from "./supervision.ts";
 
 type Tx = Prisma.TransactionClient;
 const json = (value: unknown) =>
@@ -1136,6 +1137,8 @@ export async function snapshot(db: PrismaClient, userId: string) {
     day,
     pendingCount,
     activeCount,
+    activeRuns,
+    conversations,
   ] = await Promise.all([
     db.operationsProfile.findUnique({ where: { userId } }),
     db.operationsSchedule.findMany({
@@ -1224,6 +1227,17 @@ export async function snapshot(db: PrismaClient, userId: string) {
     db.operationsRun.count({
       where: { userId, status: { in: ["running", "queued", "retry"] } },
     }),
+    db.operationsRun.findMany({
+      where: { userId, status: { in: ["running", "queued", "retry"] } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, domain: true, status: true, attempts: true, availableAt: true, startedAt: true, createdAt: true, errorCode: true },
+    }),
+    db.assistantConversation.findMany({
+      where: { userId, archivedAt: null, domain: { in: domains.map(agentChatDomain) } },
+      orderBy: { updatedAt: "desc" },
+      take: 80,
+      select: { id: true, domain: true, title: true, updatedAt: true },
+    }),
   ]);
   return {
     profile,
@@ -1238,6 +1252,8 @@ export async function snapshot(db: PrismaClient, userId: string) {
     costs: { month: month._sum, day: day._sum },
     pendingCount,
     activeCount,
+    activeRuns,
+    conversations,
     generatedAt: now.toISOString(),
     reasoning: domains.map(domain => {
       try {

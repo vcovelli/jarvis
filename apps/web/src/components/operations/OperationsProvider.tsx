@@ -62,7 +62,7 @@ export function OperationsProvider({ canAdmin, children }: { canAdmin: boolean; 
   }, [view]);
   const stale = Boolean(error) || !received || now - received > 45000;
   const alerts = stale ? [] : data?.notifications.filter(n => !n.readAt && !dismissed.includes(n.id)) ?? [];
-  const open = useCallback((next: AgentView = "Decisions") => setView(next), []);
+  const open = useCallback((next: AgentView = "Activity") => setView(next), []);
   return <Context.Provider value={{ allowed, data, error, stale, now, refresh, open }}>
     {children}
     {allowed && alerts.length > 0 && !view && <aside className={styles.prompt} aria-label="Agent notifications">
@@ -82,7 +82,7 @@ export function OperationsProvider({ canAdmin, children }: { canAdmin: boolean; 
 export function AgentWorkspaceButton({ compact = false, beforeOpen }: { compact?: boolean; beforeOpen?: () => void }) {
   const { allowed, data, open, stale } = useOperations();
   if (!allowed) return null;
-  return <button className={styles.agentButton} onClick={() => { beforeOpen?.(); open("Decisions"); }} aria-label="Open agent workspace" title="Agent workspace">
+  return <button className={styles.agentButton} onClick={() => { beforeOpen?.(); open("Activity"); }} aria-label="Open agent workspace" title="Agent workspace">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
     {!compact && <span>Agents & inbox</span>}
     {!stale && !!data?.pendingCount && <span className={styles.badge}>{data.pendingCount}</span>}

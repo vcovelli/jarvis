@@ -1,4 +1,7 @@
 "use client";
+import { useSearchParams } from "next/navigation";
+import { AgentStatus } from "@/components/operations/AgentStatus";
+import { agentDomains, agentChatDomain, agentFromChat } from "@/lib/operations/supervision";
 import { trapDialogFocus } from "@/lib/dialogFocus";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
@@ -273,6 +276,12 @@ const assistantProjects: AssistantProject[] = [
   },
 ];
 
+assistantProjects.push({
+  id: "agents", label: "Agent discussions", detail: "Discuss each background agent’s work, results, and priorities.",
+  accent: "text-cyan-200 border-cyan-300/25 bg-cyan-300/10",
+  topics: agentDomains.map(domain => ({ key: agentChatDomain(domain), label: domain[0].toUpperCase() + domain.slice(1), detail: "Discussion only · background work is managed in the control room" })),
+});
+
 const defaultAssistantProject = assistantProjects[0];
 const defaultAssistantTopic = defaultAssistantProject.topics[0];
 const assistantTopicSettingsStorageKey = "jarvis-assistant-topic-settings-v1";
@@ -353,6 +362,17 @@ const assistantQuickActions: AssistantQuickAction[] = [
 type RepeatType = "none" | "weekly" | "monthly";
 
 export default function AssistantPage() {
+  const searchParams = useSearchParams();
+  const linkedConversation = searchParams.get("conversation");
+  const loadedLink = useRef<string | null>(null);
+  const syncConversationUrl = useCallback((id: string | null) => {
+    loadedLink.current = id;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("conversation") === id) return;
+    if (id) url.searchParams.set("conversation", id);
+    else url.searchParams.delete("conversation");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, []);
   const {
     state,
     demoMode,
@@ -564,6 +584,11 @@ export default function AssistantPage() {
       setActiveDomain(preview.domain);
       setProjectHomeOpen(false);
       setMessages([]);
+    } else {
+      // A deep link may load before the conversation list, or refer to a removed thread.
+      setActiveConversation(null);
+      setProjectHomeOpen(false);
+      setMessages([]);
     }
     setPending(null);
     setDraft(null);
@@ -580,6 +605,7 @@ export default function AssistantPage() {
       if (!conversation) return;
       if (!requestIsCurrent()) return;
       const project = getAssistantProjectForDomain(conversation.domain, configuredProjects);
+      syncConversationUrl(conversation.id);
       setActiveConversation(conversation);
       setActiveProjectId(project.id);
       setActiveDomain(conversation.domain);
@@ -598,7 +624,13 @@ export default function AssistantPage() {
         setConversationLoading(false);
       }
     }
-  }, [appendMessage, configuredProjects, conversations, demoMode]);
+  }, [appendMessage, configuredProjects, conversations, demoMode, syncConversationUrl]);
+
+  useEffect(() => {
+    if (!linkedConversation || loadedLink.current === linkedConversation || demoMode) return;
+    loadedLink.current = linkedConversation;
+    void loadConversation(linkedConversation);
+  }, [linkedConversation, loadConversation, demoMode]);
 
   const refreshConversations = useCallback(async () => {
     if (demoMode) {
@@ -617,7 +649,7 @@ export default function AssistantPage() {
     let cancelled = false;
     void refreshConversations()
       .then((next) => {
-        if (cancelled || activeConversation || !next[0]) return;
+        if (cancelled || linkedConversation || activeConversation || !next[0]) return;
         const project = getAssistantProjectForDomain(next[0].domain, configuredProjects);
         setActiveProjectId(project.id);
         setActiveDomain(next[0].domain);
@@ -628,7 +660,7 @@ export default function AssistantPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeConversation, appendMessage, configuredProjects, refreshConversations]);
+  }, [activeConversation, appendMessage, configuredProjects, linkedConversation, refreshConversations]);
 
   const refreshMemories = useCallback(async (domain: string, projectDomain: string) => {
     if (demoMode) {
@@ -651,6 +683,7 @@ export default function AssistantPage() {
     const project = getAssistantProjectById(projectId, configuredProjects) ?? defaultAssistantProject;
     setActiveProjectId(project.id);
     setActiveDomain(project.topics[0]?.key ?? defaultAssistantTopic.key);
+    syncConversationUrl(null);
     setActiveConversation(null);
     setMessages([]);
     setPending(null);
@@ -660,7 +693,7 @@ export default function AssistantPage() {
     setDetailsEditorOpen(false);
     setConversationPanelOpen(false);
     setNewChatMenuOpen(false);
-  }, [configuredProjects]);
+  }, [configuredProjects, syncConversationUrl]);
 
   const selectAssistantTopic = useCallback((domain: string) => {
     const project = getAssistantProjectForDomain(domain, configuredProjects);
@@ -678,10 +711,11 @@ export default function AssistantPage() {
       return;
     }
     conversationLoadRequestRef.current += 1;
+    syncConversationUrl(null);
     setActiveConversation(null);
     setMessages([]);
     setConversationLoading(false);
-  }, [configuredProjects, conversations, loadConversation]);
+  }, [configuredProjects, conversations, loadConversation, syncConversationUrl]);
 
   const renameAssistantTopic = useCallback((_projectId: string, topicKey: string, currentLabel: string) => {
     const next = window.prompt("Rename topic", currentLabel);
@@ -735,6 +769,7 @@ export default function AssistantPage() {
     const project = getAssistantProjectForDomain(domain, configuredProjects);
     setActiveProjectId(project.id);
     setActiveDomain(domain);
+    syncConversationUrl(null);
     setActiveConversation(null);
     setMessages([]);
     setPending(null);
@@ -756,6 +791,7 @@ export default function AssistantPage() {
       if (!conversation) throw new Error("Conversation create did not return a conversation.");
       if (!requestIsCurrent()) return;
       const createdProject = getAssistantProjectForDomain(conversation.domain, configuredProjects);
+      syncConversationUrl(conversation.id);
       setActiveConversation(conversation);
       setActiveProjectId(createdProject.id);
       setActiveDomain(conversation.domain);
@@ -771,7 +807,7 @@ export default function AssistantPage() {
         setConversationLoading(false);
       }
     }
-  }, [activeDomain, appendMessage, configuredProjects, refreshConversations]);
+  }, [activeDomain, appendMessage, configuredProjects, refreshConversations, syncConversationUrl]);
 
   const requestNewConversation = useCallback((domain?: string) => {
     if (domain) {
@@ -790,12 +826,13 @@ export default function AssistantPage() {
   const reconcileConversation = useCallback((conversation: AssistantConversationListItem | undefined) => {
     if (!conversation) return;
     const project = getAssistantProjectForDomain(conversation.domain, configuredProjects);
+    syncConversationUrl(conversation.id);
     setActiveConversation(conversation);
     setActiveProjectId(project.id);
     setActiveDomain(conversation.domain);
     setProjectHomeOpen(false);
     void refreshConversations().catch(() => undefined);
-  }, [configuredProjects, refreshConversations]);
+  }, [configuredProjects, refreshConversations, syncConversationUrl]);
 
   const openConversationDetailsEditor = useCallback(() => {
     setConversationTitleDraft(activeChatTitle);
@@ -895,6 +932,7 @@ export default function AssistantPage() {
         if (replacement) {
           void loadConversation(replacement.id);
         } else {
+          syncConversationUrl(null);
           setActiveConversation(null);
           setMessages([]);
           setProjectHomeOpen(false);
@@ -904,7 +942,7 @@ export default function AssistantPage() {
     } catch (error) {
       appendMessage("assistant", getIntentErrorMessage(error));
     }
-  }, [activeConversation?.id, activeDomain, activeProject.id, appendMessage, configuredProjects, conversations, loadConversation, refreshConversations, showToast]);
+  }, [activeConversation?.id, activeDomain, activeProject.id, appendMessage, configuredProjects, conversations, loadConversation, refreshConversations, showToast, syncConversationUrl]);
 
   const applyIntentResult = useCallback(
     (result: AssistantIntentResult) => {
@@ -1774,12 +1812,13 @@ export default function AssistantPage() {
                 )}
               </div>
               <button type="button" aria-label="Chat settings" aria-expanded={chatSettingsOpen} onClick={() => setChatSettingsOpen(value => !value)} className={assistantStyles.tool}>Settings</button>
-              {agents.allowed && <button type="button" onClick={() => agents.open("Decisions")} className={assistantStyles.tool}>Agents{!agents.stale && agents.data?.pendingCount ? ` · ${agents.data.pendingCount}` : ""}</button>}
+              {agents.allowed && <button type="button" onClick={() => agents.open("Activity")} className={assistantStyles.tool}>Agents{!agents.stale && agents.data?.pendingCount ? ` · ${agents.data.pendingCount}` : ""}</button>}
 
             </div>
           </div>
         </div>
 
+        {agentFromChat(activeDomain) && <AgentStatus domain={agentFromChat(activeDomain)} chat />}
         {chatSettingsOpen && <section className={assistantStyles.settings} aria-label="Chat settings">
           <label><input type="checkbox" checked={sendOnEnter} onChange={e => setSendOnEnter(e.target.checked)} /> Enter sends a message <small>Saved on this device</small></label>
           <div><button onClick={() => { setContextPanelOpen(true); setChatSettingsOpen(false); }}>Manage memory</button><button onClick={() => { appendMessage("assistant", buildHelpText()); setChatSettingsOpen(false); }}>Chat help</button>{agents.allowed && <><button onClick={() => agents.open("Preferences")}>Workflow settings</button><button onClick={() => agents.open("Activity")}>Workflow doctor</button></>}</div>

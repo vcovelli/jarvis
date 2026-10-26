@@ -22,6 +22,7 @@ import { formatTodoTimeWindow } from "@/lib/timeDisplay";
 import { useWalkthrough } from "@/components/onboarding/WalkthroughProvider";
 import { useToast } from "@/components/Toast";
 import { DailyReview } from "@/components/DailyReview";
+import { AgentStatus } from "@/components/operations/AgentStatus";
 
 const journalPromptCopy: Record<JournalPrompt, string> = {
   morning: "Morning scan: plan + intention",
@@ -644,7 +645,7 @@ export default function Home() {
     <div className="flex min-h-full w-full min-w-0">
       <div
         className={
-          "flex w-full min-w-0 flex-col gap-4 pb-0 lg:gap-8 lg:pb-6 " +
+          "home-dashboard flex w-full min-w-0 flex-col gap-4 pb-0 lg:gap-5 lg:pb-6 " +
           (mobileInsightsOpen ? "mobile-dashboard-open" : "mobile-dashboard-closed")
         }
       >
@@ -652,7 +653,7 @@ export default function Home() {
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">Dashboard</p>
           {!activeWalkthrough && <button type="button" onClick={browse} className="theme-button-secondary rounded-xl px-4 py-2 text-sm font-semibold">User guide</button>}
         </header>
-      <section data-guide="home-remote" className="flex min-h-[calc(100dvh_-_var(--jarvis-mobile-nav-height)_-_2rem)] items-center lg:hidden">
+      <section data-guide="home-remote" className="flex items-start lg:hidden">
         <div className="theme-surface w-full rounded-[28px] p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -718,7 +719,8 @@ export default function Home() {
         </button>
       </div>
 
-      <section className="mobile-dashboard-detail grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <AgentStatus />
+      <section className="home-overview mobile-dashboard-detail grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div data-guide="home-command" className="glass-panel rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -733,7 +735,7 @@ export default function Home() {
               Planner
             </Link>
           </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="home-metrics mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <CommandMetric label="Open" value={String(commandCenter.openTodos.length)} detail="todos" />
             <CommandMetric label="Done" value={String(commandCenter.completedTodos)} detail="today" />
             <CommandMetric label="High" value={String(commandCenter.highPriorityOpen.length)} detail="priority" />

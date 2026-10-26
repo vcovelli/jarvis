@@ -66,6 +66,23 @@ function fixture(): Collection {
 }
 const collector = async () => fixture();
 
+test("supervision retains old active work and scopes agent discussions to their owner", async () => {
+  const id = await user(), other = await user();
+  const activeId = randomUUID();
+  await db.operationsRun.create({ data: { id: activeId, userId: id, domain: "business", dedupeKey: randomUUID(), status: "queued", createdAt: new Date(0) } });
+  await db.operationsRun.createMany({ data: Array.from({ length: 41 }, () => ({ userId: id, domain: "finance", dedupeKey: randomUUID(), status: "succeeded" })) });
+  for (const [userId, domain, archivedAt] of [[id, "agent-business", null], [other, "agent-business", null], [id, "finance", null], [id, "agent-business", new Date()]] as const) {
+    await db.assistantConversation.create({ data: { userId, domain, title: "Discussion fixture", openClawSessionKey: randomUUID(), archivedAt } });
+  }
+  const result = await snapshot(db, id);
+  assert.equal(result.runs.length, 40);
+  assert.equal(result.runs.some(run => run.id === activeId), false);
+  assert.equal(result.activeRuns[0].id, activeId);
+  assert.equal(result.activeCount, 1);
+  assert.equal(result.conversations.length, 1);
+  assert.equal(result.conversations[0].domain, "agent-business");
+});
+
 test("real host collector returns bounded observations without shell access", async () => {
   const result = await collectInfrastructure(AbortSignal.timeout(5000));
   assert.equal(typeof result.metrics.hostname, "string");
@@ -404,6 +421,8 @@ test("optional reasoning reserves budget before any paid call and records usage"
     "OPERATIONS_MODEL_INPUT_USD_PER_MILLION",
     "OPERATIONS_MODEL_OUTPUT_USD_PER_MILLION",
     "OPENAI_API_KEY",
+    "OPERATIONS_INFRASTRUCTURE_PROVIDER",
+    "OPERATIONS_INFRASTRUCTURE_MODEL",
   ];
   const saved = keys.map((k) => process.env[k]);
   const originalFetch = globalThis.fetch;
@@ -415,6 +434,9 @@ test("optional reasoning reserves budget before any paid call and records usage"
       "1",
       "2",
       "FAKE_TEST_KEY",
+      // Per-agent configuration takes precedence over the global fixture provider.
+      "openai",
+      "test-configured-model",
     ].entries())
       process.env[keys[i]] = value;
     globalThis.fetch = async () => {

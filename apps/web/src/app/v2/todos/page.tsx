@@ -737,7 +737,7 @@ export default function TodosPage() {
             onJumpToday={jumpToToday}
           />
         </div>
-        <div className="hidden lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-stretch lg:gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="planner-desktop hidden lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-stretch lg:gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
           <TimeBlockingBoard
             todos={todosForDay}
             selectedDay={selectedDay}
@@ -775,7 +775,6 @@ export default function TodosPage() {
             onCyclePriority={(id, next) =>
               updateTodoPriority({ day: selectedDay, id, priority: next })
             }
-            onAddTask={openAddPanel}
             onFocusTodo={focusTodoOnPage}
           />
         </div>
@@ -863,7 +862,6 @@ type DesktopPlannerRailProps = {
   highlightId?: string;
   onToggle: (id: string) => void;
   onCyclePriority: (id: string, next: TodoPriority) => void;
-  onAddTask: () => void;
   onFocusTodo: (id: string) => void;
 };
 
@@ -884,7 +882,6 @@ function DesktopPlannerRail({
   highlightId,
   onToggle,
   onCyclePriority,
-  onAddTask,
   onFocusTodo,
 }: DesktopPlannerRailProps) {
   const isToday = selectedDay === todayKey;
@@ -899,35 +896,12 @@ function DesktopPlannerRail({
   const scheduledCount = events.length;
   const unscheduledCount = Math.max(todos.length - scheduledCount, 0);
   const totalPlannedMinutes = todos.reduce((sum, todo) => sum + (todo.timeblockMins ?? 0), 0);
-  const completionLabel = todos.length ? `${Math.round((completedCount / todos.length) * 100)}%` : "0%";
 
   return (
-    <aside className="hidden min-h-0 min-w-0 flex-col gap-5 lg:flex lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
-      <section className="theme-workspace rounded-[24px] border p-4 shadow-[0_24px_70px_rgba(2,6,23,0.24)] backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.35em] text-cyan-200/70">Control rail</p>
-            <h3 className="mt-1 text-lg font-semibold text-white">Today at a glance</h3>
-          </div>
-          <button
-            type="button"
-            data-guide="plan-add"
-            onClick={onAddTask}
-            className="rounded-full bg-emerald-400 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-emerald-950 shadow-lg shadow-emerald-500/20"
-          >
-            New
-          </button>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <PlannerMetric label="Done" value={`${completedCount}/${todos.length}`} />
-          <PlannerMetric label="Progress" value={completionLabel} />
-          <PlannerMetric label="Scheduled" value={`${scheduledCount}`} />
-          <PlannerMetric label="Open" value={`${unscheduledCount}`} />
-        </div>
-        <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 px-3 py-3">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-white/50">Planned load</p>
-          <p className="mt-1 text-xl font-semibold text-white">{formatPlannedDuration(totalPlannedMinutes)}</p>
-        </div>
+    <aside className="hidden min-h-0 min-w-0 flex-col gap-3 lg:flex lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
+      <section className="theme-workspace rounded-2xl border p-3" aria-label="Day summary">
+        <h3 className="text-sm font-semibold text-white">{isToday ? "Today" : "Selected day"} at a glance</h3>
+        <p className="mt-1 text-xs leading-5 text-white/60">{completedCount}/{todos.length} done · {scheduledCount} scheduled · {unscheduledCount} unscheduled · {formatPlannedDuration(totalPlannedMinutes)} planned</p>
       </section>
 
       {isToday && (
@@ -963,15 +937,6 @@ function DesktopPlannerRail({
         variant="rail"
       />
     </aside>
-  );
-}
-
-function PlannerMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3">
-      <p className="text-[9px] uppercase tracking-[0.3em] text-white/45">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
-    </div>
   );
 }
 
@@ -1618,6 +1583,7 @@ function DayTimeline({
   onShiftDay,
   onJumpToday,
 }: DayTimelineProps) {
+  const [weekOpen, setWeekOpen] = useState(false);
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(() => readStoredTimelineMode());
   const highlightRef = useRef<HTMLDivElement | null>(null);
 
@@ -1653,21 +1619,20 @@ function DayTimeline({
     [scheduleSegments, nowMinutes],
   );
   return (
-    <div className="theme-workspace mobile-todos-panel rounded-[24px] border px-3 py-5 shadow-none sm:px-4 sm:rounded-3xl lg:hidden">
-      <div className="flex flex-col gap-5">
+    <div className="theme-workspace mobile-todos-panel rounded-[24px] border px-3 py-3 shadow-none sm:px-4 sm:rounded-3xl lg:hidden">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.5em] text-white/60">{weekdayLabel}</p>
             <button
               type="button"
               onClick={onOpenCalendar}
-              className="mt-1 inline-flex min-h-10 flex-wrap items-center gap-x-1 text-left text-2xl font-semibold leading-tight text-white underline-offset-4 hover:underline"
+              className="mt-1 inline-flex min-h-10 flex-wrap items-center gap-x-1 text-left text-lg font-semibold leading-tight text-white underline-offset-4 hover:underline"
             >
               <span>{monthLabel}</span>
               <span>{dayNumber},</span>
               <span className="text-rose-300">{yearLabel}</span>
             </button>
-            <p className="mt-1 text-[11px] text-white/50">Tap the date to open the calendar.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -1697,6 +1662,7 @@ function DayTimeline({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setWeekOpen(open => !open)} aria-expanded={weekOpen} aria-controls="mobile-planner-week" className="min-h-11 rounded-full border border-white/10 px-4 py-2 text-sm">Week</button>
           {(["list", "schedule"] as const).map((mode) => (
             <button
               key={mode}
@@ -1713,7 +1679,7 @@ function DayTimeline({
           ))}
         </div>
 
-        <div className="rounded-[28px] border border-white/10 bg-black/30 px-2 py-3 shadow-inner">
+        <div id="mobile-planner-week" hidden={!weekOpen} className="rounded-2xl border border-white/10 bg-black/30 px-2 py-1">
           <div className="grid grid-cols-7 gap-0.5">
             {weekDays.map((day) => {
               const active = day.key === selectedDay;
@@ -1724,7 +1690,7 @@ function DayTimeline({
                   type="button"
                   data-guide="plan-days"
                   onClick={() => onSelectDay(day.key)}
-                  className={`flex min-h-[4.75rem] min-w-0 flex-col items-center justify-center rounded-2xl px-0 py-1 text-center transition ${
+                  className={`flex min-h-[3.5rem] min-w-0 flex-col items-center justify-center rounded-2xl px-0 py-1 text-center transition ${
                     active ? "text-white" : "text-white/60 hover:text-white"
                   }`}
                 >
@@ -1750,14 +1716,13 @@ function DayTimeline({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Planned today</p>
-            <div className="mt-3 flex flex-wrap gap-2 text-sm text-white/80">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{taskCount} blocks</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{totalPlannedMinutes ? `${formatPlannedDuration(totalPlannedMinutes)} planned` : "No time set"}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex flex-wrap gap-2 text-xs text-white/70">
+              <span >{taskCount} blocks</span>
+              <span >{totalPlannedMinutes ? `${formatPlannedDuration(totalPlannedMinutes)} planned` : "No time set"}</span>
               {recurringCount > 0 && (
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{recurringCount} recurring</span>
+                <span >{recurringCount} recurring</span>
               )}
             </div>
           </div>
@@ -2138,6 +2103,7 @@ function TimeBlockingBoard({
   onOpenCalendar,
   onJumpToday,
 }: TimeBlockingBoardProps) {
+  const [weekOpen, setWeekOpen] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const boardScrollRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
@@ -2297,24 +2263,21 @@ function TimeBlockingBoard({
   };
 
   return (
-    <div className="theme-workspace flex min-h-0 min-w-0 flex-col rounded-[28px] border p-5 shadow-[0_24px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
-      <div className="flex shrink-0 flex-col gap-5">
-        <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-start 2xl:justify-between">
+    <div className="planner-workspace theme-workspace flex min-h-0 min-w-0 flex-col rounded-[28px] border p-3 shadow-[0_24px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
+      <div className="flex shrink-0 flex-col gap-2">
+        <div className="planner-toolbar">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Day planner</p>
-            <h2 className="text-2xl font-semibold text-white">{selectedDayLabel}</h2>
-            <p className="mt-2 hidden text-sm text-zinc-400 2xl:block">
-              Drag and resize the day while your control rail stays in view.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2 text-sm text-white/80">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{blocks.length} blocks</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{formatPlannedDuration(totalPlannedMinutes)}</span>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/70">Day planner</p>
+            <h2 className="text-lg font-semibold text-white">{selectedDayLabel}</h2>
+            <div className="planner-load flex flex-wrap gap-2 text-xs text-white/60">
+              <span >{blocks.length} blocks</span>
+              <span >{formatPlannedDuration(totalPlannedMinutes)}</span>
               {conflictCount > 0 && (
                 <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-amber-100">{conflictCount} conflict{conflictCount > 1 ? "s" : ""}</span>
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.3em] text-zinc-200">
+          <div className="planner-controls flex flex-wrap items-center gap-1 text-xs text-zinc-200">
             <button
               type="button"
               onClick={() => onShiftDay(-1)}
@@ -2346,6 +2309,7 @@ function TimeBlockingBoard({
             >
               Today
             </button>
+            <button type="button" onClick={() => setWeekOpen(open => !open)} aria-expanded={weekOpen} aria-controls="planner-week" className="rounded-full border border-white/20 px-3 py-2">Week</button>
             <button
               type="button"
               data-guide="plan-add"
@@ -2357,7 +2321,7 @@ function TimeBlockingBoard({
             </button>
           </div>
         </div>
-        <div className="rounded-2xl border border-white/5 bg-black/30 px-3 py-3">
+        <div id="planner-week" hidden={!weekOpen} className="rounded-2xl border border-white/5 bg-black/30 p-1">
           <div className="grid grid-cols-7 gap-1">
             {weekDays.map((day) => {
               const active = day.key === selectedDay;
@@ -2390,7 +2354,7 @@ function TimeBlockingBoard({
       </div>
       <div
         ref={boardScrollRef}
-        className={`planner-board-scroll mt-4 min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40 ${
+        className={`planner-board-scroll mt-2 min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border border-white/5 bg-black/40 ${
           dragState ? "planner-board-dragging" : ""
         }`}
       >

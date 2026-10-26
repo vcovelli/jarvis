@@ -491,6 +491,12 @@ function compactLine(value: string, maxLength: number) {
 }
 
 const assistantProjectTopicMap: Record<string, string> = {
+  "agent-infrastructure": "agents",
+  "agent-finance": "agents",
+  "agent-business": "agents",
+  "agent-security": "agents",
+  "agent-executive": "agents",
+  "agent-strategy": "agents",
   general: "general",
   daily: "general",
   finance: "career-finances",

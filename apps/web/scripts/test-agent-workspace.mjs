@@ -8,6 +8,16 @@ const url = new URL(process.env.DATABASE_URL ?? "http://invalid");
 if (url.pathname !== "/jarvis_power_test" || url.searchParams.get("host") !== "/tmp/jarvis-power-test/socket") throw new Error("Disposable agent-workspace database required");
 const base = "http://127.0.0.1:3318", db = new PrismaClient();
 const { chromium, webkit } = await import(process.env.OPERATIONS_PLAYWRIGHT_PATH);
+const labels = { Activity: "Agents", Decisions: "Approvals", Preferences: "Settings" };
+async function selectView(scope, view) {
+  const select = scope.getByLabel("Operations view");
+  if (await select.isVisible()) await select.selectOption(view);
+  else await scope.getByRole("navigation", { name: "Operations sections" }).getByRole("button", { name: new RegExp(`^${labels[view]}(?: · \\d+)?$`) }).click();
+}
+async function showDoctor(scope) {
+  await scope.getByText("Worker health, permissions & safeguards", { exact: true }).click();
+  await scope.getByRole("heading", { name: "Workflow doctor" }).waitFor();
+}
 const tokens = {};
 const request = (user, path, body) => fetch(base + path, { method: body ? "POST" : "GET", headers: { ...(user ? { cookie: `next-auth.session-token=${tokens[user]}` } : {}), ...(body ? { "Content-Type": "application/json", Origin: base } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
 await mkdir("/tmp/jarvis-power-test/agents", { recursive: true });
@@ -50,18 +60,19 @@ try {
       await page.getByRole("button", { name: "Open agent workspace", exact: true }).first().click();
       const dialog = page.getByRole("dialog", { name: "Your control room" });
       await dialog.waitFor();
+      await selectView(dialog, "Decisions");
       await dialog.getByText("Notification inbox", { exact: false }).click();
       assert.equal(await dialog.getByText("Review expired fixture", { exact: true }).count(), 0, "Quiet-hour notification is withheld and expired decision not pending");
-      await dialog.getByLabel("Operations view").selectOption("Activity");
-      await dialog.getByRole("heading", { name: "Workflow doctor" }).waitFor();
-      await dialog.getByLabel("Operations view").selectOption("Preferences");
+      await selectView(dialog, "Activity");
+      await showDoctor(dialog);
+      await selectView(dialog, "Preferences");
       await dialog.getByLabel("Notification timezone").fill("America/Chicago");
       await dialog.getByRole("button", { name: "Refresh", exact: true }).click();
       assert.equal(await dialog.getByLabel("Notification timezone").inputValue(), "America/Chicago", "Polling must preserve unsaved settings");
       await dialog.getByRole("button", { name: "Save preferences" }).click();
       await dialog.getByText("Saved. Any queued work", { exact: false }).waitFor();
       assert.equal((await db.operationsProfile.findUnique({ where: { userId: "agent-ui-owner" } })).preferences.timezone, "America/Chicago");
-      await dialog.getByLabel("Operations view").selectOption("Decisions");
+      await selectView(dialog, "Decisions");
       if (engine === "chromium") {
         await dialog.getByRole("button").filter({ hasText: "Review approve fixture" }).click();
         await dialog.getByRole("button", { name: "Review approval", exact: true }).click();
@@ -93,7 +104,7 @@ try {
       await composer.fill("Test draft"); await composer.press("Enter");
       assert.equal(await composer.inputValue(), "Test draft\n");
       await chatSettings.getByRole("button", { name: "Workflow doctor" }).click();
-      await dialog.getByRole("heading", { name: "Workflow doctor" }).waitFor();
+      await showDoctor(dialog);
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: "Chat settings" }).click();
       await page.screenshot({ path: `/tmp/jarvis-power-test/agents/${engine}-assistant.png` });
@@ -107,7 +118,7 @@ try {
         assert.equal(await composer.isVisible(), true);
         await page.getByRole("button", { name: /^Agents(?: · \d+)?$/ }).click();
         await dialog.waitFor();
-        await dialog.getByLabel("Operations view").selectOption("Preferences");
+        await selectView(dialog, "Preferences");
         assert.equal(await dialog.evaluate(el => el.scrollWidth > el.clientWidth), false, `${engine} dialog fits ${width}`);
         await dialog.getByRole("button", { name: "Close agent workspace" }).focus(); await page.keyboard.press("Shift+Tab");
         assert.equal(await dialog.evaluate(el => el.contains(document.activeElement)), true, "Modal traps keyboard focus");
@@ -134,7 +145,7 @@ try {
       await chats.waitFor();
       await page.keyboard.press("Escape"); await chats.waitFor({ state: "hidden" });
       await page.getByRole("button", { name: /^Agents(?: · \d+)?$/ }).click();
-      await dialog.getByLabel("Operations view").selectOption("Activity");
+      await selectView(dialog, "Activity");
       await page.route("**/api/operations", route => route.fulfill({ status: 503, json: { error: "Fixture outage" } }));
       await dialog.getByRole("button", { name: "Refresh", exact: true }).click();
       await dialog.getByRole("alert").filter({ hasText: "Fixture outage" }).waitFor();

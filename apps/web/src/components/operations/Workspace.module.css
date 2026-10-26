@@ -1,4 +1,24 @@
 .workspace { color: var(--foreground); min-width: 0; }
+.statusStrip { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; background: var(--surface); color: var(--foreground); font-size: 12px; flex-shrink: 0; }
+.statusStrip > div { min-width: 0; flex: 1 1 220px; }
+.statusStrip strong { font-weight: 600; }
+.statusStrip p { color: var(--muted); font-size: 11px; line-height: 1.5; margin-top: 3px; }
+.statusStrip button { min-height: 44px; padding: 6px 10px; border-radius: 8px; color: var(--accent); }
+.agentGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 12px; }
+.agentCard { min-width: 0; border: 1px solid var(--border); border-radius: 16px; padding: 16px; background: var(--surface); font-size: 13px; }
+.agentCard header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.agentCard h3 { text-transform: capitalize; font-size: 16px; font-weight: 600; }
+.agentCard header span { font-size: 11px; color: var(--accent); }
+.agentCard p { margin-top: 8px; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.agentCard ul { padding: 0; list-style: none; }
+.agentCard li { margin-top: 8px; }
+.agentCard a { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); overflow-wrap: anywhere; }
+.agentCard dl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.agentCard dt { font-size: 11px; color: var(--muted); }
+.agentCard dd { margin-top: 3px; overflow-wrap: anywhere; }
+.agentActions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.agentActions button { border: 1px solid var(--border); border-radius: 10px; min-height: 44px; padding: 8px 10px; font-size: 12px; }
+.agentActions button:disabled { opacity: .45; }
 .header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
 .header h1 { font-size: 26px; font-weight: 600; letter-spacing: -.04em; }
 .eyebrow { font-size: 10px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
@@ -36,3 +56,5 @@
 @media (max-width: 1023px) { .prompt { bottom: calc(var(--jarvis-mobile-nav-height, 64px) + 12px); right: 12px; } }
 @media (max-width: 600px) { .nav { display: none; } .doctorRow { gap: 8px; } .dialogHeader { padding-inline: 16px; } }
 @media (prefers-reduced-motion: no-preference) { .dialog[open] { animation: arrive .18s ease-out; } @keyframes arrive { from { transform: translateX(24px); opacity: .5; } to { transform: translateX(0); opacity: 1; } } }
+
+@media (min-width: 601px) { .viewSelect { display: none; } }
