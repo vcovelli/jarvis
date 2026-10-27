@@ -1,0 +1,34 @@
+{
+  "baseline_fulltext": {
+    "positive": 282,
+    "goldRetained": 181,
+    "recall": 0.6418439716312057,
+    "negative": 54,
+    "negativeWithEvidence": 37,
+    "maxTokenUpperBound": 4509
+  },
+  "baseline_hybrid": {
+    "positive": 282,
+    "goldRetained": 222,
+    "recall": 0.7872340425531915,
+    "negative": 54,
+    "negativeWithEvidence": 37,
+    "maxTokenUpperBound": 4520
+  },
+  "v22_always": {
+    "positive": 282,
+    "goldRetained": 235,
+    "recall": 0.8333333333333334,
+    "negative": 54,
+    "negativeWithEvidence": 1,
+    "maxTokenUpperBound": 4520
+  },
+  "v22_selective": {
+    "positive": 282,
+    "goldRetained": 235,
+    "recall": 0.8333333333333334,
+    "negative": 54,
+    "negativeWithEvidence": 1,
+    "maxTokenUpperBound": 4520
+  }
+}

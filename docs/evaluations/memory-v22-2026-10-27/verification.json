@@ -1,0 +1,13 @@
+{
+  "unitAndRegressionTestsPassed": 125,
+  "memoryDatabaseTestsPassed": 19,
+  "httpAssertionsPassed": 42,
+  "chromiumBrowserChecks": true,
+  "pgvectorAndLocalProviderChecksPassed": 10,
+  "lint": "passed",
+  "typescript": "passed",
+  "productionBuildInIsolatedCopy": "passed",
+  "versionCheck": "passed",
+  "sourceVersion": "17.13.0",
+  "deployed": false
+}

@@ -1,0 +1,37 @@
+{
+  "scope": "Source-only offline proof; no live Assistant or durable ledger integration",
+  "sourceVersion": "17.13.0",
+  "verification": {
+    "regressionTestsPassed": 168,
+    "newIntelligenceTestsIncluded": 43,
+    "offlineScenariosPassed": 7,
+    "eslint": "passed",
+    "typescript": "passed",
+    "versionCheck": "passed",
+    "diffCheck": "passed"
+  },
+  "liveProviderCalls": 0,
+  "databaseConnections": 0,
+  "productionChanges": false,
+  "hardwareReadOnly": {
+    "gpu": "NVIDIA GeForce RTX 3070",
+    "vramMiB": 8192,
+    "driver": "535.309.01",
+    "inferenceValidated": false
+  },
+  "limits": [
+    "Provider responses, memory and spending reservations are synthetic fixtures.",
+    "Durable audit and concurrent reservations require the planned Assistant integration.",
+    "No live model quality, GPU inference, paid pricing or runtime availability verified."
+  ],
+  "sourceSha256": {
+    "apps/web/src/lib/intelligence/budget.test.ts": "45a0c18dcf3fc87f238a8edbaa8e51b6e1fbad985943663df62a086025a5abd1",
+    "apps/web/src/lib/intelligence/budget.ts": "34dd1008f511b75f7e9dfdb49674c776008bec1cac7766778add6deefbbdad4b",
+    "apps/web/src/lib/intelligence/providers.test.ts": "43e5564ad3e52955d3298fe227598bb1786d9745d47d7aa5b258d2462e6f7981",
+    "apps/web/src/lib/intelligence/providers.ts": "ab0310b74d1cb93fda381257e054f61904aa40357cf458e7e9f444564997e997",
+    "apps/web/src/lib/intelligence/router.test.ts": "9e90b6b283fe476be15b6f1128cfd927bff4becfb9c6d8691b003da9dbd61ba6",
+    "apps/web/src/lib/intelligence/router.ts": "f68a3d611c1649eeca2eb901278db5398ee37cee5e4f3b04bda5376b3a892ff2",
+    "apps/web/scripts/intelligence-poc.mjs": "9ae488f5d3acd5f4eaca5eb5d5703b6881bf3600b6523e7f9273f320d3a2c7ce",
+    "apps/web/package.json": "6dc599f5a63e4a65b6ca804e975d532934e56f8bca1fee69911bf38f5ac74008"
+  }
+}

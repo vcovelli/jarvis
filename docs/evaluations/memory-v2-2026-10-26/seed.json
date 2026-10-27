@@ -1,0 +1,43 @@
+{
+  "fingerprint": "f8a6723c02426ecd25153a7c7e77cc38020fd50ce348ede573067549ea9efb73",
+  "documents": 20576,
+  "queries": 312,
+  "owners": 3,
+  "embedded": 0,
+  "cachedCount": 20576,
+  "embeddingMs": 0,
+  "totalMs": 42854.996920000005,
+  "identity": {
+    "model": "local:sentence-transformers/all-MiniLM-L6-v2",
+    "version": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx-fp32-mean-l2-256",
+    "dimension": 384
+  },
+  "health": {
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "dimensions": 384,
+    "runtime": "1.23.2",
+    "threads": 2,
+    "providers": [
+      "CPUExecutionProvider"
+    ],
+    "maximumTokens": 256
+  },
+  "pgvector": "0.8.2",
+  "postgres": [
+    {
+      "version": "PostgreSQL 16.14 (Debian 16.14-1.pgdg12+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+    }
+  ],
+  "hardware": {
+    "cpu": "AMD Ryzen 5 5600X 6-Core Processor",
+    "logicalCpus": 12,
+    "hostMemoryBytes": 33554182144
+  },
+  "byKind": {
+    "target": 64,
+    "hard_negative": 128,
+    "distractor": 20000,
+    "boundary": 384
+  }
+}

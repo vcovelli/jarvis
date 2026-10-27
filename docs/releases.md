@@ -1,5 +1,40 @@
 # Source versions and release records
 
+## 17.14.0 — memory foundation, offline intelligence and security updates, 2026-10-27
+
+Includes Memory Engine V2/V2.2 with ownership-scoped retrieval, evidence filtering,
+explicit abstention and reproducible synthetic evaluations. Adds the V18 Intelligence
+Router architecture and offline policy/provider proof; the live Assistant does not
+use that router yet. Existing Operations approval and execution permissions are unchanged.
+
+Updates Next.js and its ESLint preset to 16.4.3, NextAuth to 4.24.15, React/React DOM
+to 19.2.9, and compatible transitive dependencies. The prior lockfile had critical
+framework/authentication findings; the updated complete dependency audit reports
+zero known vulnerabilities. These are advisory results, not a guarantee of absence
+of vulnerabilities. See the upstream [Next.js advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw)
+and [NextAuth advisory](https://github.com/nextauthjs/next-auth/security/advisories/GHSA-x445-f3h2-j279).
+
+Release gates: 168 unit/regression tests, 19 disposable-database integration tests,
+the existing 42-assertion memory HTTP/Chromium harness, Prisma validation/generation,
+TypeScript, lint, and an isolated production build. The updated lint preset adds
+React Compiler diagnostics to existing UI files; two rules remain warnings in an
+explicit eight-file legacy list, with errors retained elsewhere. No UI behavior
+was changed to accommodate those diagnostics.
+
+Production rollout keeps `MEMORY_V2_ENABLED=false`, vector retrieval disabled,
+embedding providers disabled, and no new memory worker/backfill or paid provider
+activation. The additive `20261026120000_memory_engine_v2` migration is intentionally
+pending in production; disabled memory paths retain the existing schema. Migration
+and memory activation require a separate backed-up rollout. The offline intelligence
+modules have no production caller.
+
+Deploy using a separate prepared build and dependency directory, then briefly stop
+only the existing `jarvis` PM2 process, preserve its prior build/dependencies, switch
+the artifacts and restart. Do not execute the in-place deployment helper against the
+running build. Verify the exact SHA/version, health/readiness, authentication guards,
+public rendering and static assets. Keep deployment evidence and rollback artifacts
+outside Git. Previous compatible release: `v17.13.0` (`9f6d843`).
+
 ## 17.13.0 — tablet layouts and agent supervision, 2026-10-25
 
 Home and Plan use compact layouts in short desktop windows and on tablets. Plan

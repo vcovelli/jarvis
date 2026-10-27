@@ -1,0 +1,758 @@
+[
+  {
+    "mode": "fulltext",
+    "queryId": "backup-retention:0",
+    "ms": 3.4845080000000053,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "backup-retention:0",
+    "ms": 3.4225699999999506,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "dns-fix:1",
+    "ms": 3.1767009999998663,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "dns-fix:1",
+    "ms": 2.9537270000000717,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "ups-cutoff:2",
+    "ms": 2.9858389999999417,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "ups-cutoff:2",
+    "ms": 3.088734000000386,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "disk-bay:scoped",
+    "ms": 2.8373039999996763,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "disk-bay:scoped",
+    "ms": 2.813310000000456,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "container-logs:0",
+    "ms": 2.810042999999496,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "container-logs:0",
+    "ms": 3.1923720000004323,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "vm-stutter:1",
+    "ms": 3.4950079999998707,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "vm-stutter:1",
+    "ms": 2.7786830000004556,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "remote-access:2",
+    "ms": 3.0368749999997817,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "remote-access:2",
+    "ms": 3.3456440000009025,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "offline-tasks:scoped",
+    "ms": 3.2205749999993714,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "offline-tasks:scoped",
+    "ms": 2.774105000000418,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "refresh-race:0",
+    "ms": 3.094694999999774,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "refresh-race:0",
+    "ms": 3.0171580000005633,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "mobile-search:1",
+    "ms": 3.2801390000022366,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "mobile-search:1",
+    "ms": 3.0553800000016054,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "schema-lock:2",
+    "ms": 2.9600890000001527,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "schema-lock:2",
+    "ms": 2.964938000000984,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "timezone-fixture:scoped",
+    "ms": 3.351705999997648,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "timezone-fixture:scoped",
+    "ms": 2.818318999998155,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "account-grouping:0",
+    "ms": 2.754056000001583,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "account-grouping:0",
+    "ms": 2.8774220000013884,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "emergency-fund:1",
+    "ms": 2.864978000001429,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "emergency-fund:1",
+    "ms": 2.714230999998108,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "car-fund:2",
+    "ms": 2.4994020000012824,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "car-fund:2",
+    "ms": 2.792029000000184,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "debt-order:scoped",
+    "ms": 2.95394700000179,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "debt-order:scoped",
+    "ms": 2.5846239999991667,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "portfolio-mix:0",
+    "ms": 2.9232589999955962,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "portfolio-mix:0",
+    "ms": 2.8171070000025793,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "house-reserve:1",
+    "ms": 2.8335989999977755,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "house-reserve:1",
+    "ms": 2.7069269999992684,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "subscription-review:2",
+    "ms": 2.779124000000593,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "subscription-review:2",
+    "ms": 4.230449000002409,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "transfer-classification:scoped",
+    "ms": 2.9643470000009984,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "transfer-classification:scoped",
+    "ms": 2.974505999998655,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "inspection-radon:0",
+    "ms": 2.8236889999971027,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "inspection-radon:0",
+    "ms": 2.95139200000267,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "rental-reserve:1",
+    "ms": 3.3005469999989145,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "rental-reserve:1",
+    "ms": 2.8012959999978193,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "commute-limit:2",
+    "ms": 2.4825789999958943,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "commute-limit:2",
+    "ms": 2.662452000004123,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "agent-contact:scoped",
+    "ms": 2.9859579999974812,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "agent-contact:scoped",
+    "ms": 2.6523120000056224,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "solar-lease:0",
+    "ms": 2.645810000001802,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "solar-lease:0",
+    "ms": 2.9900760000018636,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "flood-map:1",
+    "ms": 2.7921189999979106,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "flood-map:1",
+    "ms": 2.6107629999969504,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "promotion-change:2",
+    "ms": 2.66279200000281,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "promotion-change:2",
+    "ms": 2.741031000005023,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "meeting-boundary:scoped",
+    "ms": 2.8435170000011567,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "meeting-boundary:scoped",
+    "ms": 2.6576829999976326,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "learning-focus:0",
+    "ms": 2.6524419999987003,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "learning-focus:0",
+    "ms": 2.919841999995697,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "conference-choice:1",
+    "ms": 2.7251109999997425,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "conference-choice:1",
+    "ms": 2.6068559999985155,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "handoff-checklist:2",
+    "ms": 2.697017999998934,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "handoff-checklist:2",
+    "ms": 2.687538999998651,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "job-search:scoped",
+    "ms": 2.789604000005056,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "job-search:scoped",
+    "ms": 2.524638999995659,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "bedtime-routine:0",
+    "ms": 2.5707170000096085,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "bedtime-routine:0",
+    "ms": 2.75996799999848,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "caffeine-cutoff:1",
+    "ms": 2.9432570000062697,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "caffeine-cutoff:1",
+    "ms": 2.4840819999953965,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "weekend-wake:2",
+    "ms": 2.641061999995145,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "weekend-wake:2",
+    "ms": 2.724960999999894,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "sleep-device:scoped",
+    "ms": 2.7403900000063004,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "sleep-device:scoped",
+    "ms": 2.49495300000126,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "shift-note:0",
+    "ms": 2.7156140000006417,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "shift-note:0",
+    "ms": 2.79258999999729,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "nap-preference:1",
+    "ms": 2.801737999994657,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "nap-preference:1",
+    "ms": 2.4830999999976484,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "sleep-data-gap:2",
+    "ms": 2.4811069999996107,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "sleep-data-gap:2",
+    "ms": 2.772752999997465,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "journal-move:scoped",
+    "ms": 2.976951000004192,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "journal-move:scoped",
+    "ms": 2.6714090000023134,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "journal-gratitude:0",
+    "ms": 2.596425999989151,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "journal-gratitude:0",
+    "ms": 2.615401999995811,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "journal-friend:1",
+    "ms": 2.739218000002438,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "journal-friend:1",
+    "ms": 2.5488860000041313,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "journal-transition:2",
+    "ms": 2.582459999990533,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "journal-transition:2",
+    "ms": 2.7633939999941504,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "journal-travel:scoped",
+    "ms": 3.2560019999946235,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "journal-travel:scoped",
+    "ms": 2.521784000011394,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "journal-energy:0",
+    "ms": 2.3702760000014678,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "journal-energy:0",
+    "ms": 2.7298099999898113,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "answer-style:1",
+    "ms": 2.9089620000013383,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "answer-style:1",
+    "ms": 2.448314000008395,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "travel-seat:2",
+    "ms": 2.550067999996827,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "travel-seat:2",
+    "ms": 2.756221000003279,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "gift-preference:scoped",
+    "ms": 2.54435700000613,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "gift-preference:scoped",
+    "ms": 2.066697000002023,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "dog-sitter:0",
+    "ms": 2.837134999994305,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "dog-sitter:0",
+    "ms": 2.720642999993288,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "repair-success:1",
+    "ms": 2.76523800000723,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "repair-success:1",
+    "ms": 2.444296999994549,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "meal-planning:2",
+    "ms": 2.4732309999963036,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "meal-planning:2",
+    "ms": 2.7468930000031833,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "bike-fit:scoped",
+    "ms": 1.8151280000020051,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "bike-fit:scoped",
+    "ms": 1.8110199999937322,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "absent:4",
+    "ms": 2.4994409999926575,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "absent:4",
+    "ms": 2.7778120000002673,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "absent:9",
+    "ms": 2.81402099999832,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "absent:9",
+    "ms": 2.685435999999754,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "absent:14",
+    "ms": 2.2381439999880968,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "absent:14",
+    "ms": 2.849749000000884,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "absent:19",
+    "ms": 2.6785129999916535,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "absent:19",
+    "ms": 2.426622999992105,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "agent:backup-retention",
+    "ms": 2.5718889999989187,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "agent:backup-retention",
+    "ms": 2.6678930000052787,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "agent:container-logs",
+    "ms": 2.6960759999928996,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "agent:container-logs",
+    "ms": 2.5585439999995288,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "agent:debt-order",
+    "ms": 2.625562000001082,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "agent:debt-order",
+    "ms": 2.4867770000128075,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "agent:transfer-classification",
+    "ms": 2.698750999988988,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "agent:transfer-classification",
+    "ms": 2.718137999996543,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "agent:noise-solution",
+    "ms": 0.8621129999955883,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "agent:noise-solution",
+    "ms": 0.9388489999982994,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "agent:journal-boundary",
+    "ms": 0.9779030000063358,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "agent:journal-boundary",
+    "ms": 0.883112000010442,
+    "cacheHit": true
+  },
+  {
+    "mode": "fulltext",
+    "queryId": "agent:journal-conflict",
+    "ms": 0.8694560000003548,
+    "cacheHit": true
+  },
+  {
+    "mode": "hybrid",
+    "queryId": "agent:journal-conflict",
+    "ms": 0.9465730000083568,
+    "cacheHit": true
+  }
+]

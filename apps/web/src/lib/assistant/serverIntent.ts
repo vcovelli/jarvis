@@ -1,4 +1,5 @@
 import "server-only";
+import { enabled as memoryV2 } from "@/lib/memory/policy";
 
 import {
   buildDeterministicInsight,
@@ -27,7 +28,16 @@ export async function resolveAssistantIntent(params: {
   context: unknown;
 }): Promise<AssistantIntentResolution> {
   const clientContext = sanitizeAssistantContext(params.context);
-  const finance = clientContext.demoMode ? buildDemoAssistantFinanceContext() : await buildFinanceContext(params.userId);
+  if (memoryV2() && !clientContext.demoMode) {
+    const stored = await prisma.userState.findUnique({ where: { userId: params.userId }, select: { state: true } });
+    const state = stored?.state as Record<string, unknown> | undefined;
+    const flatten = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? Object.values(value).flatMap(v => Array.isArray(v) ? v : []) : [];
+    const deleted = new Set(Array.isArray(state?.deletedTodoIds) ? state.deletedTodoIds : []);
+    const trusted = sanitizeAssistantContext({ ...clientContext, todos: flatten(state?.todos).filter(t => t && !deleted.has(t.id)), mood: flatten(state?.mood), sleep: flatten(state?.sleep) });
+    Object.assign(clientContext, trusted);
+  }
+  const wantsFinance = /financ|spend|income|net worth|cash.?flow/i.test(params.input);
+  const finance = clientContext.demoMode ? buildDemoAssistantFinanceContext() : (!memoryV2() || wantsFinance) ? await buildFinanceContext(params.userId) : undefined;
   const context: AssistantContextPayload = {
     ...clientContext,
     finance,
@@ -35,7 +45,7 @@ export async function resolveAssistantIntent(params: {
   const fallback = parseAssistantIntentFallback(params.input, context);
   const apiKey = process.env.OPENAI_API_KEY;
 
-  if (!apiKey) {
+  if (!apiKey || memoryV2()) { // V2 keeps intent parsing deterministic; no implicit external disclosure.
     return { result: fallback, used: "fallback", context };
   }
 
@@ -50,21 +60,21 @@ export async function resolveAssistantIntent(params: {
 
 export function sanitizeAssistantContext(value: unknown): AssistantContextPayload {
   const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-  const today = typeof record.today === "string" ? record.today : formatDayKey(new Date());
+  const today = typeof record.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(record.today) ? record.today : formatDayKey(new Date());
 
   return {
-    nowIso: typeof record.nowIso === "string" ? record.nowIso : new Date().toISOString(),
+    nowIso: typeof record.nowIso === "string" ? record.nowIso.slice(0, 40) : new Date().toISOString(),
     today,
-    timezone: typeof record.timezone === "string" ? record.timezone : "UTC",
+    timezone: typeof record.timezone === "string" ? record.timezone.slice(0, 80) : "UTC",
     todos: Array.isArray(record.todos)
       ? record.todos
           .slice(0, 80)
           .map((todo) => {
             const item = todo && typeof todo === "object" ? (todo as Record<string, unknown>) : {};
             return {
-              id: String(item.id ?? ""),
+              id: String(item.id ?? "").slice(0, 100),
               day: typeof item.day === "string" ? item.day : today,
-              text: typeof item.text === "string" ? item.text : "Untitled task",
+              text: typeof item.text === "string" ? item.text.slice(0, 1000) : "Untitled task",
               done: Boolean(item.done),
               priority: toAssistantPriority(item.priority),
               startTime: typeof item.startTime === "string" ? item.startTime : undefined,
@@ -81,7 +91,7 @@ export function sanitizeAssistantContext(value: unknown): AssistantContextPayloa
             return {
               day: typeof item.day === "string" ? item.day : today,
               mood: typeof item.mood === "number" ? item.mood : Number(item.mood ?? 0),
-              note: typeof item.note === "string" ? item.note : undefined,
+              note: typeof item.note === "string" ? item.note.slice(0, 500) : undefined,
               tags: Array.isArray(item.tags) ? item.tags.filter((tag): tag is string => typeof tag === "string") : undefined,
             };
           })

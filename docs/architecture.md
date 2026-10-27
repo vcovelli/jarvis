@@ -239,3 +239,11 @@ PostgreSQL schedules, bounded read-only collectors, policy-checked exact approva
 conservative spending reservations, in-app notifications, and immutable decision evidence.
 The existing user, financial data, authentication, and audit systems are reused.
 See [Operations Center V1](./operations.md) for execution semantics and limitations.
+
+## Planned hybrid intelligence
+
+The [V18 Intelligence Router plan](./intelligence-router-v18.md) audits these existing
+components and adds an offline proof for deterministic, local and cloud routing.
+It is not wired into the live Assistant. Durable shared spending reservations,
+per-request disclosure consent and approved runtime validation are prerequisites
+for activation; existing Operations execution permissions remain unchanged.

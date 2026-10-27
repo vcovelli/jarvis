@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { buildMemoryContext } from "@/lib/memory/assistant";
+import { enabled as memoryV2 } from "@/lib/memory/policy";
+import { readMemoryBody, memoryFailure } from "@/lib/memory/http";
 import { getServerSession } from "next-auth";
 
 import {
   appendAssistantMessage,
+  getAssistantProjectMemoryDomainForTopic,
   buildOpenClawConversationInput,
   ensureAssistantConversation,
   updateAssistantAutoMemory,
@@ -22,7 +26,8 @@ import { getMonitoringSummary } from "@/lib/prometheus";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type AssistantSseEvent = "accepted" | "delta" | "final" | "error" | "conversation";
+type AssistantSseEvent =
+  "accepted" | "delta" | "final" | "error" | "conversation";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -33,19 +38,41 @@ export async function POST(request: Request) {
   const limited = enforceRateLimit(request, "assistant", userId);
   if (limited) return limited;
 
-  const body = await request.json().catch(() => null);
+  let body;
+  try {
+    body = await readMemoryBody(request, 64000);
+  } catch (error) {
+    return memoryFailure(error);
+  }
   const input = typeof body?.input === "string" ? body.input.trim() : "";
-  if (!input) {
-    return NextResponse.json({ error: "Missing assistant input." }, { status: 400 });
+  if (!input || input.length > 8000) {
+    return NextResponse.json(
+      { error: "Missing assistant input." },
+      { status: 400 },
+    );
   }
 
+  if (
+    typeof body?.conversationId === "string" &&
+    !(await prisma.assistantConversation.findFirst({
+      where: { id: body.conversationId, userId },
+      select: { id: true },
+    }))
+  )
+    return NextResponse.json(
+      { error: "Conversation not found." },
+      { status: 404 },
+    );
   const conversation = await ensureAssistantConversation({
     userId,
-    conversationId: typeof body?.conversationId === "string" ? body.conversationId : undefined,
+    conversationId:
+      typeof body?.conversationId === "string"
+        ? body.conversationId
+        : undefined,
     domain: typeof body?.domain === "string" ? body.domain : undefined,
     seedText: input,
   });
-  await appendAssistantMessage({
+  const storedUserMessage = await appendAssistantMessage({
     userId,
     conversationId: conversation.id,
     role: "user",
@@ -119,9 +146,14 @@ export async function POST(request: Request) {
     });
   }
 
-  if (isFinanceQuestion(input)) {
+  if (
+    isFinanceQuestion(input) &&
+    !(memoryV2() && /goal|plan|decid|remember|said|say|promotion/i.test(input))
+  ) {
     const demoMode = resolved.context.demoMode === true;
-    const message = demoMode ? buildDemoFinanceMessage(input) : await buildFinanceMessage(userId, input);
+    const message = demoMode
+      ? buildDemoFinanceMessage(input)
+      : await buildFinanceMessage(userId, input);
     await appendAssistantMessage({
       userId,
       conversationId: conversation.id,
@@ -149,6 +181,40 @@ export async function POST(request: Request) {
     });
   }
 
+  const v2Context =
+    memoryV2() && storedUserMessage
+      ? await buildMemoryContext({
+          userId,
+          conversationId: conversation.id,
+          userMessage: input,
+          currentMessageId: storedUserMessage.id,
+          projectDomain: getAssistantProjectMemoryDomainForTopic(
+            conversation.domain,
+          ),
+        })
+      : null;
+  if (v2Context?.abstention) {
+    const message = v2Context.abstention;
+    await appendAssistantMessage({
+      userId,
+      conversationId: conversation.id,
+      role: "assistant",
+      content: message,
+      source: "memory-insufficient",
+    });
+    await updateConversationSummary({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      assistantMessage: message,
+    });
+    return NextResponse.json({
+      mode: "message",
+      message,
+      used: "memory-insufficient",
+      conversation: projectConversation(conversation),
+    });
+  }
   const health = await checkOpenClawHealth();
   if (!health.ok) {
     const message = `I could not reach OpenClaw on the Jarvis server${health.error ? `: ${health.error}` : "."}`;
@@ -179,12 +245,14 @@ export async function POST(request: Request) {
     });
   }
 
-  const openClawMessage = await buildOpenClawConversationInput({
-    userId,
-    conversationId: conversation.id,
-    userMessage: input,
-    lifeContext: body?.context,
-  });
+  const openClawMessage =
+    v2Context?.message ??
+    (await buildOpenClawConversationInput({
+      userId,
+      conversationId: conversation.id,
+      userMessage: input,
+      lifeContext: body?.context,
+    }));
   const encoder = new TextEncoder();
   let closed = false;
 
@@ -193,7 +261,11 @@ export async function POST(request: Request) {
       let finalSent = false;
       const send = (event: AssistantSseEvent, payload: unknown) => {
         if (closed) return;
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+        controller.enqueue(
+          encoder.encode(
+            `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`,
+          ),
+        );
       };
       const close = () => {
         if (closed) return;
@@ -207,7 +279,7 @@ export async function POST(request: Request) {
       void streamOpenClawChat({
         userId,
         message: openClawMessage,
-        sessionKey: conversation.openClawSessionKey,
+        sessionKey: v2Context?.sessionKey ?? conversation.openClawSessionKey,
         signal: request.signal,
         handlers: {
           onAccepted: (payload) => send("accepted", { runId: payload.runId }),
@@ -269,7 +341,6 @@ export async function POST(request: Request) {
   });
 }
 
-
 function buildDemoFinanceMessage(input: string) {
   const lines = [
     "Demo finance mode is active. I am using generated showcase data, not live Plaid data.",
@@ -279,7 +350,9 @@ function buildDemoFinanceMessage(input: string) {
     "Two demo events need classification review: a payroll bonus and a brokerage transfer candidate.",
   ];
   if (/transfer|investment|brokerage|portfolio/i.test(input)) {
-    lines.push("Demo transfers and investment contributions are excluded from everyday spend so the dashboard can show clean classification behavior.");
+    lines.push(
+      "Demo transfers and investment contributions are excluded from everyday spend so the dashboard can show clean classification behavior.",
+    );
   }
   return lines.join(" ");
 }
@@ -287,7 +360,13 @@ function buildDemoFinanceMessage(input: string) {
 async function buildFinanceMessage(userId: string, input: string) {
   const rangeDays = inferFinanceRangeDays(input);
   const rangeCutoff = getFinanceRangeCutoff(rangeDays);
-  const [accountCount, connectionCount, rawTransactionCount, existingCanonicalEventCount, missingCanonicalTransactions] = await Promise.all([
+  const [
+    accountCount,
+    connectionCount,
+    rawTransactionCount,
+    existingCanonicalEventCount,
+    missingCanonicalTransactions,
+  ] = await Promise.all([
     prisma.financialAccount.count({ where: { userId } }),
     prisma.financialConnection.count({ where: { userId, status: "active" } }),
     prisma.financialTransaction.count({ where: { userId } }),
@@ -302,7 +381,9 @@ async function buildFinanceMessage(userId: string, input: string) {
 
   const backfill = missingCanonicalTransactions.length
     ? await normalizeFinancialTransactions(userId, {
-        transactionIds: missingCanonicalTransactions.map((transaction) => transaction.id),
+        transactionIds: missingCanonicalTransactions.map(
+          (transaction) => transaction.id,
+        ),
       })
     : { transactions: 0, events: 0, transferMatches: 0 };
   const canonicalEventCount = existingCanonicalEventCount + backfill.events;
@@ -323,15 +404,26 @@ async function buildFinanceMessage(userId: string, input: string) {
     }),
   ]);
 
-  if (!accountCount && !rawTransactionCount && !analytics.manualPositions.length) {
+  if (
+    !accountCount &&
+    !rawTransactionCount &&
+    !analytics.manualPositions.length
+  ) {
     return "I can reach the finance system, but I do not see connected accounts, transactions, or manual positions yet. Connect Plaid on the finance page, then run Sync.";
   }
 
-  const rawFallback = canonicalEventCount === 0 ? buildRawFinanceFallback(rawRangeTransactions) : null;
+  const rawFallback =
+    canonicalEventCount === 0
+      ? buildRawFinanceFallback(rawRangeTransactions)
+      : null;
   const periodIncome = rawFallback?.income ?? analytics.cashFlow.income;
   const periodSpend = rawFallback?.spending ?? analytics.cashFlow.spending;
-  const periodNetFlow = rawFallback?.netCashFlow ?? analytics.cashFlow.netCashFlow;
-  const periodSavingsRate = periodIncome > 0 ? (periodIncome - periodSpend) / periodIncome : analytics.savings.savingsRate;
+  const periodNetFlow =
+    rawFallback?.netCashFlow ?? analytics.cashFlow.netCashFlow;
+  const periodSavingsRate =
+    periodIncome > 0
+      ? (periodIncome - periodSpend) / periodIncome
+      : analytics.savings.savingsRate;
   const currency = rawFallback?.currency ?? analytics.currency ?? "USD";
   const lines = [
     `I can see your finance data. For the last ${rangeDays} days:`,
@@ -340,29 +432,45 @@ async function buildFinanceMessage(userId: string, input: string) {
   ];
 
   if (periodSavingsRate !== null) {
-    lines.push(`Savings rate for the period is ${formatPercent(periodSavingsRate)}.`);
+    lines.push(
+      `Savings rate for the period is ${formatPercent(periodSavingsRate)}.`,
+    );
   }
   if (analytics.cashFlow.transfers > 0) {
-    lines.push(`${formatMoney(analytics.cashFlow.transfers, currency)} of internal transfers were excluded from spend.`);
+    lines.push(
+      `${formatMoney(analytics.cashFlow.transfers, currency)} of internal transfers were excluded from spend.`,
+    );
   }
   if (analytics.cashFlow.investmentContributions > 0) {
-    lines.push(`Investment contributions total ${formatMoney(analytics.cashFlow.investmentContributions, currency)}.`);
+    lines.push(
+      `Investment contributions total ${formatMoney(analytics.cashFlow.investmentContributions, currency)}.`,
+    );
   }
 
-  const topCategories = rawFallback?.topCategories ?? analytics.spendingByCategory.slice(0, 3);
+  const topCategories =
+    rawFallback?.topCategories ?? analytics.spendingByCategory.slice(0, 3);
   if (topCategories.length) {
-    lines.push(`Top spend categories: ${topCategories.map((item) => `${item.label} ${formatMoney(item.value, currency)}`).join(", ")}.`);
+    lines.push(
+      `Top spend categories: ${topCategories.map((item) => `${item.label} ${formatMoney(item.value, currency)}`).join(", ")}.`,
+    );
   }
-  const topMerchants = rawFallback?.topMerchants ?? analytics.spendingByMerchant.slice(0, 3);
+  const topMerchants =
+    rawFallback?.topMerchants ?? analytics.spendingByMerchant.slice(0, 3);
   if (topMerchants.length) {
-    lines.push(`Top merchants: ${topMerchants.map((item) => `${item.label} ${formatMoney(item.value, currency)}`).join(", ")}.`);
+    lines.push(
+      `Top merchants: ${topMerchants.map((item) => `${item.label} ${formatMoney(item.value, currency)}`).join(", ")}.`,
+    );
   }
 
   if (rawFallback && rawTransactionCount > 0) {
-    lines.push("This answer is using raw Plaid transactions because canonical finance events have not been created yet. Run Finance > Sync to activate transfer-aware classification for assistant answers.");
+    lines.push(
+      "This answer is using raw Plaid transactions because canonical finance events have not been created yet. Run Finance > Sync to activate transfer-aware classification for assistant answers.",
+    );
   }
   if (analytics.reviewQueue.length) {
-    lines.push(`${analytics.reviewQueue.length} finance event${analytics.reviewQueue.length === 1 ? "" : "s"} need classification review.`);
+    lines.push(
+      `${analytics.reviewQueue.length} finance event${analytics.reviewQueue.length === 1 ? "" : "s"} need classification review.`,
+    );
   }
   if (connectionCount === 0) {
     lines.push("No active Plaid connections are currently linked.");
@@ -383,19 +491,38 @@ function buildRawFinanceFallback(
   if (!transactions.length) return null;
   const outflows = transactions.filter((transaction) => transaction.amount > 0);
   const inflows = transactions.filter((transaction) => transaction.amount < 0);
-  const spending = outflows.reduce((total, transaction) => total + transaction.amount, 0);
-  const income = inflows.reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
+  const spending = outflows.reduce(
+    (total, transaction) => total + transaction.amount,
+    0,
+  );
+  const income = inflows.reduce(
+    (total, transaction) => total + Math.abs(transaction.amount),
+    0,
+  );
   return {
     income,
     spending,
     netCashFlow: income - spending,
-    currency: mostCommon(transactions.map((transaction) => transaction.isoCurrencyCode).filter((value): value is string => Boolean(value))),
-    topCategories: summarizeRawBreakdown(outflows, (transaction) => transaction.category[0] ?? "Uncategorized"),
-    topMerchants: summarizeRawBreakdown(outflows, (transaction) => transaction.merchantName ?? transaction.name),
+    currency: mostCommon(
+      transactions
+        .map((transaction) => transaction.isoCurrencyCode)
+        .filter((value): value is string => Boolean(value)),
+    ),
+    topCategories: summarizeRawBreakdown(
+      outflows,
+      (transaction) => transaction.category[0] ?? "Uncategorized",
+    ),
+    topMerchants: summarizeRawBreakdown(
+      outflows,
+      (transaction) => transaction.merchantName ?? transaction.name,
+    ),
   };
 }
 
-function summarizeRawBreakdown<T extends { amount: number }>(items: T[], getLabel: (item: T) => string) {
+function summarizeRawBreakdown<T extends { amount: number }>(
+  items: T[],
+  getLabel: (item: T) => string,
+) {
   const totals = new Map<string, number>();
   items.forEach((item) => {
     const label = titleCase(getLabel(item).trim() || "Uncategorized");
@@ -410,7 +537,11 @@ function summarizeRawBreakdown<T extends { amount: number }>(items: T[], getLabe
 function mostCommon(values: string[]) {
   const counts = new Map<string, number>();
   values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
-  return Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+  return (
+    Array.from(counts.entries()).sort(
+      (left, right) => right[1] - left[1],
+    )[0]?.[0] ?? null
+  );
 }
 
 function getFinanceRangeCutoff(rangeDays: number) {
@@ -422,7 +553,9 @@ function getFinanceRangeCutoff(rangeDays: number) {
 
 function isFinanceQuestion(input: string) {
   const normalized = input.toLowerCase();
-  return /\b(finance|finances|financial|money|spend|spending|spent|budget|cash\s*flow|cashflow|net worth|income|paycheck|salary|savings?|investments?|portfolio|holdings?|brokerage|retirement|debt|liabilit(?:y|ies)|credit card|transactions?|plaid)\b/.test(normalized);
+  return /\b(finance|finances|financial|money|spend|spending|spent|budget|cash\s*flow|cashflow|net worth|income|paycheck|salary|savings?|investments?|portfolio|holdings?|brokerage|retirement|debt|liabilit(?:y|ies)|credit card|transactions?|plaid)\b/.test(
+    normalized,
+  );
 }
 
 function inferFinanceRangeDays(input: string) {
@@ -462,10 +595,21 @@ function formatPercent(value: number) {
   }).format(value);
 }
 
-function buildIntentPersistenceMessage(result: { kind: string; summary: string; clarification?: string; assistantMessage?: string }) {
-  if (result.kind === "insight") return result.assistantMessage ?? result.summary;
-  if (result.kind === "clarify") return result.clarification ?? "I need one more detail.";
-  if (result.kind === "unsupported") return result.clarification ?? "I can help with tasks, sleep, mood, journal, and insights.";
+function buildIntentPersistenceMessage(result: {
+  kind: string;
+  summary: string;
+  clarification?: string;
+  assistantMessage?: string;
+}) {
+  if (result.kind === "insight")
+    return result.assistantMessage ?? result.summary;
+  if (result.kind === "clarify")
+    return result.clarification ?? "I need one more detail.";
+  if (result.kind === "unsupported")
+    return (
+      result.clarification ??
+      "I can help with tasks, sleep, mood, journal, and insights."
+    );
   return `I understood: ${result.summary}. Review the details and confirm before I save it.`;
 }
 
@@ -494,17 +638,20 @@ function projectConversation(conversation: {
 }
 
 async function buildJarvisStatusMessage() {
-  const [monitoringResult, homelabResult, openClawResult] = await Promise.allSettled([
-    getMonitoringSummary(),
-    getFreshHomelabSnapshot(),
-    checkOpenClawHealth(),
-  ]);
+  const [monitoringResult, homelabResult, openClawResult] =
+    await Promise.allSettled([
+      getMonitoringSummary(),
+      getFreshHomelabSnapshot(),
+      checkOpenClawHealth(),
+    ]);
 
   const lines: string[] = [];
 
   if (monitoringResult.status === "fulfilled") {
     const monitoring = monitoringResult.value;
-    lines.push(`Monitoring is ${monitoring.status}${monitoring.healthScore === null ? "" : ` (${monitoring.healthScore}/100)`}.`);
+    lines.push(
+      `Monitoring is ${monitoring.status}${monitoring.healthScore === null ? "" : ` (${monitoring.healthScore}/100)`}.`,
+    );
     lines.push(
       [
         formatMetric("CPU", monitoring.metrics.cpuUsagePercent, "%"),
@@ -516,25 +663,37 @@ async function buildJarvisStatusMessage() {
         .join(", "),
     );
     if (monitoring.metrics.firingAlerts) {
-      lines.push(`${monitoring.metrics.firingAlerts} alert${monitoring.metrics.firingAlerts === 1 ? "" : "s"} firing.`);
+      lines.push(
+        `${monitoring.metrics.firingAlerts} alert${monitoring.metrics.firingAlerts === 1 ? "" : "s"} firing.`,
+      );
     }
   } else {
-    lines.push(`Monitoring summary is unavailable: ${getErrorMessage(monitoringResult.reason)}`);
+    lines.push(
+      `Monitoring summary is unavailable: ${getErrorMessage(monitoringResult.reason)}`,
+    );
   }
 
   if (homelabResult.status === "fulfilled") {
     const snapshot = homelabResult.value;
-    const active = snapshot.services.filter((service) => service.status === "active").length;
-    lines.push(`${active}/${snapshot.services.length} homelab services are active.`);
+    const active = snapshot.services.filter(
+      (service) => service.status === "active",
+    ).length;
+    lines.push(
+      `${active}/${snapshot.services.length} homelab services are active.`,
+    );
     if (snapshot.attention.length) {
       lines.push(`Top attention item: ${snapshot.attention[0].title}.`);
     }
   } else {
-    lines.push(`Homelab snapshot is unavailable: ${getErrorMessage(homelabResult.reason)}`);
+    lines.push(
+      `Homelab snapshot is unavailable: ${getErrorMessage(homelabResult.reason)}`,
+    );
   }
 
   if (openClawResult.status === "fulfilled") {
-    lines.push(`OpenClaw gateway is ${openClawResult.value.ok ? "reachable" : "unreachable"}.`);
+    lines.push(
+      `OpenClaw gateway is ${openClawResult.value.ok ? "reachable" : "unreachable"}.`,
+    );
   }
 
   return lines.filter(Boolean).join(" ");

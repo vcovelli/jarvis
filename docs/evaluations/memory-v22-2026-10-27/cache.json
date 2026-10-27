@@ -1,0 +1,2169 @@
+{
+  "summary": {
+    "cold_application": {
+      "n": 24,
+      "p50": 212.05415200000016,
+      "p95": 239.60619499999984,
+      "embeddingRequests": 24
+    },
+    "both_caches": {
+      "n": 24,
+      "p50": 2.9506169999999656,
+      "p95": 3.4743069999999534,
+      "embeddingRequests": 0
+    },
+    "query_vector_only": {
+      "n": 24,
+      "p50": 204.37095099999715,
+      "p95": 239.57441500000277,
+      "embeddingRequests": 0
+    }
+  },
+  "rows": [
+    {
+      "mode": "cold_application",
+      "query": "backup-retention:1",
+      "ms": 286.072442,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 26.017391000000032,
+        "embeddingMs": 26.339856999999995,
+        "lexicalMs": 14.447097999999983,
+        "vectorMs": 199.012222,
+        "candidatesMs": 2.992796999999996,
+        "rankingMs": 8.095915999999988,
+        "hydrationMs": 5.132994999999937,
+        "auditMs": 3.2650280000000294,
+        "totalMs": 285.627352
+      },
+      "ids": [
+        "background:02373",
+        "background:07155",
+        "background:11252",
+        "background:03562",
+        "background:12983",
+        "background:00031",
+        "background:00035",
+        "background:00091",
+        "background:00041",
+        "background:14584"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "backup-retention:1",
+      "ms": 4.838933999999995,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.386037999999985,
+        "embeddingMs": 0.09620299999994586,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 2.479015000000004,
+        "auditMs": 1.7675259999999753,
+        "totalMs": 4.81451699999991
+      },
+      "ids": [
+        "background:02373",
+        "background:07155",
+        "background:11252",
+        "background:03562",
+        "background:12983",
+        "background:00031",
+        "background:00035",
+        "background:00091",
+        "background:00041",
+        "background:14584"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "dns-fix:1",
+      "ms": 230.73638400000004,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.34280499999999847,
+        "embeddingMs": 6.0547860000000355,
+        "lexicalMs": 23.947828000000072,
+        "vectorMs": 184.18698100000006,
+        "candidatesMs": 2.622880000000009,
+        "rankingMs": 9.61081999999999,
+        "hydrationMs": 2.083931000000007,
+        "auditMs": 1.745143999999982,
+        "totalMs": 230.715865
+      },
+      "ids": [
+        "background:00061",
+        "negative:dns-fix",
+        "background:03134",
+        "background:09263",
+        "background:01212",
+        "background:10731",
+        "target:dns-fix",
+        "background:05802",
+        "background:15350",
+        "background:02865"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "dns-fix:1",
+      "ms": 3.43782699999997,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3072669999999107,
+        "embeddingMs": 0.08859899999993104,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.3400000000000318,
+        "auditMs": 1.5457540000001018,
+        "totalMs": 3.4188309999999547
+      },
+      "ids": [
+        "background:00061",
+        "negative:dns-fix",
+        "background:03134",
+        "background:09263",
+        "background:01212",
+        "background:10731",
+        "target:dns-fix",
+        "background:05802",
+        "background:15350",
+        "background:02865"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "ups-cutoff:1",
+      "ms": 203.8186129999999,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.27409399999999096,
+        "embeddingMs": 5.723745000000008,
+        "lexicalMs": 3.697112999999945,
+        "vectorMs": 184.20413400000007,
+        "candidatesMs": 2.5936949999999115,
+        "rankingMs": 3.811260999999945,
+        "hydrationMs": 1.6824839999999313,
+        "auditMs": 1.6754300000000057,
+        "totalMs": 203.79252299999996
+      },
+      "ids": [
+        "target:ups-cutoff",
+        "background:00355",
+        "background:00313",
+        "background:02172",
+        "background:04052",
+        "background:02560",
+        "background:03740",
+        "background:02202",
+        "background:03112",
+        "background:00093"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "ups-cutoff:1",
+      "ms": 3.4743069999999534,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.31565299999988383,
+        "embeddingMs": 0.0745929999998225,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.3839030000001458,
+        "auditMs": 1.4703279999998813,
+        "totalMs": 3.3145320000000993
+      },
+      "ids": [
+        "target:ups-cutoff",
+        "background:00355",
+        "background:00313",
+        "background:02172",
+        "background:04052",
+        "background:02560",
+        "background:03740",
+        "background:02202",
+        "background:03112",
+        "background:00093"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "disk-bay:1",
+      "ms": 212.77663499999994,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.2981090000000677,
+        "embeddingMs": 5.594867999999906,
+        "lexicalMs": 3.5802900000001046,
+        "vectorMs": 193.8640069999999,
+        "candidatesMs": 2.350439999999935,
+        "rankingMs": 2.9073640000001433,
+        "hydrationMs": 1.6717639999999392,
+        "auditMs": 2.3649769999999535,
+        "totalMs": 212.75267000000008
+      },
+      "ids": [
+        "target:disk-bay",
+        "background:02424",
+        "background:05895",
+        "background:03081",
+        "target:car-fund",
+        "negative:car-fund",
+        "negative:disk-bay",
+        "negative:bike-fit",
+        "background:00310",
+        "background:00323"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "disk-bay:1",
+      "ms": 2.9602050000000872,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2830709999998362,
+        "embeddingMs": 0.07154599999989841,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.1065029999999751,
+        "auditMs": 1.3996440000000803,
+        "totalMs": 2.9411079999999856
+      },
+      "ids": [
+        "target:disk-bay",
+        "background:02424",
+        "background:05895",
+        "background:03081",
+        "target:car-fund",
+        "negative:car-fund",
+        "negative:disk-bay",
+        "negative:bike-fit",
+        "background:00310",
+        "background:00323"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "alert-noise:1",
+      "ms": 206.13563799999997,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.26121899999998277,
+        "embeddingMs": 6.492461999999932,
+        "lexicalMs": 5.165216999999984,
+        "vectorMs": 183.5058079999999,
+        "candidatesMs": 2.1829600000000937,
+        "rankingMs": 4.679529000000002,
+        "hydrationMs": 1.7063590000000204,
+        "auditMs": 2.0059009999999944,
+        "totalMs": 206.11818500000004
+      },
+      "ids": [
+        "background:00301",
+        "background:00415",
+        "background:01395",
+        "background:03385",
+        "background:01621",
+        "background:01432",
+        "background:03274",
+        "target:alert-noise",
+        "background:01755",
+        "negative:alert-noise"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "alert-noise:1",
+      "ms": 3.0917870000000676,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2877889999999752,
+        "embeddingMs": 0.09327800000005482,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.1209619999999632,
+        "auditMs": 1.4781829999999445,
+        "totalMs": 3.0657870000000003
+      },
+      "ids": [
+        "background:00301",
+        "background:00415",
+        "background:01395",
+        "background:03385",
+        "background:01621",
+        "background:01432",
+        "background:03274",
+        "target:alert-noise",
+        "background:01755",
+        "negative:alert-noise"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "container-logs:1",
+      "ms": 211.11111299999993,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.3226270000000113,
+        "embeddingMs": 6.073351000000002,
+        "lexicalMs": 10.259549000000106,
+        "vectorMs": 183.79751499999998,
+        "candidatesMs": 2.3169960000000174,
+        "rankingMs": 4.7404760000001716,
+        "hydrationMs": 1.751657000000023,
+        "auditMs": 1.7299250000000939,
+        "totalMs": 211.0966350000001
+      },
+      "ids": [
+        "background:17531",
+        "background:15482",
+        "background:00003",
+        "background:01045",
+        "background:03930",
+        "background:04285",
+        "background:04592",
+        "negative:container-logs",
+        "target:container-logs",
+        "background:00123"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "container-logs:1",
+      "ms": 3.015850999999884,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3235179999999218,
+        "embeddingMs": 0.06352199999992081,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.1572610000000623,
+        "auditMs": 1.383984000000055,
+        "totalMs": 3.0073949999998604
+      },
+      "ids": [
+        "background:17531",
+        "background:15482",
+        "background:00003",
+        "background:01045",
+        "background:03930",
+        "background:04285",
+        "background:04592",
+        "negative:container-logs",
+        "target:container-logs",
+        "background:00123"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "vm-stutter:1",
+      "ms": 207.28390100000001,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.24711200000001554,
+        "embeddingMs": 6.375068000000056,
+        "lexicalMs": 8.176620000000185,
+        "vectorMs": 184.47547999999983,
+        "candidatesMs": 1.6658020000002125,
+        "rankingMs": 2.8419890000000123,
+        "hydrationMs": 1.793676000000005,
+        "auditMs": 1.5711519999999837,
+        "totalMs": 207.2777000000001
+      },
+      "ids": [
+        "target:vm-stutter",
+        "background:02135",
+        "target:noise-solution",
+        "background:07152",
+        "background:12924",
+        "background:17953",
+        "negative:vm-stutter",
+        "project:noise-solution",
+        "background:00043",
+        "background:00083"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "vm-stutter:1",
+      "ms": 2.8630399999999554,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.27533500000004096,
+        "embeddingMs": 0.05878199999983735,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.0627200000001267,
+        "auditMs": 1.3852959999999257,
+        "totalMs": 2.8557049999999435
+      },
+      "ids": [
+        "target:vm-stutter",
+        "background:02135",
+        "target:noise-solution",
+        "background:07152",
+        "background:12924",
+        "background:17953",
+        "negative:vm-stutter",
+        "project:noise-solution",
+        "background:00043",
+        "background:00083"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "remote-access:1",
+      "ms": 210.524402,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.24180200000000696,
+        "embeddingMs": 6.24082199999998,
+        "lexicalMs": 12.830248999999867,
+        "vectorMs": 183.24767500000007,
+        "candidatesMs": 1.7044559999999365,
+        "rankingMs": 2.648729999999887,
+        "hydrationMs": 1.5556210000004285,
+        "auditMs": 1.9220820000000458,
+        "totalMs": 210.5174079999997
+      },
+      "ids": [
+        "target:remote-access",
+        "negative:remote-access",
+        "background:00864",
+        "background:05261",
+        "background:10475",
+        "background:00004",
+        "background:00020",
+        "background:00202",
+        "background:00081",
+        "background:00204"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "remote-access:1",
+      "ms": 2.96300999999994,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3235779999999977,
+        "embeddingMs": 0.06408199999987119,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.081224999999904,
+        "auditMs": 1.4097429999997075,
+        "totalMs": 2.953200999999808
+      },
+      "ids": [
+        "target:remote-access",
+        "negative:remote-access",
+        "background:00864",
+        "background:05261",
+        "background:10475",
+        "background:00004",
+        "background:00020",
+        "background:00202",
+        "background:00081",
+        "background:00204"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "offline-tasks:1",
+      "ms": 239.60619499999984,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.24848400000018955,
+        "embeddingMs": 7.885062999999718,
+        "lexicalMs": 39.45120300000008,
+        "vectorMs": 183.54717600000004,
+        "candidatesMs": 1.8265289999999368,
+        "rankingMs": 2.8308270000002267,
+        "hydrationMs": 1.5869320000001608,
+        "auditMs": 2.0955529999996543,
+        "totalMs": 239.59923200000003
+      },
+      "ids": [
+        "background:10284",
+        "background:16635",
+        "background:09652",
+        "background:04725",
+        "background:03922",
+        "background:04351",
+        "background:03540",
+        "background:09212",
+        "background:11365",
+        "background:08661"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "offline-tasks:1",
+      "ms": 3.0546159999998963,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3375750000000153,
+        "embeddingMs": 0.06544500000018161,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.1363710000000538,
+        "auditMs": 1.4179590000003373,
+        "totalMs": 3.0349479999999858
+      },
+      "ids": [
+        "background:10284",
+        "background:16635",
+        "background:09652",
+        "background:04725",
+        "background:03922",
+        "background:04351",
+        "background:03540",
+        "background:09212",
+        "background:11365",
+        "background:08661"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "export-encoding:1",
+      "ms": 222.0505780000003,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.2646150000000489,
+        "embeddingMs": 7.234220000000278,
+        "lexicalMs": 22.5694239999998,
+        "vectorMs": 183.792825,
+        "candidatesMs": 1.8444439999998394,
+        "rankingMs": 2.7579180000002452,
+        "hydrationMs": 1.6469170000000304,
+        "auditMs": 1.8082839999997304,
+        "totalMs": 222.04397599999993
+      },
+      "ids": [
+        "target:export-encoding",
+        "negative:export-encoding",
+        "background:05451",
+        "background:19014",
+        "background:00790",
+        "background:02252",
+        "background:11525",
+        "target:account-grouping",
+        "background:13631",
+        "background:11582"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "export-encoding:1",
+      "ms": 2.9506169999999656,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.35947699999996985,
+        "embeddingMs": 0.06236899999976231,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.0690020000001823,
+        "auditMs": 1.373323999999684,
+        "totalMs": 2.941548999999668
+      },
+      "ids": [
+        "target:export-encoding",
+        "negative:export-encoding",
+        "background:05451",
+        "background:19014",
+        "background:00790",
+        "background:02252",
+        "background:11525",
+        "target:account-grouping",
+        "background:13631",
+        "background:11582"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "refresh-race:1",
+      "ms": 212.05415200000016,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.2617800000002717,
+        "embeddingMs": 6.249097999999776,
+        "lexicalMs": 8.545434999999998,
+        "vectorMs": 184.92544799999996,
+        "candidatesMs": 2.3188999999997577,
+        "rankingMs": 6.476873000000069,
+        "hydrationMs": 1.3757080000000315,
+        "auditMs": 1.7594610000001012,
+        "totalMs": 212.04820999999993
+      },
+      "ids": [
+        "background:00115",
+        "background:00690",
+        "background:01182",
+        "background:01673",
+        "background:02422",
+        "background:01162",
+        "background:01765",
+        "background:01532",
+        "background:01664",
+        "target:refresh-race"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "refresh-race:1",
+      "ms": 3.0832399999999325,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3752169999997932,
+        "embeddingMs": 0.06954199999972843,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.101484000000255,
+        "auditMs": 1.4322959999999512,
+        "totalMs": 3.074112000000241
+      },
+      "ids": [
+        "background:00115",
+        "background:00690",
+        "background:01182",
+        "background:01673",
+        "background:02422",
+        "background:01162",
+        "background:01765",
+        "background:01532",
+        "background:01664",
+        "target:refresh-race"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "mobile-search:1",
+      "ms": 227.2517130000001,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.2616299999999683,
+        "embeddingMs": 5.66196600000012,
+        "lexicalMs": 29.425431000000117,
+        "vectorMs": 184.32117400000016,
+        "candidatesMs": 1.7395430000001397,
+        "rankingMs": 2.2947939999999107,
+        "hydrationMs": 1.737869000000046,
+        "auditMs": 1.6794780000000173,
+        "totalMs": 227.24459000000024
+      },
+      "ids": [
+        "target:mobile-search",
+        "negative:mobile-search",
+        "background:00410",
+        "background:01125",
+        "background:01545",
+        "background:01891",
+        "background:06430",
+        "background:02360",
+        "background:06323",
+        "background:04472"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "mobile-search:1",
+      "ms": 2.901151999999911,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2808060000002115,
+        "embeddingMs": 0.06698800000003757,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.0517799999997806,
+        "auditMs": 1.4206829999998263,
+        "totalMs": 2.892906999999923
+      },
+      "ids": [
+        "target:mobile-search",
+        "negative:mobile-search",
+        "background:00410",
+        "background:01125",
+        "background:01545",
+        "background:01891",
+        "background:06430",
+        "background:02360",
+        "background:06323",
+        "background:04472"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "schema-lock:1",
+      "ms": 213.53157399999964,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.33241499999985535,
+        "embeddingMs": 5.8230829999997695,
+        "lexicalMs": 11.036493000000064,
+        "vectorMs": 185.1547069999997,
+        "candidatesMs": 2.1006130000000667,
+        "rankingMs": 5.674931000000015,
+        "hydrationMs": 1.556724000000031,
+        "auditMs": 1.723562000000129,
+        "totalMs": 213.52432
+      },
+      "ids": [
+        "background:10505",
+        "background:12342",
+        "background:14604",
+        "background:08091",
+        "background:00120",
+        "background:03290",
+        "background:00950",
+        "background:01901",
+        "background:03011",
+        "background:01130"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "schema-lock:1",
+      "ms": 2.991985999999997,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3684140000000298,
+        "embeddingMs": 0.07326999999986583,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.1030470000000605,
+        "auditMs": 1.348345999999765,
+        "totalMs": 2.983248999999887
+      },
+      "ids": [
+        "background:10505",
+        "background:12342",
+        "background:14604",
+        "background:08091",
+        "background:00120",
+        "background:03290",
+        "background:00950",
+        "background:01901",
+        "background:03011",
+        "background:01130"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "timezone-fixture:1",
+      "ms": 237.67544299999963,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.2662390000000414,
+        "embeddingMs": 5.6850799999997434,
+        "lexicalMs": 37.63200700000016,
+        "vectorMs": 184.209159,
+        "candidatesMs": 2.568576000000121,
+        "rankingMs": 3.659410000000207,
+        "hydrationMs": 1.8583089999997355,
+        "auditMs": 1.6573559999997087,
+        "totalMs": 237.66983299999993
+      },
+      "ids": [
+        "target:timezone-fixture",
+        "background:06115",
+        "background:00334",
+        "background:00983",
+        "background:00324",
+        "background:00464",
+        "background:11474",
+        "background:00974",
+        "background:15111",
+        "background:19345"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "timezone-fixture:1",
+      "ms": 2.857539000000088,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.27538600000025326,
+        "embeddingMs": 0.060015000000021246,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.078480000000127,
+        "auditMs": 1.3625230000002375,
+        "totalMs": 2.8498140000001513
+      },
+      "ids": [
+        "target:timezone-fixture",
+        "background:06115",
+        "background:00334",
+        "background:00983",
+        "background:00324",
+        "background:00464",
+        "background:11474",
+        "background:00974",
+        "background:15111",
+        "background:19345"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "csrf-import:1",
+      "ms": 201.97892300000012,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.25520800000003874,
+        "embeddingMs": 5.734403999999813,
+        "lexicalMs": 4.735826000000088,
+        "vectorMs": 185.3130070000002,
+        "candidatesMs": 1.477281999999832,
+        "rankingMs": 1.3208530000001701,
+        "hydrationMs": 1.4535169999999198,
+        "auditMs": 1.5563029999998435,
+        "totalMs": 201.97230100000024
+      },
+      "ids": [
+        "target:csrf-import",
+        "negative:csrf-import",
+        "background:00005",
+        "background:00050",
+        "background:00132",
+        "background:00443",
+        "project:csrf-import",
+        "background:00082",
+        "background:00362",
+        "background:00394"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "csrf-import:1",
+      "ms": 3.016672999999628,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.27747999999974127,
+        "embeddingMs": 0.061286999999992986,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.1024750000001404,
+        "auditMs": 1.4921309999999721,
+        "totalMs": 3.008798000000297
+      },
+      "ids": [
+        "target:csrf-import",
+        "negative:csrf-import",
+        "background:00005",
+        "background:00050",
+        "background:00132",
+        "background:00443",
+        "project:csrf-import",
+        "background:00082",
+        "background:00362",
+        "background:00394"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "account-grouping:1",
+      "ms": 215.2806730000002,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.25672000000031403,
+        "embeddingMs": 5.688767000000098,
+        "lexicalMs": 11.737000999999964,
+        "vectorMs": 191.29667800000016,
+        "candidatesMs": 1.8372690000001057,
+        "rankingMs": 1.4458019999997305,
+        "hydrationMs": 1.3592869999997674,
+        "auditMs": 1.5542890000001535,
+        "totalMs": 215.2745420000001
+      },
+      "ids": [
+        "target:account-grouping",
+        "background:07381",
+        "negative:dns-fix",
+        "target:dns-fix",
+        "background:00063",
+        "background:00144",
+        "background:00914",
+        "project:dns-fix",
+        "background:00193",
+        "background:00295"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "account-grouping:1",
+      "ms": 2.88917900000024,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2630519999997887,
+        "embeddingMs": 0.06528499999967607,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.1527320000000145,
+        "auditMs": 1.3241390000002866,
+        "totalMs": 2.8814940000002025
+      },
+      "ids": [
+        "target:account-grouping",
+        "background:07381",
+        "negative:dns-fix",
+        "target:dns-fix",
+        "background:00063",
+        "background:00144",
+        "background:00914",
+        "project:dns-fix",
+        "background:00193",
+        "background:00295"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "emergency-fund:1",
+      "ms": 218.7550610000003,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.24864500000012413,
+        "embeddingMs": 5.9638129999998455,
+        "lexicalMs": 18.022508000000016,
+        "vectorMs": 187.9273419999995,
+        "candidatesMs": 1.3978710000001229,
+        "rankingMs": 1.9139059999997698,
+        "hydrationMs": 1.509883999999147,
+        "auditMs": 1.643039000000499,
+        "totalMs": 218.74846799999978
+      },
+      "ids": [
+        "target:portfolio-mix",
+        "negative:portfolio-mix",
+        "negative:car-fund",
+        "background:06813",
+        "target:car-fund",
+        "target:emergency-fund",
+        "background:00011",
+        "target:bedtime-routine",
+        "background:00004",
+        "background:00022"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "emergency-fund:1",
+      "ms": 2.8368099999997867,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2876590000005308,
+        "embeddingMs": 0.062189000000216765,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.0350170000001526,
+        "auditMs": 1.3658989999994446,
+        "totalMs": 2.8280619999995906
+      },
+      "ids": [
+        "target:portfolio-mix",
+        "negative:portfolio-mix",
+        "negative:car-fund",
+        "background:06813",
+        "target:car-fund",
+        "target:emergency-fund",
+        "background:00011",
+        "target:bedtime-routine",
+        "background:00004",
+        "background:00022"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "car-fund:1",
+      "ms": 219.78248299999996,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.26659900000049674,
+        "embeddingMs": 5.618422999999893,
+        "lexicalMs": 22.148188999999547,
+        "vectorMs": 184.32034999999996,
+        "candidatesMs": 1.8639000000002852,
+        "rankingMs": 2.252042000000074,
+        "hydrationMs": 1.5547400000004927,
+        "auditMs": 1.62246899999991,
+        "totalMs": 219.77509800000007
+      },
+      "ids": [
+        "target:car-fund",
+        "negative:car-fund",
+        "background:00684",
+        "background:00580",
+        "target:rental-reserve",
+        "negative:subscription-review",
+        "background:12065",
+        "target:subscription-review",
+        "background:00011",
+        "background:05773"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "car-fund:1",
+      "ms": 2.9226840000001175,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.29210800000055315,
+        "embeddingMs": 0.0632210000003397,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.0674989999997706,
+        "auditMs": 1.4172570000000633,
+        "totalMs": 2.9142069999998057
+      },
+      "ids": [
+        "target:car-fund",
+        "negative:car-fund",
+        "background:00684",
+        "background:00580",
+        "target:rental-reserve",
+        "negative:subscription-review",
+        "background:12065",
+        "target:subscription-review",
+        "background:00011",
+        "background:05773"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "debt-order:1",
+      "ms": 210.42831299999943,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.26301299999977346,
+        "embeddingMs": 5.682746000000407,
+        "lexicalMs": 10.037804999999935,
+        "vectorMs": 184.5392380000003,
+        "candidatesMs": 2.04347400000006,
+        "rankingMs": 4.252122999999301,
+        "hydrationMs": 1.8922650000004069,
+        "auditMs": 1.5737359999993714,
+        "totalMs": 210.42195999999967
+      },
+      "ids": [
+        "background:00193",
+        "background:07664",
+        "background:00580",
+        "background:01850",
+        "background:01423",
+        "background:02101",
+        "background:01884",
+        "target:debt-order",
+        "negative:debt-order",
+        "background:02895"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "debt-order:1",
+      "ms": 2.9252379999998084,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.28522500000053697,
+        "embeddingMs": 0.05901300000004994,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.049434999999903,
+        "auditMs": 1.4530150000000503,
+        "totalMs": 2.917543999999907
+      },
+      "ids": [
+        "background:00193",
+        "background:07664",
+        "background:00580",
+        "background:01850",
+        "background:01423",
+        "background:02101",
+        "background:01884",
+        "target:debt-order",
+        "negative:debt-order",
+        "background:02895"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "retirement-match:1",
+      "ms": 195.2537250000005,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.3184979999996358,
+        "embeddingMs": 5.775532999999996,
+        "lexicalMs": 1.9402960000006715,
+        "vectorMs": 183.17171599999983,
+        "candidatesMs": 0.7341230000001815,
+        "rankingMs": 0.1142680000002656,
+        "hydrationMs": 1.5676350000003367,
+        "auditMs": 1.5005360000004657,
+        "totalMs": 195.24122200000056
+      },
+      "ids": [
+        "negative:retirement-match",
+        "target:retirement-match",
+        "target:emergency-fund",
+        "target:transfer-classification",
+        "project:retirement-match"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "retirement-match:1",
+      "ms": 2.710527999999613,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.30835899999965477,
+        "embeddingMs": 0.06979400000000169,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.062329000000318,
+        "auditMs": 1.1882189999996626,
+        "totalMs": 2.7017509999996037
+      },
+      "ids": [
+        "negative:retirement-match",
+        "target:retirement-match",
+        "target:emergency-fund",
+        "target:transfer-classification",
+        "project:retirement-match"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "portfolio-mix:1",
+      "ms": 204.37408700000015,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.26093800000035117,
+        "embeddingMs": 5.57154300000002,
+        "lexicalMs": 8.394385000000511,
+        "vectorMs": 183.8295019999996,
+        "candidatesMs": 1.4788950000001932,
+        "rankingMs": 1.4562919999998485,
+        "hydrationMs": 1.610928000000058,
+        "auditMs": 1.6471359999995911,
+        "totalMs": 204.36696399999983
+      },
+      "ids": [
+        "negative:emergency-fund",
+        "target:emergency-fund",
+        "background:00102",
+        "background:00135",
+        "background:00121",
+        "background:00174",
+        "background:00243",
+        "background:00253",
+        "background:00360",
+        "background:00580"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "portfolio-mix:1",
+      "ms": 2.871654999999919,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.30117599999994127,
+        "embeddingMs": 0.062428999999610824,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.0569589999995515,
+        "auditMs": 1.3712800000002972,
+        "totalMs": 2.862768999999389
+      },
+      "ids": [
+        "negative:emergency-fund",
+        "target:emergency-fund",
+        "background:00102",
+        "background:00135",
+        "background:00121",
+        "background:00174",
+        "background:00243",
+        "background:00253",
+        "background:00360",
+        "background:00580"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "house-reserve:1",
+      "ms": 211.4016019999999,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.25772200000028533,
+        "embeddingMs": 5.720879000000423,
+        "lexicalMs": 13.529614999999467,
+        "vectorMs": 185.51861800000006,
+        "candidatesMs": 1.3242499999996653,
+        "rankingMs": 1.7651620000006005,
+        "hydrationMs": 1.5586880000000747,
+        "auditMs": 1.6020399999997608,
+        "totalMs": 211.39486900000065
+      },
+      "ids": [
+        "target:house-reserve",
+        "background:00034",
+        "background:00160",
+        "background:00185",
+        "background:00281",
+        "background:00371",
+        "background:00345",
+        "background:00435",
+        "background:00442",
+        "background:00515"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "house-reserve:1",
+      "ms": 2.9299369999998817,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3133289999996123,
+        "embeddingMs": 0.05847100000028149,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.108126999999513,
+        "auditMs": 1.3687249999993583,
+        "totalMs": 2.9221830000005866
+      },
+      "ids": [
+        "target:house-reserve",
+        "background:00034",
+        "background:00160",
+        "background:00185",
+        "background:00281",
+        "background:00371",
+        "background:00345",
+        "background:00435",
+        "background:00442",
+        "background:00515"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "subscription-review:1",
+      "ms": 231.68817299999955,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.2698049999999057,
+        "embeddingMs": 5.87829899999997,
+        "lexicalMs": 31.976613000000725,
+        "vectorMs": 184.17003099999965,
+        "candidatesMs": 2.483994999999595,
+        "rankingMs": 3.3077189999994516,
+        "hydrationMs": 1.7496320000000196,
+        "auditMs": 1.7155570000004445,
+        "totalMs": 231.6811399999997
+      },
+      "ids": [
+        "background:00064",
+        "background:09243",
+        "background:00334",
+        "background:11294",
+        "background:00324",
+        "background:00414",
+        "background:00464",
+        "background:00534",
+        "background:18921",
+        "background:00974"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "subscription-review:1",
+      "ms": 3.0602859999999055,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3327549999994517,
+        "embeddingMs": 0.06532399999923655,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.0903129999996963,
+        "auditMs": 1.4853080000002592,
+        "totalMs": 3.051348999999391
+      },
+      "ids": [
+        "background:00064",
+        "background:09243",
+        "background:00334",
+        "background:11294",
+        "background:00324",
+        "background:00414",
+        "background:00464",
+        "background:00534",
+        "background:18921",
+        "background:00974"
+      ]
+    },
+    {
+      "mode": "cold_application",
+      "query": "transfer-classification:1",
+      "ms": 209.71120100000007,
+      "cacheHit": false,
+      "embeddingRequests": 1,
+      "timings": {
+        "revisionMs": 0.27665800000067975,
+        "embeddingMs": 5.577874999999949,
+        "lexicalMs": 13.198922999999922,
+        "vectorMs": 183.8573839999999,
+        "candidatesMs": 1.4126290000003792,
+        "rankingMs": 1.7842880000007426,
+        "hydrationMs": 1.560341000000335,
+        "auditMs": 1.9110899999996036,
+        "totalMs": 209.7034160000003
+      },
+      "ids": [
+        "negative:shift-note",
+        "target:shift-note",
+        "target:transfer-classification",
+        "negative:car-fund",
+        "target:car-fund",
+        "background:00011",
+        "background:00004",
+        "background:00084",
+        "background:00021",
+        "background:00170"
+      ]
+    },
+    {
+      "mode": "both_caches",
+      "query": "transfer-classification:1",
+      "ms": 2.929497000000083,
+      "cacheHit": true,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3724419999998645,
+        "embeddingMs": 0.07004400000005262,
+        "lexicalMs": 0,
+        "vectorMs": 0,
+        "candidatesMs": 0,
+        "rankingMs": 0,
+        "hydrationMs": 1.0569380000006277,
+        "auditMs": 1.3231080000005022,
+        "totalMs": 2.919938000000002
+      },
+      "ids": [
+        "negative:shift-note",
+        "target:shift-note",
+        "target:transfer-classification",
+        "negative:car-fund",
+        "target:car-fund",
+        "background:00011",
+        "background:00004",
+        "background:00084",
+        "background:00021",
+        "background:00170"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "backup-retention:1",
+      "ms": 240.75762699999905,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 1.4150129999979981,
+        "embeddingMs": 0.14179000000149244,
+        "lexicalMs": 21.18743800000084,
+        "vectorMs": 203.78133099999832,
+        "candidatesMs": 2.3607090000004973,
+        "rankingMs": 7.908145000001241,
+        "hydrationMs": 1.6859699999986333,
+        "auditMs": 2.121661999997741,
+        "totalMs": 240.72426200000336
+      },
+      "ids": [
+        "background:02373",
+        "background:07155",
+        "background:11252",
+        "background:03562",
+        "background:12983",
+        "background:00031",
+        "background:00035",
+        "background:00091",
+        "background:00041",
+        "background:14584"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "dns-fix:1",
+      "ms": 239.57441500000277,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.28774999999586726,
+        "embeddingMs": 0.08429099999921164,
+        "lexicalMs": 43.326664000000164,
+        "vectorMs": 184.18019300000014,
+        "candidatesMs": 2.1675599999944097,
+        "rankingMs": 6.286517000000458,
+        "hydrationMs": 1.4908269999941695,
+        "auditMs": 1.6591289999996661,
+        "totalMs": 239.5652489999993
+      },
+      "ids": [
+        "background:00061",
+        "negative:dns-fix",
+        "background:03134",
+        "background:09263",
+        "background:01212",
+        "background:10731",
+        "target:dns-fix",
+        "background:05802",
+        "background:15350",
+        "background:02865"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "ups-cutoff:1",
+      "ms": 203.97765500000241,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3543569999965257,
+        "embeddingMs": 0.0705249999955413,
+        "lexicalMs": 5.19033400000626,
+        "vectorMs": 184.6156439999977,
+        "candidatesMs": 2.2928889999966486,
+        "rankingMs": 8.099019000001135,
+        "hydrationMs": 1.6798390000039944,
+        "auditMs": 1.566121000003477,
+        "totalMs": 203.96755599999597
+      },
+      "ids": [
+        "target:ups-cutoff",
+        "background:00355",
+        "background:00313",
+        "background:02172",
+        "background:04052",
+        "background:02560",
+        "background:03740",
+        "background:02202",
+        "background:03112",
+        "background:00093"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "disk-bay:1",
+      "ms": 200.6398790000021,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2864770000014687,
+        "embeddingMs": 0.05774000000383239,
+        "lexicalMs": 4.736626999998407,
+        "vectorMs": 184.14180900000065,
+        "candidatesMs": 2.090712999997777,
+        "rankingMs": 5.4027790000036475,
+        "hydrationMs": 1.9222520000039367,
+        "auditMs": 1.9112400000012713,
+        "totalMs": 200.63011099999858
+      },
+      "ids": [
+        "target:disk-bay",
+        "background:02424",
+        "background:05895",
+        "background:03081",
+        "target:car-fund",
+        "negative:car-fund",
+        "negative:disk-bay",
+        "negative:bike-fit",
+        "background:00310",
+        "background:00323"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "alert-noise:1",
+      "ms": 204.08338700000604,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3611289999971632,
+        "embeddingMs": 0.07831900000019232,
+        "lexicalMs": 8.613691999998991,
+        "vectorMs": 184.29462000000058,
+        "candidatesMs": 1.8990869999979623,
+        "rankingMs": 5.580578000000969,
+        "hydrationMs": 1.5903469999975641,
+        "auditMs": 1.5555109999986598,
+        "totalMs": 204.07367799999338
+      },
+      "ids": [
+        "background:00301",
+        "background:00415",
+        "background:01395",
+        "background:03385",
+        "background:01621",
+        "background:01432",
+        "background:03274",
+        "target:alert-noise",
+        "background:01755",
+        "negative:alert-noise"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "container-logs:1",
+      "ms": 205.78541700000642,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2750649999943562,
+        "embeddingMs": 0.07467200000246521,
+        "lexicalMs": 9.386146999997436,
+        "vectorMs": 184.2709149999937,
+        "candidatesMs": 2.1313910000026226,
+        "rankingMs": 6.344568000000436,
+        "hydrationMs": 1.5451109999994515,
+        "auditMs": 1.6668940000017756,
+        "totalMs": 205.77666000000318
+      },
+      "ids": [
+        "background:17531",
+        "background:15482",
+        "background:00003",
+        "background:01045",
+        "background:03930",
+        "background:04285",
+        "background:04592",
+        "negative:container-logs",
+        "target:container-logs",
+        "background:00123"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "vm-stutter:1",
+      "ms": 201.0784269999931,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3485060000020894,
+        "embeddingMs": 0.0698130000018864,
+        "lexicalMs": 7.554419000000053,
+        "vectorMs": 184.2436430000016,
+        "candidatesMs": 1.487691000002087,
+        "rankingMs": 3.7950980000023264,
+        "hydrationMs": 1.8829570000016247,
+        "auditMs": 1.5779640000037034,
+        "totalMs": 201.06888900000195
+      },
+      "ids": [
+        "target:vm-stutter",
+        "background:02135",
+        "target:noise-solution",
+        "background:07152",
+        "background:12924",
+        "background:17953",
+        "negative:vm-stutter",
+        "project:noise-solution",
+        "background:00043",
+        "background:00083"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "remote-access:1",
+      "ms": 203.8320160000003,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2721199999941746,
+        "embeddingMs": 0.06007400000089547,
+        "lexicalMs": 12.001351999999315,
+        "vectorMs": 183.8063970000003,
+        "candidatesMs": 1.4949849999975413,
+        "rankingMs": 2.379084000000148,
+        "hydrationMs": 1.8349749999979394,
+        "auditMs": 1.8869140000024345,
+        "totalMs": 203.82251700000052
+      },
+      "ids": [
+        "target:remote-access",
+        "negative:remote-access",
+        "background:00864",
+        "background:05261",
+        "background:10475",
+        "background:00004",
+        "background:00020",
+        "background:00202",
+        "background:00081",
+        "background:00204"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "offline-tasks:1",
+      "ms": 231.82447999999567,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.35251399999833666,
+        "embeddingMs": 0.06996300000173505,
+        "lexicalMs": 38.11504799999966,
+        "vectorMs": 185.74725300000136,
+        "candidatesMs": 1.6583380000010948,
+        "rankingMs": 2.800669000003836,
+        "hydrationMs": 1.479326000000583,
+        "auditMs": 1.5011970000050496,
+        "totalMs": 231.81473099999857
+      },
+      "ids": [
+        "background:10284",
+        "background:16635",
+        "background:09652",
+        "background:04725",
+        "background:03922",
+        "background:04351",
+        "background:03540",
+        "background:09212",
+        "background:11365",
+        "background:08661"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "export-encoding:1",
+      "ms": 214.32976500000223,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.26851300000271294,
+        "embeddingMs": 0.0618079999985639,
+        "lexicalMs": 21.93789999999717,
+        "vectorMs": 184.35640600000625,
+        "candidatesMs": 1.5886250000039581,
+        "rankingMs": 2.666313000001537,
+        "hydrationMs": 1.7127920000057202,
+        "auditMs": 1.6472460000004503,
+        "totalMs": 214.32093900000473
+      },
+      "ids": [
+        "target:export-encoding",
+        "negative:export-encoding",
+        "background:05451",
+        "background:19014",
+        "background:00790",
+        "background:02252",
+        "background:11525",
+        "target:account-grouping",
+        "background:13631",
+        "background:11582"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "refresh-race:1",
+      "ms": 204.76980600000388,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2750759999980801,
+        "embeddingMs": 0.07027399999788031,
+        "lexicalMs": 8.006531999999424,
+        "vectorMs": 184.2064309999987,
+        "candidatesMs": 2.076836000000185,
+        "rankingMs": 6.936498000002757,
+        "hydrationMs": 1.5008060000036494,
+        "auditMs": 1.6060380000053556,
+        "totalMs": 204.76075899999705
+      },
+      "ids": [
+        "background:00115",
+        "background:00690",
+        "background:01182",
+        "background:01673",
+        "background:02422",
+        "background:01162",
+        "background:01765",
+        "background:01532",
+        "background:01664",
+        "target:refresh-race"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "mobile-search:1",
+      "ms": 220.3260089999967,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2682330000025104,
+        "embeddingMs": 0.060205000001587905,
+        "lexicalMs": 28.89841599999636,
+        "vectorMs": 183.51656300000468,
+        "candidatesMs": 1.4788640000042506,
+        "rankingMs": 2.308890000000247,
+        "hydrationMs": 2.058362000003399,
+        "auditMs": 1.6510140000027604,
+        "totalMs": 220.31786299999658
+      },
+      "ids": [
+        "target:mobile-search",
+        "negative:mobile-search",
+        "background:00410",
+        "background:01125",
+        "background:01545",
+        "background:01891",
+        "background:06430",
+        "background:02360",
+        "background:06323",
+        "background:04472"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "schema-lock:1",
+      "ms": 205.3178709999993,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2987809999976889,
+        "embeddingMs": 0.06103699999948731,
+        "lexicalMs": 10.153542000000016,
+        "vectorMs": 183.85190100000182,
+        "candidatesMs": 2.080935000005411,
+        "rankingMs": 5.628450000003795,
+        "hydrationMs": 1.5653800000000047,
+        "auditMs": 1.5864799999981187,
+        "totalMs": 205.30853300000308
+      },
+      "ids": [
+        "background:10505",
+        "background:12342",
+        "background:14604",
+        "background:08091",
+        "background:00120",
+        "background:03290",
+        "background:00950",
+        "background:01901",
+        "background:03011",
+        "background:01130"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "timezone-fixture:1",
+      "ms": 229.2634059999982,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.30273800000577467,
+        "embeddingMs": 0.06239899999491172,
+        "lexicalMs": 35.34534899999562,
+        "vectorMs": 184.36381000000256,
+        "candidatesMs": 2.286727000006067,
+        "rankingMs": 3.6573849999986123,
+        "hydrationMs": 1.6059070000046631,
+        "auditMs": 1.5518040000024484,
+        "totalMs": 229.25469899999734
+      },
+      "ids": [
+        "target:timezone-fixture",
+        "background:06115",
+        "background:00334",
+        "background:00983",
+        "background:00324",
+        "background:00464",
+        "background:11474",
+        "background:00974",
+        "background:15111",
+        "background:19345"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "csrf-import:1",
+      "ms": 195.30766199999925,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2920680000024731,
+        "embeddingMs": 0.0600650000051246,
+        "lexicalMs": 4.1902029999982915,
+        "vectorMs": 184.8762590000042,
+        "candidatesMs": 1.4337679999953252,
+        "rankingMs": 1.2878100000016275,
+        "hydrationMs": 1.5453919999999925,
+        "auditMs": 1.5331680000017514,
+        "totalMs": 195.2982039999988
+      },
+      "ids": [
+        "target:csrf-import",
+        "negative:csrf-import",
+        "background:00005",
+        "background:00050",
+        "background:00132",
+        "background:00443",
+        "project:csrf-import",
+        "background:00082",
+        "background:00362",
+        "background:00394"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "account-grouping:1",
+      "ms": 201.6228839999967,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2864369999952032,
+        "embeddingMs": 0.05832100000407081,
+        "lexicalMs": 10.995941999994102,
+        "vectorMs": 184.0932429999957,
+        "candidatesMs": 1.4508010000063223,
+        "rankingMs": 1.380496999998286,
+        "hydrationMs": 1.5739970000067842,
+        "auditMs": 1.6931540000005043,
+        "totalMs": 201.61274500000582
+      },
+      "ids": [
+        "target:account-grouping",
+        "background:07381",
+        "negative:dns-fix",
+        "target:dns-fix",
+        "background:00063",
+        "background:00144",
+        "background:00914",
+        "project:dns-fix",
+        "background:00193",
+        "background:00295"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "emergency-fund:1",
+      "ms": 210.18737099999998,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2953949999937322,
+        "embeddingMs": 0.06243900000117719,
+        "lexicalMs": 17.61904100000538,
+        "vectorMs": 184.10183999999572,
+        "candidatesMs": 1.4588460000013583,
+        "rankingMs": 2.7224399999977322,
+        "hydrationMs": 1.6643590000021504,
+        "auditMs": 2.1714480000009644,
+        "totalMs": 210.17869499999506
+      },
+      "ids": [
+        "target:portfolio-mix",
+        "negative:portfolio-mix",
+        "negative:car-fund",
+        "background:06813",
+        "target:car-fund",
+        "target:emergency-fund",
+        "background:00011",
+        "target:bedtime-routine",
+        "background:00004",
+        "background:00022"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "car-fund:1",
+      "ms": 214.51576799999748,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.31147499999497086,
+        "embeddingMs": 0.07132699999783654,
+        "lexicalMs": 22.434048000002804,
+        "vectorMs": 183.6186250000028,
+        "candidatesMs": 1.6456029999972088,
+        "rankingMs": 3.237954999996873,
+        "hydrationMs": 1.5045939999981783,
+        "auditMs": 1.59919500000251,
+        "totalMs": 214.50824300000386
+      },
+      "ids": [
+        "target:car-fund",
+        "negative:car-fund",
+        "background:00684",
+        "background:00580",
+        "target:rental-reserve",
+        "negative:subscription-review",
+        "background:12065",
+        "target:subscription-review",
+        "background:00011",
+        "background:05773"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "debt-order:1",
+      "ms": 204.37095099999715,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.28974400000151945,
+        "embeddingMs": 0.07390100000338862,
+        "lexicalMs": 9.408649999997579,
+        "vectorMs": 183.86807099999714,
+        "candidatesMs": 1.6129199999995762,
+        "rankingMs": 5.828342000000703,
+        "hydrationMs": 1.580508999999438,
+        "auditMs": 1.618650999997044,
+        "totalMs": 204.36180400000012
+      },
+      "ids": [
+        "background:00193",
+        "background:07664",
+        "background:00580",
+        "background:01850",
+        "background:01423",
+        "background:02101",
+        "background:01884",
+        "target:debt-order",
+        "negative:debt-order",
+        "background:02895"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "retirement-match:1",
+      "ms": 190.22713700000168,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3053329999966081,
+        "embeddingMs": 0.09721600000193575,
+        "lexicalMs": 1.4974099999963073,
+        "vectorMs": 184.70196399999986,
+        "candidatesMs": 0.595988999994006,
+        "rankingMs": 0.11076100000354927,
+        "hydrationMs": 1.3802660000001197,
+        "auditMs": 1.4302419999949052,
+        "totalMs": 190.21730799999932
+      },
+      "ids": [
+        "negative:retirement-match",
+        "target:retirement-match",
+        "target:emergency-fund",
+        "target:transfer-classification",
+        "project:retirement-match"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "portfolio-mix:1",
+      "ms": 198.24864800000068,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3066560000006575,
+        "embeddingMs": 0.06049600000551436,
+        "lexicalMs": 7.741516000001866,
+        "vectorMs": 183.74255099999573,
+        "candidatesMs": 1.5038120000026538,
+        "rankingMs": 1.62789000000339,
+        "hydrationMs": 1.5569140000006882,
+        "auditMs": 1.617990999999165,
+        "totalMs": 198.23951099999977
+      },
+      "ids": [
+        "negative:emergency-fund",
+        "target:emergency-fund",
+        "background:00102",
+        "background:00135",
+        "background:00121",
+        "background:00174",
+        "background:00243",
+        "background:00253",
+        "background:00360",
+        "background:00580"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "house-reserve:1",
+      "ms": 203.74306200000137,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.29363000000012107,
+        "embeddingMs": 0.0626399999964633,
+        "lexicalMs": 13.152289999998175,
+        "vectorMs": 183.7821069999991,
+        "candidatesMs": 1.286978000003728,
+        "rankingMs": 1.9573880000025383,
+        "hydrationMs": 1.5299720000039088,
+        "auditMs": 1.585188000004564,
+        "totalMs": 203.7336329999962
+      },
+      "ids": [
+        "target:house-reserve",
+        "background:00034",
+        "background:00160",
+        "background:00185",
+        "background:00281",
+        "background:00371",
+        "background:00345",
+        "background:00435",
+        "background:00442",
+        "background:00515"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "subscription-review:1",
+      "ms": 226.40039499999693,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.3222959999984596,
+        "embeddingMs": 0.06867100000090431,
+        "lexicalMs": 30.37599699999555,
+        "vectorMs": 183.6016709999967,
+        "candidatesMs": 2.5252830000026734,
+        "rankingMs": 6.185453999998572,
+        "hydrationMs": 1.4979610000009416,
+        "auditMs": 1.7275099999969825,
+        "totalMs": 226.39056599999458
+      },
+      "ids": [
+        "background:00064",
+        "background:09243",
+        "background:00334",
+        "background:11294",
+        "background:00324",
+        "background:00414",
+        "background:00464",
+        "background:00534",
+        "background:18921",
+        "background:00974"
+      ]
+    },
+    {
+      "mode": "query_vector_only",
+      "query": "transfer-classification:1",
+      "ms": 202.7523680000013,
+      "cacheHit": false,
+      "embeddingRequests": 0,
+      "timings": {
+        "revisionMs": 0.2989110000053188,
+        "embeddingMs": 0.05723000000580214,
+        "lexicalMs": 12.371408999999403,
+        "vectorMs": 183.7707339999979,
+        "candidatesMs": 1.3489859999972396,
+        "rankingMs": 1.744762999995146,
+        "hydrationMs": 1.4843550000005052,
+        "auditMs": 1.5864999999976135,
+        "totalMs": 202.7430800000002
+      },
+      "ids": [
+        "negative:shift-note",
+        "target:shift-note",
+        "target:transfer-classification",
+        "negative:car-fund",
+        "target:car-fund",
+        "background:00011",
+        "background:00004",
+        "background:00084",
+        "background:00021",
+        "background:00170"
+      ]
+    }
+  ]
+}

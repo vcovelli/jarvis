@@ -14,6 +14,11 @@ This directory is the source of truth for how Jarvis is used, built, themed, and
 
 Additional implementation references:
 
+- [V18 Intelligence Router](./intelligence-router-v18.md) — architecture audit, offline routing proof, privacy and budget gates, and the approval plan for live integration.
+- [Memory Engine V2](./memory-engine-v2.md) — evidence-backed Assistant memory, retrieval, privacy, backfill, tests, and opt-in activation.
+- [Memory Engine V2.2](./memory-engine-v2-2.md) — evidence filtering, explicit abstention, retrieval profiling, and isolated index/cache experiments.
+- [Memory retrieval evaluation](./memory-retrieval-evaluation.md) — isolated pgvector/local embeddings and a 20,576-memory full-text versus hybrid comparison.
+
 - [Operations Center V1](./operations.md) — durable read-only agents, exact approvals, budgets, notifications, verification, and activation.
 
 - [Jarvis Control](./admin.md) — owner bootstrap, authorization, rollout levels, feature gates, service status, and manual migration/deployment.

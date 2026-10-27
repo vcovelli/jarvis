@@ -1,0 +1,3386 @@
+[
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 0,
+    "query": "backup-retention:1",
+    "totalMs": 227.22485,
+    "embeddingMs": 23.396927000000005,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 9
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 175
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 0,
+    "query": "remote-access:1",
+    "totalMs": 185.6532890000001,
+    "embeddingMs": 6.2817589999999655,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 6
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 164
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 0,
+    "query": "journal-transition:1",
+    "totalMs": 186.854061,
+    "embeddingMs": 5.224689000000012,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 7
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 165
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 0,
+    "query": "journal-transition:scoped",
+    "totalMs": 40.336550999999986,
+    "embeddingMs": 4.969101000000023,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 4
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 21
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 1,
+    "query": "backup-retention:1",
+    "totalMs": 188.38654799999995,
+    "embeddingMs": 5.917521999999963,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 5
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 167
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 1,
+    "query": "remote-access:1",
+    "totalMs": 183.28059600000006,
+    "embeddingMs": 5.014086000000134,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 6
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 164
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 1,
+    "query": "journal-transition:1",
+    "totalMs": 516.5133510000001,
+    "embeddingMs": 4.224598999999898,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 15
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 486
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 1,
+    "query": "journal-transition:scoped",
+    "totalMs": 37.724602000000004,
+    "embeddingMs": 4.591399999999794,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 4
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 21
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 2,
+    "query": "backup-retention:1",
+    "totalMs": 521.3544159999999,
+    "embeddingMs": 5.797472999999854,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 9
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 497
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 2,
+    "query": "remote-access:1",
+    "totalMs": 510.11291100000017,
+    "embeddingMs": 4.9222209999998086,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 11
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 485
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 2,
+    "query": "journal-transition:1",
+    "totalMs": 514.350555,
+    "embeddingMs": 4.089129999999841,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 15
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 487
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "auto",
+    "trial": 2,
+    "query": "journal-transition:scoped",
+    "totalMs": 37.894776999999976,
+    "embeddingMs": 4.5834139999997205,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 4
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 21
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 0,
+    "query": "backup-retention:1",
+    "totalMs": 522.5072490000002,
+    "embeddingMs": 4.750121999999919,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 9
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 499
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 0,
+    "query": "remote-access:1",
+    "totalMs": 510.0732989999997,
+    "embeddingMs": 4.735595000000103,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 11
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 486
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 0,
+    "query": "journal-transition:1",
+    "totalMs": 515.4246579999999,
+    "embeddingMs": 3.9979560000001584,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 15
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 488
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 0,
+    "query": "journal-transition:scoped",
+    "totalMs": 38.08664200000021,
+    "embeddingMs": 4.459096999999929,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 4
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 21
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 1,
+    "query": "backup-retention:1",
+    "totalMs": 523.0713500000002,
+    "embeddingMs": 4.568395000000237,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 9
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 500
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 1,
+    "query": "remote-access:1",
+    "totalMs": 508.38404699999955,
+    "embeddingMs": 4.615535000000818,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 12
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 484
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 1,
+    "query": "journal-transition:1",
+    "totalMs": 513.4224979999999,
+    "embeddingMs": 3.8170799999998053,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 15
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 484
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 1,
+    "query": "journal-transition:scoped",
+    "totalMs": 38.343041000000085,
+    "embeddingMs": 4.5989440000003015,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 4
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 21
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 2,
+    "query": "backup-retention:1",
+    "totalMs": 519.7528560000001,
+    "embeddingMs": 4.688474999999926,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 9
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 497
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 2,
+    "query": "remote-access:1",
+    "totalMs": 508.6752269999997,
+    "embeddingMs": 4.846316000000115,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 11
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 484
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 2,
+    "query": "journal-transition:1",
+    "totalMs": 513.3867440000004,
+    "embeddingMs": 4.150797999999668,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 16
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 485
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "off",
+    "planMode": "auto",
+    "trial": 2,
+    "query": "journal-transition:scoped",
+    "totalMs": 82.7705330000008,
+    "embeddingMs": 5.102906000000075,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 8
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 60
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 0,
+    "query": "backup-retention:1",
+    "totalMs": 189.21822599999905,
+    "embeddingMs": 4.698332999998456,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 6
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 168
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 0,
+    "query": "remote-access:1",
+    "totalMs": 186.21832600000016,
+    "embeddingMs": 5.49746899999991,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 6
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 166
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 0,
+    "query": "journal-transition:1",
+    "totalMs": 190.0675769999998,
+    "embeddingMs": 4.492830999999569,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 8
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 168
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 0,
+    "query": "journal-transition:scoped",
+    "totalMs": 40.35470299999906,
+    "embeddingMs": 5.089650999998412,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 4
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 21
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 1,
+    "query": "backup-retention:1",
+    "totalMs": 190.07203499999923,
+    "embeddingMs": 4.9096970000009605,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 5
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 170
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 1,
+    "query": "remote-access:1",
+    "totalMs": 187.45852399999967,
+    "embeddingMs": 4.783566000000064,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 6
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 168
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 1,
+    "query": "journal-transition:1",
+    "totalMs": 187.6574929999988,
+    "embeddingMs": 4.281246000000465,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 8
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 166
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 1,
+    "query": "journal-transition:scoped",
+    "totalMs": 38.84279400000014,
+    "embeddingMs": 4.333726999999271,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 4
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 21
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 2,
+    "query": "backup-retention:1",
+    "totalMs": 191.43972700000086,
+    "embeddingMs": 5.0045980000013515,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 5
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 171
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:02373",
+      "background:02601",
+      "background:14081",
+      "background:07155",
+      "background:11252",
+      "background:03562",
+      "background:10305",
+      "background:17033",
+      "background:16491",
+      "background:06142"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 2,
+    "query": "remote-access:1",
+    "totalMs": 185.4359600000007,
+    "embeddingMs": 5.199470999999903,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 6
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 166
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "negative:remote-access",
+      "target:remote-access",
+      "background:00864",
+      "background:05261",
+      "project:remote-access",
+      "background:03552",
+      "background:10475",
+      "background:06513",
+      "background:13780",
+      "background:15961"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 2,
+    "query": "journal-transition:1",
+    "totalMs": 186.73479000000043,
+    "embeddingMs": 4.014637000000221,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 8
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 166
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  },
+  {
+    "jit": "on",
+    "planMode": "force_custom_plan",
+    "trial": 2,
+    "query": "journal-transition:scoped",
+    "totalMs": 37.95785500000056,
+    "embeddingMs": 4.294432000000597,
+    "sql": [
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "lexical",
+        "ms": 4
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "vector",
+        "ms": 21
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 1
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "audit",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      },
+      {
+        "kind": "other",
+        "ms": 0
+      }
+    ],
+    "ids": [
+      "background:00083",
+      "background:02391",
+      "background:02745",
+      "background:04714",
+      "background:05424",
+      "background:15523",
+      "target:journal-conflict",
+      "background:19355",
+      "negative:journal-conflict",
+      "target:journal-transition"
+    ]
+  }
+]

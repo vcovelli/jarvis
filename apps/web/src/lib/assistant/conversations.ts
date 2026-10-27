@@ -4,6 +4,8 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { enabled, MemoryError } from "@/lib/memory/policy";
+import { enqueue, lockMemory } from "@/lib/memory/store";
 
 export const assistantDomains = [
   "general",
@@ -114,6 +116,7 @@ export async function ensureAssistantConversation(params: {
       where: { id: params.conversationId, userId: params.userId },
     });
     if (existing) return existing;
+    throw new MemoryError("Conversation not found.", 404);
   }
 
   const domain = normalizeAssistantDomain(params.domain);
@@ -175,23 +178,21 @@ export async function appendAssistantMessage(params: {
 }) {
   const content = params.content.trim();
   if (!content) return null;
-  const [message] = await prisma.$transaction([
-    prisma.assistantMessage.create({
-      data: {
-        userId: params.userId,
-        conversationId: params.conversationId,
-        role: params.role,
-        content,
-        source: params.source ?? "jarvis",
-        tokenEstimate: estimateTokens(content),
-        metadata: isJsonRecord(params.metadata) ? (params.metadata as Prisma.InputJsonObject) : undefined,
-      },
-    }),
-    prisma.assistantConversation.updateMany({
-      where: { id: params.conversationId, userId: params.userId },
-      data: { lastMessageAt: new Date() },
-    }),
-  ]);
+  const message = await prisma.$transaction(async tx => {
+    const owned = await tx.assistantConversation.findFirst({ where: { id: params.conversationId, userId: params.userId }, select: { id: true } });
+    if (!owned) throw new MemoryError("Conversation not found.", 404);
+    const message = await tx.assistantMessage.create({ data: {
+      userId: params.userId, conversationId: params.conversationId, role: params.role, content,
+      source: params.source ?? "jarvis", tokenEstimate: estimateTokens(content),
+      metadata: isJsonRecord(params.metadata) ? params.metadata as Prisma.InputJsonObject : undefined,
+    } });
+    await tx.assistantConversation.updateMany({ where: { id: params.conversationId, userId: params.userId }, data: { lastMessageAt: new Date() } });
+    if (enabled() && params.role === "user") {
+      await lockMemory(tx, params.userId);
+      await enqueue(tx, params.userId, "extract", message.id);
+    }
+    return message;
+  });
   return projectMessage(message);
 }
 
@@ -280,6 +281,7 @@ export async function updateAssistantAutoMemory(params: {
   userMessage: string;
   assistantMessage: string;
 }) {
+  if (enabled()) return; // V2 extraction is queued atomically with the user message.
   const conversation = await prisma.assistantConversation.findFirst({
     where: { id: params.conversationId, userId: params.userId },
     select: { id: true, title: true, domain: true, summary: true },
@@ -518,7 +520,7 @@ const assistantProjectTopicMap: Record<string, string> = {
   fitness: "health",
 };
 
-function getAssistantProjectMemoryDomainForTopic(domain: string) {
+export function getAssistantProjectMemoryDomainForTopic(domain: string) {
   return `project-${assistantProjectTopicMap[domain] ?? "general"}`;
 }
 

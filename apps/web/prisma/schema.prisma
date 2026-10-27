@@ -64,6 +64,11 @@ model User {
   assistantConversations            AssistantConversation[]
   assistantMessages                 AssistantMessage[]
   assistantMemories                 AssistantMemory[]
+  memoryRecords                     MemoryRecord[]
+  memorySources                     MemorySource[]
+  memoryJobs                        MemoryJob[]
+  memoryState                       MemoryState?
+  memoryCosts                       MemoryCost[]
   authTokens                        AuthToken[]
   auditLogs                         AuditLog[]
   entitlement                       Entitlement?
@@ -682,5 +687,106 @@ model OperationsCostReservation {
   createdAt   DateTime @default(now())
   user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([runId, attempt])
+  @@index([userId, createdAt])
+}
+
+// V2 is additive. Legacy Assistant tables remain the rollback/read compatibility path.
+model MemoryState {
+  userId    String   @id
+  revision  Int      @default(0)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MemoryRecord {
+  id                String   @id @default(cuid())
+  userId            String
+  schemaVersion     Int      @default(2)
+  type              String   @default("semantic")
+  domain            String   @default("general")
+  title             String
+  content           String
+  contentHash       String
+  factKey           String?
+  labels            String[] @default(["private"])
+  assertion         String   @default("user_stated")
+  confidenceKind    String   @default("uncalibrated")
+  confidence        Float?
+  extractionMethod  String
+  importance        Int      @default(2)
+  status            String   @default("active")
+  conflict          Boolean  @default(false)
+  supersededById    String?
+  effectiveAt       DateTime @default(now())
+  validUntil        DateTime?
+  expiresAt         DateTime?
+  sourceAt          DateTime
+  lastAccessedAt    DateTime?
+  embedding         Float[]  @default([])
+  embeddingModel    String?
+  embeddingVersion  String?
+  embeddingDimension Int?
+  embeddingStatus   String   @default("disabled")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sources           MemorySource[]
+  supersededBy      MemoryRecord? @relation("MemorySupersession", fields: [userId, supersededById], references: [userId, id], onDelete: NoAction, onUpdate: NoAction, map: "MemoryRecord_superseded_owner_fkey")
+  supersedes        MemoryRecord[] @relation("MemorySupersession")
+
+  @@unique([userId, id])
+  @@index([userId, status, domain, sourceAt])
+  @@index([userId, factKey, status])
+  @@index([userId, domain, contentHash])
+}
+
+model MemorySource {
+  id           String   @id @default(cuid())
+  userId       String
+  memoryId     String
+  sourceType   String
+  sourceId     String
+  sourceAt     DateTime
+  reliability  String
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memory       MemoryRecord @relation(fields: [userId, memoryId], references: [userId, id], onDelete: Cascade)
+
+  @@unique([memoryId, sourceType, sourceId])
+  @@index([userId, sourceType, sourceId])
+}
+
+model MemoryJob {
+  id           String   @id @default(cuid())
+  userId       String
+  kind         String
+  sourceId     String
+  dedupeKey    String
+  status       String   @default("queued")
+  attempts     Int      @default(0)
+  availableAt  DateTime @default(now())
+  leaseUntil   DateTime?
+  leaseToken   String?
+  errorCode    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([status, availableAt, leaseUntil])
+  @@index([userId, kind, status])
+}
+
+// Conservative per-attempt reservations persist even if the request fails/crashes.
+model MemoryCost {
+  id           String   @id @default(cuid())
+  userId       String
+  jobId        String
+  attempt      Int
+  reservedUsd  Float
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, attempt])
   @@index([userId, createdAt])
 }

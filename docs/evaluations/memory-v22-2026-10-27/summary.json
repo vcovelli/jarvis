@@ -1,0 +1,2201 @@
+{
+  "fingerprint": "f8a6723c02426ecd25153a7c7e77cc38020fd50ce348ede573067549ea9efb73",
+  "queries": 336,
+  "documents": 20600,
+  "repeats": 3,
+  "elapsedMs": 658670.185212,
+  "results": {
+    "baseline_fulltext": {
+      "all": {
+        "queries": 336,
+        "positive": 282,
+        "negative": 54,
+        "recallAt1": 0.17375886524822695,
+        "recallAt5": 0.6418439716312057,
+        "recallAt10": 0.6843971631205674,
+        "mrr": 0.38030929866036256,
+        "ndcg": 0.4565329112689195,
+        "precisionAt5": 0.12836879432624104,
+        "sourcePrecision": 0.06790992258972554,
+        "acceptedSourceCorrectness": 0.6050156739811913,
+        "answerability": {
+          "truePositive": 282,
+          "falseNegative": 0,
+          "falsePositive": 37,
+          "trueNegative": 17
+        },
+        "latencyMs": {
+          "p50": 11.543196000042371,
+          "p95": 52.29594999999972
+        },
+        "phases": {
+          "embeddingMs": {
+            "p50": 0,
+            "p95": 0
+          },
+          "lexicalMs": {
+            "p50": 7,
+            "p95": 47
+          },
+          "vectorMs": {
+            "p50": 0,
+            "p95": 0
+          },
+          "rankingMs": {
+            "p50": 0.042240000038873404,
+            "p95": 0.06874100002460182
+          },
+          "otherMs": {
+            "p50": 4.667806999990717,
+            "p95": 5.422531999996863
+          }
+        }
+      },
+      "frozen": {
+        "queries": 312,
+        "positive": 270,
+        "negative": 42,
+        "recallAt1": 0.13703703703703704,
+        "recallAt5": 0.6259259259259259,
+        "recallAt10": 0.6703703703703704,
+        "mrr": 0.3527674897119342,
+        "ndcg": 0.432378818436427,
+        "precisionAt5": 0.12518518518518496,
+        "sourcePrecision": 0.06432125088841507,
+        "acceptedSourceCorrectness": 0.6135593220338983,
+        "answerability": {
+          "truePositive": 270,
+          "falseNegative": 0,
+          "falsePositive": 25,
+          "trueNegative": 17
+        },
+        "latencyMs": {
+          "p50": 12.196834999951534,
+          "p95": 57.35494300001301
+        },
+        "phases": {
+          "embeddingMs": {
+            "p50": 0,
+            "p95": 0
+          },
+          "lexicalMs": {
+            "p50": 7,
+            "p95": 52
+          },
+          "vectorMs": {
+            "p50": 0,
+            "p95": 0
+          },
+          "rankingMs": {
+            "p50": 0.04246100003365427,
+            "p95": 0.06913200000417419
+          },
+          "otherMs": {
+            "p50": 4.709912999998778,
+            "p95": 5.458243999979459
+          }
+        }
+      },
+      "cohorts": {
+        "literal": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.09375,
+          "recallAt5": 0.890625,
+          "recallAt10": 0.921875,
+          "mrr": 0.44075520833333326,
+          "ndcg": 0.5624901985622478,
+          "precisionAt5": 0.17812499999999987,
+          "sourcePrecision": 0.09394904458598727,
+          "acceptedSourceCorrectness": 0.921875,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 12.295091999985743,
+            "p95": 39.229269000003114
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 7,
+              "p95": 34
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.042310999997425824,
+              "p95": 0.06934200000250712
+            },
+            "otherMs": {
+              "p50": 4.63751599995885,
+              "p95": 5.349864999996498
+            }
+          }
+        },
+        "paraphrase": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.140625,
+          "recallAt5": 0.46875,
+          "recallAt10": 0.546875,
+          "mrr": 0.2778645833333333,
+          "ndcg": 0.3431815316823497,
+          "precisionAt5": 0.09375000000000004,
+          "sourcePrecision": 0.05511811023622047,
+          "acceptedSourceCorrectness": 0.546875,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 15.94957199995406,
+            "p95": 58.23194299999159
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 11,
+              "p95": 53
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.042291000001569046,
+              "p95": 0.06793999997898936
+            },
+            "otherMs": {
+              "p50": 4.8447650000452995,
+              "p95": 5.436142999998992
+            }
+          }
+        },
+        "conversational": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.15625,
+          "recallAt5": 0.625,
+          "recallAt10": 0.640625,
+          "mrr": 0.3577256944444444,
+          "ndcg": 0.42918090304650625,
+          "precisionAt5": 0.12500000000000006,
+          "sourcePrecision": 0.0640625,
+          "acceptedSourceCorrectness": 0.640625,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 25.229759000008926,
+            "p95": 89.31688499997836
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 20,
+              "p95": 84
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.042692000046372414,
+              "p95": 0.06980300002032891
+            },
+            "otherMs": {
+              "p50": 4.800431999996363,
+              "p95": 5.896497999987332
+            }
+          }
+        },
+        "scoped": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.171875,
+          "recallAt5": 0.59375,
+          "recallAt10": 0.640625,
+          "mrr": 0.37282986111111116,
+          "ndcg": 0.4405257148899067,
+          "precisionAt5": 0.11875000000000006,
+          "sourcePrecision": 0.07454545454545454,
+          "acceptedSourceCorrectness": 0.640625,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 8.934552999970037,
+            "p95": 15.737546999996994
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 4,
+              "p95": 11
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.04426400002557784,
+              "p95": 0.07072499999776483
+            },
+            "otherMs": {
+              "p50": 4.759313000016846,
+              "p95": 5.557067999965511
+            }
+          }
+        },
+        "unanswerable": {
+          "queries": 24,
+          "positive": 0,
+          "negative": 24,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": 0,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 24,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 8.198336999979801,
+            "p95": 29.887070000055246
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 4,
+              "p95": 25
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.04201100009959191,
+              "p95": 0.06577600003220141
+            },
+            "otherMs": {
+              "p50": 4.6515979999967385,
+              "p95": 5.310697000008076
+            }
+          }
+        },
+        "agent_allowed": {
+          "queries": 14,
+          "positive": 14,
+          "negative": 0,
+          "recallAt1": 0.07142857142857142,
+          "recallAt5": 0.2857142857142857,
+          "recallAt10": 0.35714285714285715,
+          "mrr": 0.1785714285714286,
+          "ndcg": 0.22271904958935268,
+          "precisionAt5": 0.05714285714285715,
+          "sourcePrecision": 0.03759398496240601,
+          "acceptedSourceCorrectness": 0.35714285714285715,
+          "answerability": {
+            "truePositive": 14,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 7.827812000061385,
+            "p95": 11.588415999984136
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 3,
+              "p95": 7
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.04564700007904321,
+              "p95": 0.07514299999456853
+            },
+            "otherMs": {
+              "p50": 4.648401000013109,
+              "p95": 5.3824870000826195
+            }
+          }
+        },
+        "agent_mixed_denied": {
+          "queries": 2,
+          "positive": 0,
+          "negative": 2,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": 0,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 1,
+            "trueNegative": 1
+          },
+          "latencyMs": {
+            "p50": 1.8764619999565184,
+            "p95": 3.490706999989925
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.005681000009644777,
+              "p95": 0.00822600000537932
+            },
+            "otherMs": {
+              "p50": 1.874798999982886,
+              "p95": 3.482851999986451
+            }
+          }
+        },
+        "agent_denied": {
+          "queries": 16,
+          "positive": 0,
+          "negative": 16,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": null,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 16
+          },
+          "latencyMs": {
+            "p50": 1.6640409999527037,
+            "p95": 2.1611709999851882
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.001592999993590638,
+              "p95": 0.0022139999782666564
+            },
+            "otherMs": {
+              "p50": 1.6622069998411462,
+              "p95": 2.159076999989338
+            }
+          }
+        },
+        "detail_supported": {
+          "queries": 12,
+          "positive": 12,
+          "negative": 0,
+          "recallAt1": 1,
+          "recallAt5": 1,
+          "recallAt10": 1,
+          "mrr": 1,
+          "ndcg": 1,
+          "precisionAt5": 0.19999999999999998,
+          "sourcePrecision": 0.8571428571428571,
+          "acceptedSourceCorrectness": 1,
+          "answerability": {
+            "truePositive": 12,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 2.9808069999562576,
+            "p95": 3.981671000015922
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 1
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.0052900000009685755,
+              "p95": 0.007515000004786998
+            },
+            "otherMs": {
+              "p50": 2.9416330001549795,
+              "p95": 3.9748380000237375
+            }
+          }
+        },
+        "detail_absent": {
+          "queries": 12,
+          "positive": 0,
+          "negative": 12,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": 0,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 12,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 3.0122259999916423,
+            "p95": 3.8137590000405908
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.00534999999217689,
+              "p95": 0.007033000001683831
+            },
+            "otherMs": {
+              "p50": 2.9410899999784306,
+              "p95": 3.8094310000305995
+            }
+          }
+        }
+      },
+      "warm": {
+        "p50": 2.6418009999979404,
+        "p95": 3.0018760000002658
+      }
+    },
+    "baseline_hybrid": {
+      "all": {
+        "queries": 336,
+        "positive": 282,
+        "negative": 54,
+        "recallAt1": 0.5283687943262412,
+        "recallAt5": 0.7872340425531915,
+        "recallAt10": 0.8439716312056738,
+        "mrr": 0.6430189688168413,
+        "ndcg": 0.6920221847566048,
+        "precisionAt5": 0.1574468085106386,
+        "sourcePrecision": 0.08304256803907886,
+        "acceptedSourceCorrectness": 0.7460815047021944,
+        "answerability": {
+          "truePositive": 282,
+          "falseNegative": 0,
+          "falsePositive": 37,
+          "trueNegative": 17
+        },
+        "latencyMs": {
+          "p50": 506.4180860000197,
+          "p95": 556.8153709999751
+        },
+        "phases": {
+          "embeddingMs": {
+            "p50": 4.28234400000656,
+            "p95": 5.894824000017252
+          },
+          "lexicalMs": {
+            "p50": 7,
+            "p95": 49
+          },
+          "vectorMs": {
+            "p50": 486,
+            "p95": 501
+          },
+          "rankingMs": {
+            "p50": 0.0544340000487864,
+            "p95": 0.1483429999789223
+          },
+          "otherMs": {
+            "p50": 7.804688000003807,
+            "p95": 9.229599000071175
+          }
+        }
+      },
+      "frozen": {
+        "queries": 312,
+        "positive": 270,
+        "negative": 42,
+        "recallAt1": 0.5074074074074074,
+        "recallAt5": 0.7777777777777778,
+        "recallAt10": 0.837037037037037,
+        "mrr": 0.6271531452087009,
+        "ndcg": 0.6783342818568984,
+        "precisionAt5": 0.15555555555555575,
+        "sourcePrecision": 0.07968970380818054,
+        "acceptedSourceCorrectness": 0.7661016949152543,
+        "answerability": {
+          "truePositive": 270,
+          "falseNegative": 0,
+          "falsePositive": 25,
+          "trueNegative": 17
+        },
+        "latencyMs": {
+          "p50": 508.95057700003963,
+          "p95": 558.3076800000272
+        },
+        "phases": {
+          "embeddingMs": {
+            "p50": 4.412378000037279,
+            "p95": 5.907038000004832
+          },
+          "lexicalMs": {
+            "p50": 8,
+            "p95": 54
+          },
+          "vectorMs": {
+            "p50": 487,
+            "p95": 502
+          },
+          "rankingMs": {
+            "p50": 0.05867299996316433,
+            "p95": 0.15192900000147347
+          },
+          "otherMs": {
+            "p50": 7.895986999996239,
+            "p95": 9.243470999994315
+          }
+        }
+      },
+      "cohorts": {
+        "literal": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.640625,
+          "recallAt5": 0.9375,
+          "recallAt10": 0.953125,
+          "mrr": 0.7673177083333333,
+          "ndcg": 0.8139219389404014,
+          "precisionAt5": 0.18749999999999983,
+          "sourcePrecision": 0.09713375796178345,
+          "acceptedSourceCorrectness": 0.953125,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 510.95323399998597,
+            "p95": 553.1443380000419
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.82682700001169,
+              "p95": 4.498336000018753
+            },
+            "lexicalMs": {
+              "p50": 8,
+              "p95": 34
+            },
+            "vectorMs": {
+              "p50": 489,
+              "p95": 512
+            },
+            "rankingMs": {
+              "p50": 0.07354100001975894,
+              "p95": 0.1751440000080038
+            },
+            "otherMs": {
+              "p50": 7.950008999963757,
+              "p95": 9.21039700001711
+            }
+          }
+        },
+        "paraphrase": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.421875,
+          "recallAt5": 0.6875,
+          "recallAt10": 0.796875,
+          "mrr": 0.5381944444444443,
+          "ndcg": 0.5996515644597948,
+          "precisionAt5": 0.1375,
+          "sourcePrecision": 0.08031496062992126,
+          "acceptedSourceCorrectness": 0.796875,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 515.92130799999,
+            "p95": 557.9826999999932
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 4.851267999998527,
+              "p95": 5.728047000000515
+            },
+            "lexicalMs": {
+              "p50": 12,
+              "p95": 54
+            },
+            "vectorMs": {
+              "p50": 490,
+              "p95": 501
+            },
+            "rankingMs": {
+              "p50": 0.06983300001593307,
+              "p95": 0.158943000016734
+            },
+            "otherMs": {
+              "p50": 8.241133000003174,
+              "p95": 9.411531999969156
+            }
+          }
+        },
+        "conversational": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.46875,
+          "recallAt5": 0.828125,
+          "recallAt10": 0.875,
+          "mrr": 0.6266493055555556,
+          "ndcg": 0.6880305250417569,
+          "precisionAt5": 0.1656249999999999,
+          "sourcePrecision": 0.0875,
+          "acceptedSourceCorrectness": 0.875,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 525.4306000000215,
+            "p95": 600.2320389999077
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 5.697469000006095,
+              "p95": 6.133819999988191
+            },
+            "lexicalMs": {
+              "p50": 21,
+              "p95": 88
+            },
+            "vectorMs": {
+              "p50": 489,
+              "p95": 510
+            },
+            "rankingMs": {
+              "p50": 0.07265899999765679,
+              "p95": 0.1543930000043474
+            },
+            "otherMs": {
+              "p50": 8.313752000103705,
+              "p95": 9.441234000012628
+            }
+          }
+        },
+        "scoped": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.515625,
+          "recallAt5": 0.71875,
+          "recallAt10": 0.765625,
+          "mrr": 0.608110119047619,
+          "ndcg": 0.6465985187267033,
+          "precisionAt5": 0.14375,
+          "sourcePrecision": 0.08672566371681416,
+          "acceptedSourceCorrectness": 0.765625,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 75.20076400000835,
+            "p95": 91.93135099997744
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 4.210063999984413,
+              "p95": 5.312987000041176
+            },
+            "lexicalMs": {
+              "p50": 4,
+              "p95": 11
+            },
+            "vectorMs": {
+              "p50": 62,
+              "p95": 71
+            },
+            "rankingMs": {
+              "p50": 0.05127699999138713,
+              "p95": 0.1385050000390038
+            },
+            "otherMs": {
+              "p50": 7.5326980000245385,
+              "p95": 9.007341000018641
+            }
+          }
+        },
+        "unanswerable": {
+          "queries": 24,
+          "positive": 0,
+          "negative": 24,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": 0,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 24,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 508.4702989999787,
+            "p95": 529.5801150000188
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 4.412378000037279,
+              "p95": 4.937913000001572
+            },
+            "lexicalMs": {
+              "p50": 4,
+              "p95": 27
+            },
+            "vectorMs": {
+              "p50": 490,
+              "p95": 500
+            },
+            "rankingMs": {
+              "p50": 0.06279000005451962,
+              "p95": 0.13836400001309812
+            },
+            "otherMs": {
+              "p50": 7.991212000022642,
+              "p95": 9.119600999983959
+            }
+          }
+        },
+        "agent_allowed": {
+          "queries": 14,
+          "positive": 14,
+          "negative": 0,
+          "recallAt1": 0.42857142857142855,
+          "recallAt5": 0.5,
+          "recallAt10": 0.6428571428571429,
+          "mrr": 0.4824263038548753,
+          "ndcg": 0.5189495058977694,
+          "precisionAt5": 0.09999999999999999,
+          "sourcePrecision": 0.06766917293233082,
+          "acceptedSourceCorrectness": 0.6428571428571429,
+          "answerability": {
+            "truePositive": 14,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 36.73337099998025,
+            "p95": 71.81778399995528
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.8161850000033155,
+              "p95": 4.218272000027355
+            },
+            "lexicalMs": {
+              "p50": 3,
+              "p95": 9
+            },
+            "vectorMs": {
+              "p50": 20,
+              "p95": 57
+            },
+            "rankingMs": {
+              "p50": 0.05825200001709163,
+              "p95": 0.12187299999641255
+            },
+            "otherMs": {
+              "p50": 7.107167000183836,
+              "p95": 8.072384999948554
+            }
+          }
+        },
+        "agent_mixed_denied": {
+          "queries": 2,
+          "positive": 0,
+          "negative": 2,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": 0,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 1,
+            "trueNegative": 1
+          },
+          "latencyMs": {
+            "p50": 32.08480499999132,
+            "p95": 54.04972200002521
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.728887000004761,
+              "p95": 5.71426100001554
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 20,
+              "p95": 46
+            },
+            "rankingMs": {
+              "p50": 0.002463999902829528,
+              "p95": 0.010690000024624169
+            },
+            "otherMs": {
+              "p50": 4.497892000013962,
+              "p95": 6.359853999951156
+            }
+          }
+        },
+        "agent_denied": {
+          "queries": 16,
+          "positive": 0,
+          "negative": 16,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": null,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 16
+          },
+          "latencyMs": {
+            "p50": 6.574198999995133,
+            "p95": 7.38500499993097
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.4996699999901466,
+              "p95": 4.145152999990387
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.0020840000070165843,
+              "p95": 0.0026550000766292214
+            },
+            "otherMs": {
+              "p50": 2.9469040000112727,
+              "p95": 3.8587059999117628
+            }
+          }
+        },
+        "detail_supported": {
+          "queries": 12,
+          "positive": 12,
+          "negative": 0,
+          "recallAt1": 1,
+          "recallAt5": 1,
+          "recallAt10": 1,
+          "mrr": 1,
+          "ndcg": 1,
+          "precisionAt5": 0.19999999999999998,
+          "sourcePrecision": 0.8,
+          "acceptedSourceCorrectness": 1,
+          "answerability": {
+            "truePositive": 12,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 7.882390000042506,
+            "p95": 9.009911000030115
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.1094629999715835,
+              "p95": 3.640191999991657
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 1
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.007232999982079491,
+              "p95": 0.012935000006109476
+            },
+            "otherMs": {
+              "p50": 4.656690999981947,
+              "p95": 5.557238999987021
+            }
+          }
+        },
+        "detail_absent": {
+          "queries": 12,
+          "positive": 0,
+          "negative": 12,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": 0,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 12,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 7.842623000004096,
+            "p95": 8.989467000006698
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.072961999976542,
+              "p95": 3.954329000087455
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 1
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.007203000015579164,
+              "p95": 0.010119999991729856
+            },
+            "otherMs": {
+              "p50": 4.658549000043422,
+              "p95": 5.507067000027746
+            }
+          }
+        }
+      },
+      "warm": {
+        "p50": 2.8854040000005625,
+        "p95": 3.119570000002568
+      }
+    },
+    "v22_always": {
+      "all": {
+        "queries": 336,
+        "positive": 282,
+        "negative": 54,
+        "recallAt1": 0.5780141843971631,
+        "recallAt5": 0.8226950354609929,
+        "recallAt10": 0.8865248226950354,
+        "mrr": 0.6899006529325677,
+        "ndcg": 0.7379041419430243,
+        "precisionAt5": 0.164539007092199,
+        "sourcePrecision": 0.09560229445506692,
+        "acceptedSourceCorrectness": 0.8833922261484098,
+        "answerability": {
+          "truePositive": 282,
+          "falseNegative": 0,
+          "falsePositive": 1,
+          "trueNegative": 53
+        },
+        "latencyMs": {
+          "p50": 203.9426209999947,
+          "p95": 251.6132520000101
+        },
+        "phases": {
+          "embeddingMs": {
+            "p50": 4.545516000012867,
+            "p95": 5.871800999993866
+          },
+          "lexicalMs": {
+            "p50": 7,
+            "p95": 49
+          },
+          "vectorMs": {
+            "p50": 180,
+            "p95": 182
+          },
+          "rankingMs": {
+            "p50": 1.659103999962099,
+            "p95": 4.859509999980219
+          },
+          "otherMs": {
+            "p50": 10.41209599992726,
+            "p95": 12.306461000058334
+          }
+        }
+      },
+      "frozen": {
+        "queries": 312,
+        "positive": 270,
+        "negative": 42,
+        "recallAt1": 0.5592592592592592,
+        "recallAt5": 0.8148148148148148,
+        "recallAt10": 0.8814814814814815,
+        "mrr": 0.6761184597295707,
+        "ndcg": 0.726255437140492,
+        "precisionAt5": 0.16296296296296328,
+        "sourcePrecision": 0.0914329619669612,
+        "acceptedSourceCorrectness": 0.8782287822878229,
+        "answerability": {
+          "truePositive": 270,
+          "falseNegative": 0,
+          "falsePositive": 1,
+          "trueNegative": 41
+        },
+        "latencyMs": {
+          "p50": 205.66915399999561,
+          "p95": 252.85710100003053
+        },
+        "phases": {
+          "embeddingMs": {
+            "p50": 4.621019000012893,
+            "p95": 5.885957000020426
+          },
+          "lexicalMs": {
+            "p50": 8,
+            "p95": 53
+          },
+          "vectorMs": {
+            "p50": 180,
+            "p95": 182
+          },
+          "rankingMs": {
+            "p50": 1.758058000006713,
+            "p95": 4.909548000010545
+          },
+          "otherMs": {
+            "p50": 10.627051000017673,
+            "p95": 12.332420999999158
+          }
+        }
+      },
+      "cohorts": {
+        "literal": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.75,
+          "recallAt5": 0.9375,
+          "recallAt10": 0.96875,
+          "mrr": 0.8459821428571429,
+          "ndcg": 0.8770276220269905,
+          "precisionAt5": 0.18749999999999983,
+          "sourcePrecision": 0.09872611464968153,
+          "acceptedSourceCorrectness": 0.96875,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 206.48175200000696,
+            "p95": 232.47254800004885
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.937707999954,
+              "p95": 4.4918630000029225
+            },
+            "lexicalMs": {
+              "p50": 8,
+              "p95": 35
+            },
+            "vectorMs": {
+              "p50": 180,
+              "p95": 182
+            },
+            "rankingMs": {
+              "p50": 2.2778110000072047,
+              "p95": 5.492823000007775
+            },
+            "otherMs": {
+              "p50": 10.992743000009796,
+              "p95": 12.332420999999158
+            }
+          }
+        },
+        "paraphrase": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.4375,
+          "recallAt5": 0.734375,
+          "recallAt10": 0.828125,
+          "mrr": 0.5662078373015872,
+          "ndcg": 0.629176154072616,
+          "precisionAt5": 0.14687499999999998,
+          "sourcePrecision": 0.08346456692913386,
+          "acceptedSourceCorrectness": 0.828125,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 211.3570949999994,
+            "p95": 253.70596400000795
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 4.906503000005614,
+              "p95": 5.841550000011921
+            },
+            "lexicalMs": {
+              "p50": 12,
+              "p95": 54
+            },
+            "vectorMs": {
+              "p50": 180,
+              "p95": 184
+            },
+            "rankingMs": {
+              "p50": 2.1091160000069067,
+              "p95": 4.804848999992828
+            },
+            "otherMs": {
+              "p50": 11.106423999997787,
+              "p95": 12.412278000003425
+            }
+          }
+        },
+        "conversational": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.578125,
+          "recallAt5": 0.875,
+          "recallAt10": 0.90625,
+          "mrr": 0.709375,
+          "ndcg": 0.7583968550397324,
+          "precisionAt5": 0.17499999999999988,
+          "sourcePrecision": 0.090625,
+          "acceptedSourceCorrectness": 0.90625,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 221.75553299998865,
+            "p95": 285.9933500000043
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 5.638012000010349,
+              "p95": 6.130583000020124
+            },
+            "lexicalMs": {
+              "p50": 21,
+              "p95": 85
+            },
+            "vectorMs": {
+              "p50": 180,
+              "p95": 183
+            },
+            "rankingMs": {
+              "p50": 2.3414279999997234,
+              "p95": 5.160926999989897
+            },
+            "otherMs": {
+              "p50": 11.464099999968312,
+              "p95": 12.65990299999612
+            }
+          }
+        },
+        "scoped": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.5,
+          "recallAt5": 0.78125,
+          "recallAt10": 0.84375,
+          "mrr": 0.6228484623015873,
+          "ndcg": 0.6768705484554394,
+          "precisionAt5": 0.15624999999999994,
+          "sourcePrecision": 0.09557522123893805,
+          "acceptedSourceCorrectness": 0.84375,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 41.33547899999758,
+            "p95": 49.76722000003792
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 4.6777969999820925,
+              "p95": 5.598484999965876
+            },
+            "lexicalMs": {
+              "p50": 4,
+              "p95": 11
+            },
+            "vectorMs": {
+              "p50": 22,
+              "p95": 24
+            },
+            "rankingMs": {
+              "p50": 1.4748019999824464,
+              "p95": 3.2360719999996945
+            },
+            "otherMs": {
+              "p50": 8.156555000023218,
+              "p95": 9.553094999981113
+            }
+          }
+        },
+        "unanswerable": {
+          "queries": 24,
+          "positive": 0,
+          "negative": 24,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": null,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 24
+          },
+          "latencyMs": {
+            "p50": 201.81205199999386,
+            "p95": 222.4273969999922
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 4.420380000025034,
+              "p95": 4.991643999994267
+            },
+            "lexicalMs": {
+              "p50": 4,
+              "p95": 26
+            },
+            "vectorMs": {
+              "p50": 180,
+              "p95": 182
+            },
+            "rankingMs": {
+              "p50": 1.5820190000231378,
+              "p95": 4.891584999975748
+            },
+            "otherMs": {
+              "p50": 10.19932500005234,
+              "p95": 11.548252000124194
+            }
+          }
+        },
+        "agent_allowed": {
+          "queries": 14,
+          "positive": 14,
+          "negative": 0,
+          "recallAt1": 0.42857142857142855,
+          "recallAt5": 0.5,
+          "recallAt10": 0.7857142857142857,
+          "mrr": 0.49353741496598647,
+          "ndcg": 0.5596294667048046,
+          "precisionAt5": 0.09999999999999999,
+          "sourcePrecision": 0.08270676691729323,
+          "acceptedSourceCorrectness": 0.7857142857142857,
+          "answerability": {
+            "truePositive": 14,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 35.99060299992561,
+            "p95": 40.31403399998089
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.7590159999672323,
+              "p95": 4.607125999988057
+            },
+            "lexicalMs": {
+              "p50": 3,
+              "p95": 9
+            },
+            "vectorMs": {
+              "p50": 19,
+              "p95": 20
+            },
+            "rankingMs": {
+              "p50": 1.5867270000162534,
+              "p95": 2.605278000002727
+            },
+            "otherMs": {
+              "p50": 7.534823999973014,
+              "p95": 8.708001999999397
+            }
+          }
+        },
+        "agent_mixed_denied": {
+          "queries": 2,
+          "positive": 0,
+          "negative": 2,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": 0,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 1,
+            "trueNegative": 1
+          },
+          "latencyMs": {
+            "p50": 26.553943999984767,
+            "p95": 29.702568000007886
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.7219269999768585,
+              "p95": 4.233845000038855
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 19,
+              "p95": 20
+            },
+            "rankingMs": {
+              "p50": 0.04622800007928163,
+              "p95": 0.0592330000072252
+            },
+            "otherMs": {
+              "p50": 4.304408999916632,
+              "p95": 6.043773000012152
+            }
+          }
+        },
+        "agent_denied": {
+          "queries": 16,
+          "positive": 0,
+          "negative": 16,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": null,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 16
+          },
+          "latencyMs": {
+            "p50": 6.750112000037916,
+            "p95": 7.5989880000124685
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.476805000100285,
+              "p95": 4.132097999914549
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.011242000007769093,
+              "p95": 0.015388999949209392
+            },
+            "otherMs": {
+              "p50": 3.2695009999442846,
+              "p95": 3.8121680000331253
+            }
+          }
+        },
+        "detail_supported": {
+          "queries": 12,
+          "positive": 12,
+          "negative": 0,
+          "recallAt1": 1,
+          "recallAt5": 1,
+          "recallAt10": 1,
+          "mrr": 1,
+          "ndcg": 1,
+          "precisionAt5": 0.19999999999999998,
+          "sourcePrecision": 1,
+          "acceptedSourceCorrectness": 1,
+          "answerability": {
+            "truePositive": 12,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 7.983820999972522,
+            "p95": 9.062711999984458
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.063436000025831,
+              "p95": 3.570678999996744
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 1
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.02950599999167025,
+              "p95": 0.044504999998025596
+            },
+            "otherMs": {
+              "p50": 4.778317000018433,
+              "p95": 5.641802999889478
+            }
+          }
+        },
+        "detail_absent": {
+          "queries": 12,
+          "positive": 0,
+          "negative": 12,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": null,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 12
+          },
+          "latencyMs": {
+            "p50": 7.479592000017874,
+            "p95": 10.381493000080809
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.1068970000487752,
+              "p95": 4.575025000027381
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 1
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.02847499999916181,
+              "p95": 0.041680000023916364
+            },
+            "otherMs": {
+              "p50": 4.2668350000167266,
+              "p95": 5.783885000040755
+            }
+          }
+        }
+      },
+      "warm": {
+        "p50": 2.9428030000126455,
+        "p95": 3.3495380000003934
+      }
+    },
+    "v22_selective": {
+      "all": {
+        "queries": 336,
+        "positive": 282,
+        "negative": 54,
+        "recallAt1": 0.5780141843971631,
+        "recallAt5": 0.8226950354609929,
+        "recallAt10": 0.8865248226950354,
+        "mrr": 0.6899006529325677,
+        "ndcg": 0.7379041419430243,
+        "precisionAt5": 0.164539007092199,
+        "sourcePrecision": 0.09560229445506692,
+        "acceptedSourceCorrectness": 0.8833922261484098,
+        "answerability": {
+          "truePositive": 282,
+          "falseNegative": 0,
+          "falsePositive": 1,
+          "trueNegative": 53
+        },
+        "latencyMs": {
+          "p50": 202.67401499999687,
+          "p95": 249.58796299999813
+        },
+        "phases": {
+          "embeddingMs": {
+            "p50": 4.403534999997646,
+            "p95": 5.934911000018474
+          },
+          "lexicalMs": {
+            "p50": 7,
+            "p95": 49
+          },
+          "vectorMs": {
+            "p50": 179,
+            "p95": 182
+          },
+          "rankingMs": {
+            "p50": 1.6407739999704063,
+            "p95": 4.775603000001865
+          },
+          "otherMs": {
+            "p50": 10.279482000041753,
+            "p95": 12.251228999928571
+          }
+        }
+      },
+      "frozen": {
+        "queries": 312,
+        "positive": 270,
+        "negative": 42,
+        "recallAt1": 0.5592592592592592,
+        "recallAt5": 0.8148148148148148,
+        "recallAt10": 0.8814814814814815,
+        "mrr": 0.6761184597295707,
+        "ndcg": 0.726255437140492,
+        "precisionAt5": 0.16296296296296328,
+        "sourcePrecision": 0.0914329619669612,
+        "acceptedSourceCorrectness": 0.8782287822878229,
+        "answerability": {
+          "truePositive": 270,
+          "falseNegative": 0,
+          "falsePositive": 1,
+          "trueNegative": 41
+        },
+        "latencyMs": {
+          "p50": 204.40332799998578,
+          "p95": 251.5226590000093
+        },
+        "phases": {
+          "embeddingMs": {
+            "p50": 4.559903000015765,
+            "p95": 5.9458729999896605
+          },
+          "lexicalMs": {
+            "p50": 8,
+            "p95": 54
+          },
+          "vectorMs": {
+            "p50": 180,
+            "p95": 182
+          },
+          "rankingMs": {
+            "p50": 1.6906240000389516,
+            "p95": 4.839204999967478
+          },
+          "otherMs": {
+            "p50": 10.433809999958612,
+            "p95": 12.295796999999766
+          }
+        }
+      },
+      "cohorts": {
+        "literal": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.75,
+          "recallAt5": 0.9375,
+          "recallAt10": 0.96875,
+          "mrr": 0.8459821428571429,
+          "ndcg": 0.8770276220269905,
+          "precisionAt5": 0.18749999999999983,
+          "sourcePrecision": 0.09872611464968153,
+          "acceptedSourceCorrectness": 0.96875,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 206.39607400004752,
+            "p95": 234.61292000001413
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.898683000006713,
+              "p95": 4.829324999998789
+            },
+            "lexicalMs": {
+              "p50": 8,
+              "p95": 36
+            },
+            "vectorMs": {
+              "p50": 180,
+              "p95": 183
+            },
+            "rankingMs": {
+              "p50": 2.2600230000098236,
+              "p95": 5.480758999998216
+            },
+            "otherMs": {
+              "p50": 10.92942899998161,
+              "p95": 12.137258000002475
+            }
+          }
+        },
+        "paraphrase": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.4375,
+          "recallAt5": 0.734375,
+          "recallAt10": 0.828125,
+          "mrr": 0.5662078373015872,
+          "ndcg": 0.629176154072616,
+          "precisionAt5": 0.14687499999999998,
+          "sourcePrecision": 0.08346456692913386,
+          "acceptedSourceCorrectness": 0.828125,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 211.48543000000063,
+            "p95": 251.5226590000093
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 4.867223999986891,
+              "p95": 5.840651999984402
+            },
+            "lexicalMs": {
+              "p50": 11,
+              "p95": 54
+            },
+            "vectorMs": {
+              "p50": 181,
+              "p95": 183
+            },
+            "rankingMs": {
+              "p50": 2.1271510000005946,
+              "p95": 5.351633000012953
+            },
+            "otherMs": {
+              "p50": 11.235271999961697,
+              "p95": 12.440919000015128
+            }
+          }
+        },
+        "conversational": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.578125,
+          "recallAt5": 0.875,
+          "recallAt10": 0.90625,
+          "mrr": 0.709375,
+          "ndcg": 0.7583968550397324,
+          "precisionAt5": 0.17499999999999988,
+          "sourcePrecision": 0.090625,
+          "acceptedSourceCorrectness": 0.90625,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 221.66549500000838,
+            "p95": 288.05105800001184
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 5.705193999980111,
+              "p95": 6.150283000082709
+            },
+            "lexicalMs": {
+              "p50": 21,
+              "p95": 89
+            },
+            "vectorMs": {
+              "p50": 181,
+              "p95": 183
+            },
+            "rankingMs": {
+              "p50": 2.3178339999867603,
+              "p95": 4.984941999951843
+            },
+            "otherMs": {
+              "p50": 11.366915000020526,
+              "p95": 12.695254000000205
+            }
+          }
+        },
+        "scoped": {
+          "queries": 64,
+          "positive": 64,
+          "negative": 0,
+          "recallAt1": 0.5,
+          "recallAt5": 0.78125,
+          "recallAt10": 0.84375,
+          "mrr": 0.6228484623015873,
+          "ndcg": 0.6768705484554394,
+          "precisionAt5": 0.15624999999999994,
+          "sourcePrecision": 0.09557522123893805,
+          "acceptedSourceCorrectness": 0.84375,
+          "answerability": {
+            "truePositive": 64,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 41.88806800002931,
+            "p95": 50.20453600003384
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 4.865163000067696,
+              "p95": 5.8388519999571145
+            },
+            "lexicalMs": {
+              "p50": 4,
+              "p95": 11
+            },
+            "vectorMs": {
+              "p50": 23,
+              "p95": 24
+            },
+            "rankingMs": {
+              "p50": 1.4971610000065994,
+              "p95": 3.182505999924615
+            },
+            "otherMs": {
+              "p50": 8.159582999986014,
+              "p95": 9.571970999997575
+            }
+          }
+        },
+        "unanswerable": {
+          "queries": 24,
+          "positive": 0,
+          "negative": 24,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": null,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 24
+          },
+          "latencyMs": {
+            "p50": 9.550426000030711,
+            "p95": 32.13395799999125
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 4,
+              "p95": 26
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 1.3529560000170022,
+              "p95": 2.3681190000206698
+            },
+            "otherMs": {
+              "p50": 4.39771299995482,
+              "p95": 5.157069999957457
+            }
+          }
+        },
+        "agent_allowed": {
+          "queries": 14,
+          "positive": 14,
+          "negative": 0,
+          "recallAt1": 0.42857142857142855,
+          "recallAt5": 0.5,
+          "recallAt10": 0.7857142857142857,
+          "mrr": 0.49353741496598647,
+          "ndcg": 0.5596294667048046,
+          "precisionAt5": 0.09999999999999999,
+          "sourcePrecision": 0.08270676691729323,
+          "acceptedSourceCorrectness": 0.7857142857142857,
+          "answerability": {
+            "truePositive": 14,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 35.53988199995365,
+            "p95": 39.38294500001939
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.774193999939598,
+              "p95": 4.166136000014376
+            },
+            "lexicalMs": {
+              "p50": 3,
+              "p95": 5
+            },
+            "vectorMs": {
+              "p50": 19,
+              "p95": 20
+            },
+            "rankingMs": {
+              "p50": 1.5749289999948815,
+              "p95": 3.1850549999799114
+            },
+            "otherMs": {
+              "p50": 7.391793000046164,
+              "p95": 8.510939000057988
+            }
+          }
+        },
+        "agent_mixed_denied": {
+          "queries": 2,
+          "positive": 0,
+          "negative": 2,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": 0,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 1,
+            "trueNegative": 1
+          },
+          "latencyMs": {
+            "p50": 26.150274999905378,
+            "p95": 29.147792000003392
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.643986000039149,
+              "p95": 3.844429000047967
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 19,
+              "p95": 20
+            },
+            "rankingMs": {
+              "p50": 0.03896500001428649,
+              "p95": 0.05339300003834069
+            },
+            "otherMs": {
+              "p50": 3.6251479998463765,
+              "p95": 5.7428259999724105
+            }
+          }
+        },
+        "agent_denied": {
+          "queries": 16,
+          "positive": 0,
+          "negative": 16,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": null,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 16
+          },
+          "latencyMs": {
+            "p50": 6.836576999980025,
+            "p95": 7.684109999972861
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 3.455424999992829,
+              "p95": 4.145675999985542
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.010390000010374933,
+              "p95": 0.01240400000824593
+            },
+            "otherMs": {
+              "p50": 3.2535389999393374,
+              "p95": 3.826303999987431
+            }
+          }
+        },
+        "detail_supported": {
+          "queries": 12,
+          "positive": 12,
+          "negative": 0,
+          "recallAt1": 1,
+          "recallAt5": 1,
+          "recallAt10": 1,
+          "mrr": 1,
+          "ndcg": 1,
+          "precisionAt5": 0.19999999999999998,
+          "sourcePrecision": 1,
+          "acceptedSourceCorrectness": 1,
+          "answerability": {
+            "truePositive": 12,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 0
+          },
+          "latencyMs": {
+            "p50": 3.138147999998182,
+            "p95": 4.002792999963276
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 1
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.022993999999016523,
+              "p95": 0.030969000014010817
+            },
+            "otherMs": {
+              "p50": 3.088993000041228,
+              "p95": 3.926013999967836
+            }
+          }
+        },
+        "detail_absent": {
+          "queries": 12,
+          "positive": 0,
+          "negative": 12,
+          "recallAt1": null,
+          "recallAt5": null,
+          "recallAt10": null,
+          "mrr": null,
+          "ndcg": null,
+          "precisionAt5": null,
+          "sourcePrecision": 0,
+          "acceptedSourceCorrectness": null,
+          "answerability": {
+            "truePositive": 0,
+            "falseNegative": 0,
+            "falsePositive": 0,
+            "trueNegative": 12
+          },
+          "latencyMs": {
+            "p50": 2.6636120000039227,
+            "p95": 3.7225150000303984
+          },
+          "phases": {
+            "embeddingMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "lexicalMs": {
+              "p50": 0,
+              "p95": 1
+            },
+            "vectorMs": {
+              "p50": 0,
+              "p95": 0
+            },
+            "rankingMs": {
+              "p50": 0.02138099999865517,
+              "p95": 0.03702099999645725
+            },
+            "otherMs": {
+              "p50": 2.588519000011729,
+              "p95": 3.698238999932073
+            }
+          }
+        }
+      },
+      "warm": {
+        "p50": 2.9173749999899883,
+        "p95": 3.1883609999999862
+      }
+    }
+  }
+}

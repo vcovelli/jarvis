@@ -1,0 +1,396 @@
+{
+  "mode": "offline-synthetic",
+  "liveProviderCalls": 0,
+  "databaseConnections": 0,
+  "scenariosPassed": 7,
+  "results": [
+    {
+      "name": "deterministic",
+      "result": {
+        "status": "completed",
+        "route": "deterministic",
+        "text": "96",
+        "reason": "completed",
+        "categories": [
+          "private"
+        ],
+        "metrics": {
+          "retrievalMs": 0,
+          "routingMs": 1.2216980000000035,
+          "providerMs": 0,
+          "totalMs": 1.2216980000000035,
+          "inputTokens": null,
+          "outputTokens": null,
+          "estimatedUsd": 0
+        }
+      },
+      "simulatedRequests": {
+        "local": 0,
+        "openai": 0,
+        "localHealth": 0
+      },
+      "syntheticReservations": [],
+      "audit": [
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-deterministic",
+          "phase": "result",
+          "route": "deterministic",
+          "outcome": "completed",
+          "reason": "completed",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0,
+            "routingMs": 0.9759020000000049,
+            "providerMs": 0,
+            "totalMs": 0.9759020000000049,
+            "inputTokens": null,
+            "outputTokens": null,
+            "estimatedUsd": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "local",
+      "result": {
+        "status": "completed",
+        "route": "local",
+        "text": "You prefer concise answers. [Synthetic local response]",
+        "reason": "completed",
+        "categories": [
+          "private"
+        ],
+        "metrics": {
+          "retrievalMs": 0.3189050000000009,
+          "routingMs": 15.747366999999997,
+          "providerMs": 0.3108390000000014,
+          "totalMs": 16.377111,
+          "inputTokens": 120,
+          "outputTokens": 14,
+          "estimatedUsd": 0
+        }
+      },
+      "simulatedRequests": {
+        "local": 1,
+        "openai": 0,
+        "localHealth": 1
+      },
+      "syntheticReservations": [],
+      "audit": [
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-local",
+          "phase": "dispatch",
+          "route": "local",
+          "outcome": "pending",
+          "reason": "completed",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0.3189050000000009,
+            "routingMs": 15.651153999999991,
+            "providerMs": 0,
+            "totalMs": 15.970058999999992,
+            "inputTokens": null,
+            "outputTokens": null,
+            "estimatedUsd": 0
+          }
+        },
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-local",
+          "phase": "result",
+          "route": "local",
+          "outcome": "completed",
+          "reason": "completed",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0.3189050000000009,
+            "routingMs": 15.69829399999999,
+            "providerMs": 0.3108390000000014,
+            "totalMs": 16.328037999999992,
+            "inputTokens": 120,
+            "outputTokens": 14,
+            "estimatedUsd": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorized-cloud",
+      "result": {
+        "status": "completed",
+        "route": "openai",
+        "text": "Concise answers match your stated preference. [Synthetic cloud response]",
+        "reason": "completed",
+        "categories": [
+          "private"
+        ],
+        "metrics": {
+          "retrievalMs": 0.02827299999999866,
+          "routingMs": 0.7182329999999979,
+          "providerMs": 0.6829960000000028,
+          "totalMs": 1.4295019999999994,
+          "inputTokens": 120,
+          "outputTokens": 16,
+          "estimatedUsd": 0.0106
+        }
+      },
+      "simulatedRequests": {
+        "local": 0,
+        "openai": 1,
+        "localHealth": 0
+      },
+      "syntheticReservations": [
+        {
+          "provider": "openai",
+          "upperBoundUsd": 0.0106
+        }
+      ],
+      "audit": [
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-authorized-cloud",
+          "phase": "dispatch",
+          "route": "openai",
+          "outcome": "pending",
+          "reason": "completed",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0.02827299999999866,
+            "routingMs": 0.6431910000000016,
+            "providerMs": 0,
+            "totalMs": 0.6714640000000003,
+            "inputTokens": null,
+            "outputTokens": null,
+            "estimatedUsd": 0.0106
+          }
+        },
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-authorized-cloud",
+          "phase": "result",
+          "route": "openai",
+          "outcome": "completed",
+          "reason": "completed",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0.02827299999999866,
+            "routingMs": 0.676573999999988,
+            "providerMs": 0.6829960000000028,
+            "totalMs": 1.3878429999999895,
+            "inputTokens": 120,
+            "outputTokens": 16,
+            "estimatedUsd": 0.0106
+          }
+        }
+      ]
+    },
+    {
+      "name": "private-cloud-denied",
+      "result": {
+        "status": "denied",
+        "route": null,
+        "text": null,
+        "reason": "privacy_denied",
+        "categories": [
+          "private"
+        ],
+        "metrics": {
+          "retrievalMs": 0.06652599999999609,
+          "routingMs": 0.09263600000001304,
+          "providerMs": 0,
+          "totalMs": 0.15916200000000913,
+          "inputTokens": null,
+          "outputTokens": null,
+          "estimatedUsd": 0
+        }
+      },
+      "simulatedRequests": {
+        "local": 0,
+        "openai": 0,
+        "localHealth": 0
+      },
+      "syntheticReservations": [],
+      "audit": [
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-private-cloud-denied",
+          "phase": "result",
+          "route": null,
+          "outcome": "denied",
+          "reason": "privacy_denied",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0.06652599999999609,
+            "routingMs": 0.05397300000001337,
+            "providerMs": 0,
+            "totalMs": 0.12049900000000946,
+            "inputTokens": null,
+            "outputTokens": null,
+            "estimatedUsd": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "budget-exhausted",
+      "result": {
+        "status": "denied",
+        "route": null,
+        "text": null,
+        "reason": "budget_exhausted",
+        "categories": [
+          "private"
+        ],
+        "metrics": {
+          "retrievalMs": 0.021030000000010318,
+          "routingMs": 0.18144399999998484,
+          "providerMs": 0,
+          "totalMs": 0.20247399999999516,
+          "inputTokens": null,
+          "outputTokens": null,
+          "estimatedUsd": 0
+        }
+      },
+      "simulatedRequests": {
+        "local": 0,
+        "openai": 0,
+        "localHealth": 0
+      },
+      "syntheticReservations": [],
+      "audit": [
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-budget-exhausted",
+          "phase": "result",
+          "route": null,
+          "outcome": "denied",
+          "reason": "budget_exhausted",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0.021030000000010318,
+            "routingMs": 0.11054999999998927,
+            "providerMs": 0,
+            "totalMs": 0.1315799999999996,
+            "inputTokens": null,
+            "outputTokens": null,
+            "estimatedUsd": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "missing-evidence",
+      "result": {
+        "status": "completed",
+        "route": "deterministic",
+        "text": "I don't know from the available memory evidence. I couldn't find a source that supports that detail.",
+        "reason": "insufficient_evidence",
+        "categories": [
+          "private"
+        ],
+        "metrics": {
+          "retrievalMs": 0.23428499999999985,
+          "routingMs": 0.08696400000000892,
+          "providerMs": 0,
+          "totalMs": 0.3212490000000088,
+          "inputTokens": null,
+          "outputTokens": null,
+          "estimatedUsd": 0
+        }
+      },
+      "simulatedRequests": {
+        "local": 0,
+        "openai": 0,
+        "localHealth": 0
+      },
+      "syntheticReservations": [],
+      "audit": [
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-missing-evidence",
+          "phase": "result",
+          "route": "deterministic",
+          "outcome": "completed",
+          "reason": "insufficient_evidence",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0.23428499999999985,
+            "routingMs": 0.04774000000000456,
+            "providerMs": 0,
+            "totalMs": 0.2820250000000044,
+            "inputTokens": null,
+            "outputTokens": null,
+            "estimatedUsd": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "local-model-missing",
+      "result": {
+        "status": "unavailable",
+        "route": null,
+        "text": null,
+        "reason": "model_unavailable",
+        "categories": [
+          "private"
+        ],
+        "metrics": {
+          "retrievalMs": 0.015309000000002015,
+          "routingMs": 0.2252069999999975,
+          "providerMs": 0,
+          "totalMs": 0.2405159999999995,
+          "inputTokens": null,
+          "outputTokens": null,
+          "estimatedUsd": 0
+        }
+      },
+      "simulatedRequests": {
+        "local": 0,
+        "openai": 0,
+        "localHealth": 1
+      },
+      "syntheticReservations": [],
+      "audit": [
+        {
+          "userId": "synthetic-owner",
+          "requestId": "proof-local-model-missing",
+          "phase": "result",
+          "route": null,
+          "outcome": "unavailable",
+          "reason": "model_unavailable",
+          "categories": [
+            "private"
+          ],
+          "metrics": {
+            "retrievalMs": 0.015309000000002015,
+            "routingMs": 0.19787599999999372,
+            "providerMs": 0,
+            "totalMs": 0.21318499999999574,
+            "inputTokens": null,
+            "outputTokens": null,
+            "estimatedUsd": 0
+          }
+        }
+      ]
+    }
+  ]
+}

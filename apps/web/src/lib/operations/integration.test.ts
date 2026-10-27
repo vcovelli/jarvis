@@ -133,8 +133,8 @@ test("scheduled loop, decision, exact approval, persisted verified outcome", asy
     "unchanged signal is deduplicated",
   );
   assert.ok(
-    first.notifications.length <= 6,
-    "quiet hours may defer notifications",
+    first.notifications.filter(notification => notification.decisionId).length <= 6,
+    "quiet hours may defer decision notifications; briefings are separate",
   );
   const reopened = new PrismaClient();
   assert.equal(

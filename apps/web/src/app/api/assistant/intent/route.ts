@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readMemoryBody, memoryFailure } from "@/lib/memory/http";
 import { getServerSession } from "next-auth";
 
 import { resolveAssistantIntent } from "@/lib/assistant/serverIntent";
@@ -14,9 +15,10 @@ export async function POST(request: Request) {
   const limited = enforceRateLimit(request, "assistant", userId);
   if (limited) return limited;
 
-  const body = await request.json().catch(() => null);
+  let body;
+  try { body = await readMemoryBody(request, 64000); } catch (error) { return memoryFailure(error); }
   const input = typeof body?.input === "string" ? body.input.trim() : "";
-  if (!input) {
+  if (!input || input.length > 8000) {
     return NextResponse.json({ error: "Missing assistant input." }, { status: 400 });
   }
 

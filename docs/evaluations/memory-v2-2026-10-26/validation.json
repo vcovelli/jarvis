@@ -1,0 +1,20 @@
+{
+  "checks": [
+    "actual local HTTP adapter: finite 384-dimension normalized embedding",
+    "actual pgvector cosine operator",
+    "hybrid returns actual semantic candidate ranks",
+    "model/version/dimension mismatches excluded by SQL",
+    "malformed query dimension rejected before SQL",
+    "durable worker indexes through actual local endpoint",
+    "expired obsolete job cannot erase valid embedding",
+    "local endpoint outage falls back to full-text",
+    "disclosure policy blocks query embedding",
+    "missing extension falls back and isolated extension is restored"
+  ],
+  "passed": 10,
+  "identity": {
+    "model": "local:sentence-transformers/all-MiniLM-L6-v2",
+    "version": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41:onnx-fp32-mean-l2-256",
+    "dimension": 384
+  }
+}

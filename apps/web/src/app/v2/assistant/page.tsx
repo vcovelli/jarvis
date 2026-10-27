@@ -1,4 +1,5 @@
 "use client";
+import { MemoryManager } from "@/components/assistant/MemoryManager";
 import { useSearchParams } from "next/navigation";
 import { AgentStatus } from "@/components/operations/AgentStatus";
 import { agentDomains, agentChatDomain, agentFromChat } from "@/lib/operations/supervision";
@@ -414,6 +415,7 @@ export default function AssistantPage() {
   }, [conversationPanelOpen]);
   const [newChatMenuOpen, setNewChatMenuOpen] = useState(false);
   const [conversationLoading, setConversationLoading] = useState(false);
+  const [memoryEngineV2, setMemoryEngineV2] = useState(false);
   const [memories, setMemories] = useState<AssistantMemoryItem[]>([]);
   const [memoryKey, setMemoryKey] = useState("");
   const [memoryValue, setMemoryValue] = useState("");
@@ -671,6 +673,7 @@ export default function AssistantPage() {
     const response = await fetch(`/api/assistant/memory?${params.toString()}`, { cache: "no-store" });
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(data?.error ?? `Memory load failed with ${response.status}`);
+    setMemoryEngineV2(data?.engine === 2);
     setMemories(Array.isArray(data?.memories) ? data.memories as AssistantMemoryItem[] : []);
   }, [demoMode]);
 
@@ -2554,7 +2557,7 @@ export default function AssistantPage() {
             onClick={() => setContextPanelOpen(false)}
           />
           <div className="relative h-full max-w-[420px] 2xl:max-w-none">
-            <AssistantMemoryPanel
+            {memoryEngineV2 ? <MemoryManager domain={activeDomain} project={activeProjectMemoryDomain} onClose={() => setContextPanelOpen(false)} /> : <AssistantMemoryPanel
               project={activeProject}
               topic={activeTopic}
               projectMemoryDomain={activeProjectMemoryDomain}
@@ -2568,7 +2571,7 @@ export default function AssistantPage() {
               onMemoryKeyChange={setMemoryKey}
               onMemoryValueChange={setMemoryValue}
               onSaveMemory={() => void saveMemory()}
-            />
+            />}
           </div>
         </div>
       )}
